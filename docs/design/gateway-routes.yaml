@@ -1,0 +1,643 @@
+# =====================================================
+# 量化牛牛（QuantBull）API网关路由配置
+# 格式: YAML
+# 说明: 本配置文件定义了API网关的路由规则、鉴权、限流等策略
+# =====================================================
+
+# 全局配置
+global:
+  # 默认超时时间（秒）
+  timeout: 30
+  
+  # 默认重试次数
+  retry_times: 2
+  
+  # 是否启用请求日志
+  enable_request_log: true
+  
+  # CORS配置
+  cors:
+    allow_origins: ["*"]  # 生产环境需配置具体域名
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["Authorization", "Content-Type", "X-Requested-With"]
+    max_age: 3600
+
+# 服务端点配置
+services:
+  data_service:
+    base_url: "http://data-service:8001"
+    health_check: "/health"
+    timeout: 10
+    
+  ai_service:
+    base_url: "http://ai-service:8002"
+    health_check: "/health"
+    timeout: 120  # AI生成耗时较长
+    
+  quant_engine:
+    base_url: "http://quant-engine:8003"
+    health_check: "/health"
+    timeout: 300  # 回测计算耗时较长
+    
+  content_service:
+    base_url: "http://content-service:8004"
+    health_check: "/health"
+    timeout: 30
+
+# 路由规则配置
+routes:
+  # =====================================================
+  # 健康检查路由（无需鉴权）
+  # =====================================================
+  - name: "gateway_health"
+    path: "/health"
+    methods: ["GET"]
+    target: null
+    auth_required: false
+    rate_limit:
+      enabled: false
+    
+  # =====================================================
+  # 认证相关路由
+  # =====================================================
+  - name: "auth_login"
+    path: "/api/v1/auth/login"
+    methods: ["POST"]
+    target: null  # 网关内部处理
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 10  # 每分钟10次
+      window: 60
+      key_by: "ip"  # 按IP限流
+    
+  - name: "auth_refresh"
+    path: "/api/v1/auth/refresh"
+    methods: ["POST"]
+    target: null
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 20
+      window: 60
+      key_by: "user"
+    
+  - name: "auth_logout"
+    path: "/api/v1/auth/logout"
+    methods: ["POST"]
+    target: null
+    auth_required: true
+    rate_limit:
+      enabled: false
+  
+  # =====================================================
+  # 数据服务路由
+  # =====================================================
+  
+  # 行情数据查询
+  - name: "market_quotes"
+    path: "/api/v1/data/market/quotes"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/market/quotes"
+    auth_required: false  # 行情数据可公开
+    rate_limit:
+      enabled: true
+      limit: 1000  # 每分钟1000次
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 60  # 缓存60秒
+  
+  # K线数据查询
+  - name: "market_kline"
+    path: "/api/v1/data/market/kline"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/market/kline"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 500
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 300  # 历史K线缓存5分钟
+  
+  # 实时行情（WebSocket或SSE）
+  - name: "market_realtime"
+    path: "/api/v1/data/market/realtime"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/market/realtime"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 100
+      window: 60
+      key_by: "ip"
+  
+  # 新闻列表
+  - name: "news_list"
+    path: "/api/v1/data/news"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/news/list"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 500
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 300
+  
+  # 新闻详情
+  - name: "news_detail"
+    path: "/api/v1/data/news/{id}"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/news/{id}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 200
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 3600  # 新闻详情缓存1小时
+  
+  # ETF列表
+  - name: "etf_list"
+    path: "/api/v1/data/etf"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/etf/list"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 200
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 1800  # ETF列表缓存30分钟
+  
+  # 公司信息
+  - name: "company_info"
+    path: "/api/v1/data/companies/{code}"
+    methods: ["GET"]
+    target_service: "data_service"
+    target_path: "/api/v1/companies/{code}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 300
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 3600
+  
+  # =====================================================
+  # AI服务路由
+  # =====================================================
+  
+  # 生成新闻
+  - name: "ai_generate_news"
+    path: "/api/v1/ai/generate/news"
+    methods: ["POST"]
+    target_service: "ai_service"
+    target_path: "/api/v1/generate/news"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 10  # 每分钟10次
+      window: 60
+      key_by: "user"
+      vip_limit: 50  # VIP用户每分钟50次
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 5
+      timeout: 60
+      half_open_requests: 2
+  
+  # 生成策略代码
+  - name: "ai_generate_strategy"
+    path: "/api/v1/ai/generate/strategy"
+    methods: ["POST"]
+    target_service: "ai_service"
+    target_path: "/api/v1/generate/strategy"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 5  # 每分钟5次
+      window: 60
+      key_by: "user"
+      vip_limit: 20
+    timeout: 180  # 策略生成需要较长时间
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 3
+      timeout: 120
+  
+  # 生成投资日刊
+  - name: "ai_generate_daily_report"
+    path: "/api/v1/ai/generate/daily-report"
+    methods: ["POST"]
+    target_service: "ai_service"
+    target_path: "/api/v1/generate/daily-report"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 1  # 每天1次（需要调整时间窗口）
+      window: 86400  # 24小时
+      key_by: "user"
+    timeout: 300
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 3
+      timeout: 180
+  
+  # 生成公司介绍
+  - name: "ai_generate_company_intro"
+    path: "/api/v1/ai/generate/company-intro"
+    methods: ["POST"]
+    target_service: "ai_service"
+    target_path: "/api/v1/generate/company-intro"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 20
+      window: 60
+      key_by: "user"
+      vip_limit: 100
+  
+  # 生成视频脚本
+  - name: "ai_generate_video_script"
+    path: "/api/v1/ai/generate/video-script"
+    methods: ["POST"]
+    target_service: "ai_service"
+    target_path: "/api/v1/generate/video-script"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 10
+      window: 60
+      key_by: "user"
+  
+  # 获取Prompt模板
+  - name: "ai_prompts"
+    path: "/api/v1/ai/prompts"
+    methods: ["GET"]
+    target_service: "ai_service"
+    target_path: "/api/v1/prompts"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 100
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 3600
+  
+  # =====================================================
+  # 量化引擎路由
+  # =====================================================
+  
+  # 运行回测
+  - name: "quant_backtest_run"
+    path: "/api/v1/quant/backtest"
+    methods: ["POST"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/backtest/run"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 5  # 每分钟5次
+      window: 60
+      key_by: "user"
+      vip_limit: 20
+    timeout: 600  # 回测可能耗时10分钟
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 3
+      timeout: 300
+  
+  # 查询回测结果
+  - name: "quant_backtest_result"
+    path: "/api/v1/quant/backtest/{id}"
+    methods: ["GET"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/backtest/{id}"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 50
+      window: 60
+      key_by: "user"
+    cache:
+      enabled: true
+      ttl: 3600
+  
+  # 获取策略列表
+  - name: "quant_strategies"
+    path: "/api/v1/quant/strategies"
+    methods: ["GET"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/strategies"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 100
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 1800
+  
+  # 获取策略详情
+  - name: "quant_strategy_detail"
+    path: "/api/v1/quant/strategies/{id}"
+    methods: ["GET"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/strategies/{id}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 100
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 1800
+  
+  # 计算因子
+  - name: "quant_calculate_factors"
+    path: "/api/v1/quant/factors/calculate"
+    methods: ["POST"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/factors/calculate"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 20
+      window: 60
+      key_by: "user"
+      vip_limit: 100
+    timeout: 120
+  
+  # 股票筛选
+  - name: "quant_select_stocks"
+    path: "/api/v1/quant/selectors/stocks"
+    methods: ["POST"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/selectors/stocks"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 10
+      window: 60
+      key_by: "user"
+      vip_limit: 50
+    timeout: 180
+  
+  # ETF筛选
+  - name: "quant_select_etf"
+    path: "/api/v1/quant/selectors/etf"
+    methods: ["POST"]
+    target_service: "quant_engine"
+    target_path: "/api/v1/selectors/etf"
+    auth_required: true
+    rate_limit:
+      enabled: true
+      limit: 10
+      window: 60
+      key_by: "user"
+      vip_limit: 50
+    timeout: 180
+  
+  # =====================================================
+  # 内容服务路由
+  # =====================================================
+  
+  # 文章列表
+  - name: "content_articles"
+    path: "/api/v1/content/articles"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/articles"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 500
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 300
+  
+  # 文章详情
+  - name: "content_article_detail"
+    path: "/api/v1/content/articles/{id}"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/articles/{id}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 200
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 3600
+  
+  # 创建文章（需要权限）
+  - name: "content_article_create"
+    path: "/api/v1/content/articles"
+    methods: ["POST"]
+    target_service: "content_service"
+    target_path: "/api/v1/articles"
+    auth_required: true
+    roles_required: ["admin", "editor"]  # 需要管理员或编辑权限
+    rate_limit:
+      enabled: true
+      limit: 20
+      window: 60
+      key_by: "user"
+  
+  # 投资日刊列表
+  - name: "content_daily_reports"
+    path: "/api/v1/content/daily-reports"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/daily-reports"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 100
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 300
+  
+  # 投资日刊详情
+  - name: "content_daily_report_detail"
+    path: "/api/v1/content/daily-reports/{id}"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/daily-reports/{id}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 100
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 3600
+  
+  # H5页面（公开访问）
+  - name: "content_h5_page"
+    path: "/h5/{type}/{id}"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/h5/{type}/{id}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 1000
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 1800
+  
+  # 视频列表
+  - name: "content_videos"
+    path: "/api/v1/content/videos"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/videos"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 200
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 600
+  
+  # 视频详情
+  - name: "content_video_detail"
+    path: "/api/v1/content/videos/{id}"
+    methods: ["GET"]
+    target_service: "content_service"
+    target_path: "/api/v1/videos/{id}"
+    auth_required: false
+    rate_limit:
+      enabled: true
+      limit: 200
+      window: 60
+      key_by: "ip"
+    cache:
+      enabled: true
+      ttl: 1800
+
+# =====================================================
+# 熔断器配置
+# =====================================================
+circuit_breaker:
+  default:
+    failure_threshold: 5      # 失败次数阈值
+    success_threshold: 2      # 恢复成功次数
+    timeout: 60              # 熔断持续时间（秒）
+    half_open_timeout: 30    # 半开状态持续时间
+  
+  # 服务级别配置
+  services:
+    data_service:
+      failure_threshold: 10
+      timeout: 30
+    ai_service:
+      failure_threshold: 5
+      timeout: 120
+    quant_engine:
+      failure_threshold: 3
+      timeout: 180
+    content_service:
+      failure_threshold: 10
+      timeout: 30
+
+# =====================================================
+# 限流配置详情
+# =====================================================
+rate_limit:
+  # 全局默认限流
+  default:
+    limit: 1000
+    window: 60
+    algorithm: "token_bucket"  # token_bucket, sliding_window
+  
+  # 用户级别限流
+  user_levels:
+    anonymous:
+      limit: 100
+      window: 60
+    registered:
+      limit: 500
+      window: 60
+    vip:
+      limit: 2000
+      window: 60
+    premium:
+      limit: 5000
+      window: 60
+  
+  # Redis配置（用于分布式限流）
+  redis:
+    host: "redis"
+    port: 6379
+    db: 0
+    key_prefix: "rate_limit:"
+
+# =====================================================
+# 日志配置
+# =====================================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "json"  # json, text
+  request_log:
+    enabled: true
+    log_body: false  # 是否记录请求体（敏感数据除外）
+    log_headers: ["Authorization", "User-Agent", "X-Forwarded-For"]
+  slow_request_threshold: 1000  # 慢请求阈值（毫秒）
+
+# =====================================================
+# 监控和指标
+# =====================================================
+metrics:
+  enabled: true
+  endpoint: "/metrics"  # Prometheus指标端点
+  collection_interval: 10  # 指标收集间隔（秒）
+  
+  # 关键指标
+  track:
+    - request_count
+    - request_duration
+    - error_rate
+    - active_connections
+    - circuit_breaker_state
+
+# =====================================================
+# 文档结束
+# =====================================================
+

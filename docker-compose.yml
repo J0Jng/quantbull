@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # Gateway
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - DATA_SERVICE_URL=http://data-service:8001
+      - AI_SERVICE_URL=http://ai-service:8002
+      - QUANT_ENGINE_URL=http://quant-engine:8003
+      - CONTENT_SERVICE_URL=http://content-service:8004
+    depends_on:
+      - data-service
+      - ai-service
+      - quant-engine
+      - content-service
+
+  # Data Service
+  data-service:
+    build: ./data-service
+    ports:
+      - "8001:8001"
+    environment:
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+
+  # AI Service
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8002:8002"
+    environment:
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+    depends_on:
+      - milvus
+
+  # Quant Engine
+  quant-engine:
+    build: ./quant-engine
+    ports:
+      - "8003:8003"
+    environment:
+      - DATA_SERVICE_URL=http://data-service:8001
+
+  # Content Service
+  content-service:
+    build: ./content-service
+    ports:
+      - "8004:8004"
+    environment:
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+    depends_on:
+      - postgres
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=quantbull
+      - POSTGRES_PASSWORD=quantbull
+      - POSTGRES_DB=quantbull
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Milvus
+  milvus:
+    image: milvusdb/milvus:v2.3.4
+    ports:
+      - "19530:19530"
+    volumes:
+      - milvus_data:/var/lib/milvus
+
+volumes:
+  postgres_data:
+  redis_data:
+  milvus_data:
+

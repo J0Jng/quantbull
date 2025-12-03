@@ -1,0 +1,167 @@
+# =====================================================
+# AI Service Docker Compose Configuration
+# 用于本地开发或独立部署
+# =====================================================
+
+version: '3.8'
+
+services:
+  # AI Service API
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-service
+    ports:
+      - "8002:8002"
+    environment:
+      - SERVICE_NAME=ai-service
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/3
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - QWEN_BASE_URL=${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - MILVUS_HOST=${MILVUS_HOST:-milvus}
+      - MILVUS_PORT=${MILVUS_PORT:-19530}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - milvus
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker for AI Tasks
+  celery-worker-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-worker-ai
+    command: celery -A app.scheduler.celery_app worker --loglevel=info --queue=ai --concurrency=2
+    environment:
+      - SERVICE_NAME=ai-service-celery
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/3
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - MILVUS_HOST=${MILVUS_HOST:-milvus}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+      - milvus
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-beat-ai
+    command: celery -A app.scheduler.celery_app beat --loglevel=info
+    environment:
+      - SERVICE_NAME=ai-service-beat
+      - DEBUG=false
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/3
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-service-postgres
+    environment:
+      - POSTGRES_USER=quantbull
+      - POSTGRES_PASSWORD=quantbull
+      - POSTGRES_DB=quantbull
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantbull"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: ai-service-redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # Milvus Vector Database
+  milvus:
+    image: milvusdb/milvus:v2.3.4
+    container_name: ai-service-milvus
+    ports:
+      - "19531:19530"
+    environment:
+      - ETCD_ENDPOINTS=etcd:2379
+      - MINIO_ADDRESS=minio:9000
+    volumes:
+      - milvus_data:/var/lib/milvus
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    # Note: Milvus requires etcd and minio for full functionality
+    # For production, use standalone mode or configure these dependencies
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  milvus_data:
+    driver: local
+
+networks:
+  quantbull-network:
+    driver: bridge
+

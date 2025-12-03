@@ -1,0 +1,166 @@
+# =====================================================
+# Data Service Docker Compose Configuration
+# 用于本地开发或独立部署
+# =====================================================
+
+version: '3.8'
+
+services:
+  # Data Service API
+  data-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: data-service
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVICE_NAME=data-service
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - TUSHARE_TOKEN=${TUSHARE_TOKEN:-}
+      - CLS_API_KEY=${CLS_API_KEY:-}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker for Market Data
+  celery-worker-market:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-worker-market
+    command: celery -A app.scheduler.celery_app worker --loglevel=info --queue=market --concurrency=2
+    environment:
+      - SERVICE_NAME=data-service-celery
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - TUSHARE_TOKEN=${TUSHARE_TOKEN:-}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # Celery Worker for News
+  celery-worker-news:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-worker-news
+    command: celery -A app.scheduler.celery_app worker --loglevel=info --queue=news --concurrency=2
+    environment:
+      - SERVICE_NAME=data-service-celery
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CLS_API_KEY=${CLS_API_KEY:-}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-beat
+    command: celery -A app.scheduler.celery_app beat --loglevel=info
+    environment:
+      - SERVICE_NAME=data-service-beat
+      - DEBUG=false
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: data-service-postgres
+    environment:
+      - POSTGRES_USER=quantbull
+      - POSTGRES_PASSWORD=quantbull
+      - POSTGRES_DB=quantbull
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantbull"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: data-service-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  quantbull-network:
+    driver: bridge
+

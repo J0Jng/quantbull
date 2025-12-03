@@ -1,0 +1,141 @@
+# =====================================================
+# Quant Engine Docker Compose Configuration
+# 用于本地开发或独立部署
+# =====================================================
+
+version: '3.8'
+
+services:
+  # Quant Engine API
+  quant-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quant-engine
+    ports:
+      - "8003:8003"
+    environment:
+      - SERVICE_NAME=quant-engine
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/4
+      - CELERY_RESULT_BACKEND=redis://redis:6379/4
+      - DATA_SERVICE_URL=http://data-service:8001
+      - INITIAL_CAPITAL=1000000.0
+      - COMMISSION_RATE=0.001
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker for Quant Tasks
+  celery-worker-quant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-worker-quant
+    command: celery -A app.scheduler.celery_app worker --loglevel=info --queue=quant --concurrency=2
+    environment:
+      - SERVICE_NAME=quant-engine-celery
+      - DEBUG=false
+      - POSTGRES_URL=postgresql://quantbull:quantbull@postgres:5432/quantbull
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/4
+      - CELERY_RESULT_BACKEND=redis://redis:6379/4
+      - DATA_SERVICE_URL=http://data-service:8001
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery-beat-quant
+    command: celery -A app.scheduler.celery_app beat --loglevel=info
+    environment:
+      - SERVICE_NAME=quant-engine-beat
+      - DEBUG=false
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/4
+      - CELERY_RESULT_BACKEND=redis://redis:6379/4
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: quant-engine-postgres
+    environment:
+      - POSTGRES_USER=quantbull
+      - POSTGRES_PASSWORD=quantbull
+      - POSTGRES_DB=quantbull
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantbull"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: quant-engine-redis
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - quantbull-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  quantbull-network:
+    driver: bridge
+
