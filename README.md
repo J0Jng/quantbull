@@ -7,7 +7,7 @@
 ## 📁 项目结构
 
 ```
-量化第一次尝试/
+quantbull/
 ├── gateway/              # API网关服务
 ├── data-service/         # 数据中台服务
 ├── ai-service/           # AI中台服务
