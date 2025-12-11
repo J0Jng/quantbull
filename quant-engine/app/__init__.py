@@ -1,4 +1,0 @@
-"""
-Quant Engine Service
-"""
-
