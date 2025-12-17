@@ -67,7 +67,7 @@ async def get_daily_quotes(
             ),
         )
         
-        session.execute(stmt)
+        session.execute(stmt) 
     
     try:
         session.commit()
@@ -140,7 +140,7 @@ async def get_fund_daily(
             ),
         )
         
-        session.execute(stmt)
+        session.execute(stmt) 
     
     try:
         session.commit()

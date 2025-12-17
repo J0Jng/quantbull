@@ -38,7 +38,7 @@ psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 
 
 ```powershell
 # 启动 PostgreSQL 容器
-docker run -d --name postgres-quantbull -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=quantbull -p 5432:5432 postgres:15
+docker run -d --name postgres-quantbull -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=quantbull -p 8000:8000 postgres:15
 
 # 或者使用 docker-compose（如果项目中有）
 docker-compose up -d postgres

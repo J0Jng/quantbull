@@ -12,10 +12,10 @@ from schemas.tushare import DailyQuoteItem
 logger = logging.getLogger(__name__)
 
 # 全局 Tushare API 实例
-_tushare_api: Optional[ts.pro_api] = None
+_tushare_api: Optional["DataApi"] = None #type: ignore
 
 
-def get_tushare_api() -> ts.pro_api:
+def get_tushare_api() -> "DataApi": #type: ignore
     """获取全局 Tushare API 实例"""
     global _tushare_api
     
