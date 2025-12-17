@@ -30,10 +30,10 @@ class StrategyService:
         
         # 构建系统提示词（基于 README.md 中的 Prompt）
         system_prompt = f"""你是量化研究员。
-请根据我的描述，生成适用于 {request.framework} 的策略代码，
-包含：买卖逻辑、风险控制、参数解释。
+        请根据我的描述，生成适用于 {request.framework} 的策略代码，
+        包含：买卖逻辑、风险控制、参数解释。
 
-要求：输出完整可运行策略代码。"""
+        要求：输出完整可运行策略代码。"""
         
         if request.include_risk_control:
             system_prompt += "\n\n特别注意：必须包含完善的风险控制机制（止损、仓位管理等）。"

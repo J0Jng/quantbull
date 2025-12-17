@@ -1,7 +1,7 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator,Generator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker,Session
 from sqlmodel import SQLModel, create_engine, Session
 
 from core.config import settings
@@ -28,7 +28,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-def get_session() -> Session:
+def get_session() -> Generator[Session, None, None]:
     """同步数据库会话依赖注入"""
     with SessionLocal() as session:
         yield session

@@ -7,13 +7,13 @@ from sqlmodel import SQLModel, Field, Column, Date
 
 class DailyQuote(SQLModel, table=True):
     """日线行情数据表"""
-    __tablename__ = "daily_quotes"
+    __tablename__ = "daily_quotes"  # type: ignore
     
     # 复合唯一约束：code + trade_date
     __table_args__ = (
         UniqueConstraint("code", "trade_date", name="uq_code_trade_date"),
-        Index("idx_code", "code"),
-        Index("idx_trade_date", "trade_date"),
+        Index("idx_code", "code"),  #为code字段创建名为idx_code的索引，加速按股票代码查询的速度
+        Index("idx_trade_date", "trade_date"),  #为trade_date字段创建名为idx_trade_date的索引，加速按交易日期查询的速度。
     )
     
     id: Optional[int] = Field(default=None, primary_key=True)

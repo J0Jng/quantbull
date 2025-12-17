@@ -7,7 +7,7 @@ from sqlmodel import SQLModel, Field, Column, DateTime
 
 class RealtimeQuote(SQLModel, table=True):
     """实时行情数据表"""
-    __tablename__ = "realtime_quotes"
+    __tablename__ = "realtime_quotes" # type: ignore
     
     # 复合唯一约束：code + update_time
     __table_args__ = (

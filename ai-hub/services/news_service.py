@@ -30,13 +30,13 @@ class NewsService:
         
         # 构建系统提示词（基于 README.md 中的 Prompt）
         system_prompt = f"""你是专业金融编辑。请根据以下快讯和最新行情数据，
-生成一篇约{request.target_length}字的财经新闻，包含：
-- 客观描述
-- 行业背景
-- 逻辑分析
-- 风险提示
+        生成一篇约{request.target_length}字的财经新闻，包含：
+        - 客观描述
+        - 行业背景
+        - 逻辑分析
+        - 风险提示
 
-要求：不能虚构信息，不要给推荐性意见。"""
+        要求：不能虚构信息，不要给推荐性意见。"""
         
         # 构建用户消息
         user_message = f"快讯：{request.news_flash}"

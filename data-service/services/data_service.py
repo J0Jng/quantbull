@@ -2,7 +2,7 @@ from schemas.data import CleanRequest, CleanResponse
 
 
 def clean_payload(payload: CleanRequest) -> CleanRequest:
-    # Pretend to strip unwanted fields and normalize casing
+    #数据清洗
     normalized_tags = [tag.lower().strip() for tag in payload.tags]
     return CleanRequest(
         source=payload.source.strip(),
