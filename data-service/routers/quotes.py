@@ -11,7 +11,7 @@ from models.realtime_quote import RealtimeQuote
 router = APIRouter()
 
 
-@router.post("/realtime", response_model=RealtimeQuoteResponse)
+@router.api_route("/realtime",methods=["POST", "OPTIONS"], response_model=RealtimeQuoteResponse)
 async def get_realtime_quotes(
     request: RealtimeQuoteRequest,
     session: Annotated[Session, Depends(get_session)],

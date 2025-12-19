@@ -2,13 +2,12 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     env: str = "local"
     log_level: str = "INFO"
     
     # 数据库配置
-    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/quantbull"
+    database_url: str = "postgresql+psycopg2://postgres:passworld@postgres-quantbull:5432/quant"
     
     # Tushare 配置
     tushare_token: str = "ced0595b8c1603011a2fd4bee5e8cca551ce661fdf779a7bda47e66c"
