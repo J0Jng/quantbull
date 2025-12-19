@@ -1,19 +1,18 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Index, UniqueConstraint
-from sqlmodel import SQLModel, Field, Column, DateTime
+from sqlalchemy import Index, UniqueConstraint, Column, DateTime
+from sqlmodel import SQLModel, Field
 
 
 class RealtimeQuote(SQLModel, table=True):
     """实时行情数据表"""
-    __tablename__ = "realtime_quotes" # type: ignore
+    __tablename__ = 'realtime_quotes' # type: ignore
     
     # 复合唯一约束：code + update_time
     __table_args__ = (
         UniqueConstraint("code", "update_time", name="uq_code_update_time"),
-        Index("idx_code", "code"),
-        Index("idx_update_time", "update_time"),
+        Index("idx_update_time", "update_time")
     )
     
     id: Optional[int] = Field(default=None, primary_key=True)

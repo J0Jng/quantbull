@@ -18,7 +18,7 @@ from models.daily_quote import DailyQuote
 router = APIRouter()
 
 
-@router.post("/daily", response_model=DailyQuoteResponse)
+@router.api_route("/daily",methods=["POST", "OPTIONS"], response_model=DailyQuoteResponse)
 async def get_daily_quotes(
     request: DailyQuoteRequest,
     session: Annotated[Session, Depends(get_session)],

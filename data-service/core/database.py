@@ -6,14 +6,13 @@ from sqlmodel import SQLModel, create_engine, Session
 
 from core.config import settings
 
-
 # 同步引擎（用于 SQLModel）
 sync_database_url = settings.database_url.replace("postgresql+psycopg2://", "postgresql://")
-engine = create_engine(sync_database_url, echo=False)
+engine = create_engine(sync_database_url, echo=True)
 
 # 异步引擎（用于异步操作）
 async_database_url = settings.database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
-async_engine = create_async_engine(async_database_url, echo=False)
+async_engine = create_async_engine(async_database_url, echo=True)
 
 # 同步会话工厂
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -43,16 +42,20 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 def init_db() -> None:
     """初始化数据库表（失败时仅记录警告，不阻止应用启动）"""
     import logging
+    from sqlalchemy import inspect
     
     logger = logging.getLogger(__name__)
     
     try:
         # 导入所有模型以确保表被注册
-        from models import RealtimeQuote, DailyQuote  # noqa: F401
-        
+        import models
         SQLModel.metadata.create_all(engine)
         logger.info("数据库表初始化成功")
     except Exception as e:
-        logger.warning(f"数据库初始化失败（应用将继续运行）: {e}")
-        logger.warning("请确保 PostgreSQL 服务已启动，或检查 DATABASE_URL 配置")
+        msg = str(e).lower()
+        if "already exists" in msg or "duplicate" in msg:
+            logger.info("数据库初始化：检测到已存在的对象（索引/表），已跳过重复创建")
+        else:
+            logger.warning(f"数据库初始化失败（应用将继续运行）: {e}")
+            logger.warning("请确保 PostgreSQL 服务已启动，或检查 DATABASE_URL 配置")
 
