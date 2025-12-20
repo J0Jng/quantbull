@@ -1,0 +1,154 @@
+version: '3.9'
+
+# Docker Compose for QuantBull backend microservices (production-ready defaults)
+# - 所有服务共享自定义网络 `quantbull-net`
+# - PostgreSQL, TDengine, Redis 提供持久化卷
+
+networks:
+  quantbull-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  tdengine-data:
+  redis-data:
+
+services:
+  # PostgreSQL：结构化数据持久化
+  postgres:
+    image: postgres:15-alpine
+    container_name: quantbull_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: quantbull
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: quantbull
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - quantbull-net
+
+  # Redis：缓存与简单队列
+  redis:
+    image: redis:7-alpine
+    container_name: quantbull_redis
+    restart: always
+    volumes:
+      - redis-data:/data
+    networks:
+      - quantbull-net
+
+  # TDengine：行情 / 时间序列数据库（容器化镜像由 taos 提供）
+  tdengine:
+    image: taosdata/tdengine:latest
+    container_name: quantbull_tdengine
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - tdengine-data:/var/lib/taos
+    networks:
+      - quantbull-net
+
+  # API Gateway：对外暴露的统一入口（将外网请求路由到各微服务）
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: quantbull_api_gateway
+    restart: always
+    ports:
+      - "8000:8000" # 仅暴露网关端口到宿主机
+    environment:
+      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      REDIS_URL: "redis://redis:6379/0"
+      TDENGINE_HOST: "tdengine"
+      TDENGINE_PORT: "6030"
+      SERVICE_PORT: "8000"
+    depends_on:
+      - postgres
+      - redis
+      - tdengine
+      - data-service
+      - ai-hub
+      - quant-engine
+      - daily-report
+    networks:
+      - quantbull-net
+
+  # Data Service：数据采集 / 清洗（内部服务，不直接映射到宿主）
+  data-service:
+    build:
+      context: ./data-service
+      dockerfile: Dockerfile
+    container_name: quantbull_data_service
+    restart: always
+    environment:
+      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      REDIS_URL: "redis://redis:6379/0"
+      TDENGINE_HOST: "tdengine"
+      TDENGINE_PORT: "6030"
+      SERVICE_PORT: "8001"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - quantbull-net
+
+  # AI Hub：LLM 网关 & 内容生成
+  ai-hub:
+    build:
+      context: ./ai-hub
+      dockerfile: Dockerfile
+    container_name: quantbull_ai_hub
+    restart: always
+    environment:
+      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      REDIS_URL: "redis://redis:6379/0"
+      TDENGINE_HOST: "tdengine"
+      TDENGINE_PORT: "6030"
+      SERVICE_PORT: "8002"
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quantbull-net
+
+  # Quant Engine：回测 / 策略执行（依赖 TDengine）
+  quant-engine:
+    build:
+      context: ./quant-engine
+      dockerfile: Dockerfile
+    container_name: quantbull_quant_engine
+    restart: always
+    environment:
+      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      REDIS_URL: "redis://redis:6379/0"
+      TDENGINE_HOST: "tdengine"
+      TDENGINE_PORT: "6030"
+      SERVICE_PORT: "8003"
+    depends_on:
+      - tdengine
+      - postgres
+    networks:
+      - quantbull-net
+
+  # Daily Report：每日 AI 投资方案生成
+  daily-report:
+    build:
+      context: ./daily-report
+      dockerfile: Dockerfile
+    container_name: quantbull_daily_report
+    restart: always
+    environment:
+      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      REDIS_URL: "redis://redis:6379/0"
+      TDENGINE_HOST: "tdengine"
+      TDENGINE_PORT: "6030"
+      SERVICE_PORT: "8004"
+    depends_on:
+      - ai-hub
+      - postgres
+      - redis
+    networks:
+      - quantbull-net
