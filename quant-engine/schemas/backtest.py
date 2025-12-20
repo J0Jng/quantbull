@@ -125,3 +125,9 @@ class BacktestResponse(BaseModel):
                 }
             }
         }
+
+
+class BacktestSubmitResponse(BaseModel):
+    """回测任务提交响应，返回 task_id，前端使用统一查询接口轮询状态"""
+    task_id: str
+

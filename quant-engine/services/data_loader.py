@@ -52,7 +52,7 @@ def _load_from_tushare(
     """
     try:
         # 尝试从 data-service 获取数据
-        data_service_url = getattr(settings, "data_service_url", "http://localhost:8001")
+        data_service_url = getattr(settings, "data_service_url")
         
         # 转换日期格式：YYYY-MM-DD -> YYYYMMDD
         start_date_ts = start_date.replace("-", "")
