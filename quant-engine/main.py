@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from core.logger import configure_logging
 from routers import api_router
+from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler
+from core.response import success
 
 
 def create_app() -> FastAPI:
@@ -27,27 +29,33 @@ def create_app() -> FastAPI:
     
     # 注册路由
     app.include_router(api_router, prefix="/api")
+
+    # 全局异常处理，保证所有异常响应都符合统一 envelope
+    app.add_exception_handler(Exception, generic_exception_handler)
+    from fastapi.exceptions import HTTPException as StarletteHTTPException, RequestValidationError
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
     
     # 注册根路径和健康检查
     @app.get("/")
     async def root() -> dict:
         """根路径"""
-        return {
+        return success({
             "service": "quant-engine",
             "version": "0.1.0",
             "status": "running",
             "docs": "/docs",
             "description": "量化引擎 - 回测、因子库、策略执行"
-        }
+        })
     
     @app.get("/health")
     async def health_check() -> dict:
         """健康检查"""
-        return {
+        return success({
             "status": "ok",
             "service": "quant-engine",
             "env": settings.env
-        }
+        })
     
     return app
 
