@@ -9,6 +9,7 @@ import httpx
 from schemas.backtest import BacktestSubmitResponse
 import os
 import httpx
+from core.response import success, ApiResponse
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -17,8 +18,8 @@ router = APIRouter()
 backtest_service = BacktestService()
 
 
-@router.post("/run", response_model=BacktestSubmitResponse, summary="提交回测任务（异步，返回 task_id）")
-async def run_backtest(request: BacktestRequest) -> BacktestSubmitResponse:
+@router.post("/run", summary="提交回测任务（异步，返回 task_id）")
+async def run_backtest(request: BacktestRequest):
     """将回测任务提交到平台级 `task-service`，立即返回 `task_id` 给前端。
 
     注意：此接口不在请求中执行回测计算，回测由 task-service 后台异步执行。
@@ -40,11 +41,11 @@ async def run_backtest(request: BacktestRequest) -> BacktestSubmitResponse:
             logger.error(f"提交任务到 task-service 失败: {e}")
             raise HTTPException(status_code=502, detail=f"task-service unavailable: {e}")
     data = resp.json()
-    return BacktestSubmitResponse(task_id=data.get("task_id"))
+    return success({"task_id": data.get("task_id")})
 
 
 @router.get("/{backtest_id}", response_model=BaseResponse[BacktestDetail], summary="获取回测结果")
-async def get_backtest(backtest_id: str) -> BaseResponse[BacktestDetail]:
+async def get_backtest(backtest_id: str):
     """
     获取指定回测的详细结果
     """
@@ -52,8 +53,7 @@ async def get_backtest(backtest_id: str) -> BaseResponse[BacktestDetail]:
         result = await backtest_service.get_backtest(backtest_id)
         if not result:
             raise HTTPException(status_code=404, detail="回测记录不存在")
-        # 使用统一响应信封包装数据
-        return BaseResponse[BacktestDetail](success=True, data=result)
+        return success(result)
     except HTTPException:
         raise
     except Exception as e:
@@ -62,14 +62,14 @@ async def get_backtest(backtest_id: str) -> BaseResponse[BacktestDetail]:
 
 
 @router.get("", response_model=PaginatedResponse[BacktestDetail], summary="列出回测记录")
-async def list_backtests(limit: int = 10, offset: int = 0) -> PaginatedResponse[BacktestDetail]:
+async def list_backtests(limit: int = 10, offset: int = 0):
     """
     列出所有回测记录
     """
     try:
         backtests = await backtest_service.list_backtests(limit=limit, offset=offset)
-        # 统一返回字段为 total 和 items，保持业务数据不变
-        return PaginatedResponse[BacktestDetail](total=len(backtests), items=backtests)
+        # 统一返回 envelope，data 中包含分页结构
+        return success({"total": len(backtests), "items": backtests})
     except Exception as e:
         logger.error(f"列出回测记录失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"列出回测记录失败: {str(e)}")
@@ -95,4 +95,4 @@ async def run_backtest_async(request: BacktestRequest):
         except httpx.HTTPError as e:
             raise HTTPException(status_code=502, detail=f"task-service unavailable: {e}")
     data = resp.json()
-    return {"task_id": data.get("task_id")}
+    return success({"task_id": data.get("task_id")})

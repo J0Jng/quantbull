@@ -1,0 +1,84 @@
+name: Merge OpenAPI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  merge-openapi:
+    runs-on: ubuntu-latest
+    services:
+      # Optionally use docker-compose in job steps to start services; here we assume services are built by compose
+      # You can remove services block and use compose up in steps if desired.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests openapi-spec-validator
+
+      - name: Start services (docker-compose)
+        env:
+          COMPOSE_DOCKER_CLI_BUILD: 1
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker-compose up -d --build api-gateway data-service ai-hub quant-engine daily-report task-service
+          # wait for services to respond (basic health loop)
+          for i in {1..30}; do
+            ok=0
+            for port in 8000 8001 8002 8003 8004 9000; do
+              if curl -sS --fail http://localhost:${port}/health >/dev/null 2>&1; then
+                ok=$((ok+1))
+              fi
+            done
+            if [ "$ok" -ge 4 ]; then
+              echo "services healthy"
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Create services file
+        run: |
+          cat > tools/services.json <<'JSON'
+          [
+            {"name": "api-gateway", "url": "http://localhost:8000/openapi.json"},
+            {"name": "data-service", "url": "http://localhost:8001/openapi.json"},
+            {"name": "ai-hub", "url": "http://localhost:8002/openapi.json"},
+            {"name": "quant-engine", "url": "http://localhost:8003/openapi.json"},
+            {"name": "daily-report", "url": "http://localhost:8004/openapi.json"},
+            {"name": "task-service", "url": "http://localhost:9000/openapi.json"}
+          ]
+          JSON
+
+      - name: Merge OpenAPI
+        run: |
+          python tools/merge_openapi.py --services tools/services.json --out unified-openapi.json --prefix-paths
+
+      - name: Validate OpenAPI
+        run: |
+          python - <<'PY'
+          from openapi_spec_validator import validate_spec
+          import json
+          spec = json.load(open('unified-openapi.json','r',encoding='utf-8'))
+          validate_spec(spec)
+          print('OpenAPI validated')
+          PY
+
+      - name: Upload artifact (unified-openapi.json)
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-openapi
+          path: unified-openapi.json
+
+      - name: Tear down services
+        run: |
+          docker-compose down --volumes

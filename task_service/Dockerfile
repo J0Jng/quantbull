@@ -2,12 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install minimal dependencies (uvicorn + fastapi). Use root requirements if available.
-COPY ../requirements.txt /tmp/requirements.txt
+# Install minimal dependencies (uvicorn + fastapi). Use package-local requirements.txt
+# (use the requirements inside the task_service context)
+COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt || pip install --no-cache-dir fastapi uvicorn[standard]
 
-# Copy task_service package
-COPY . /app
+# Copy package files into /app/task_service so that importing `task_service` works
+COPY . /app/task_service
 
 ENV PYTHONUNBUFFERED=1
 
