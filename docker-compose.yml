@@ -40,7 +40,10 @@ services:
 
   # TDengine：行情 / 时间序列数据库（容器化镜像由 taos 提供）
   tdengine:
-    image: taosdata/tdengine:latest
+    # 使用 TDengine 官方 Docker Hub 镜像（若网络/镜像代理允许）
+    # 说明：之前尝试 ghcr 镜像报 not found；若你的网络有镜像加速器导致访问被拦截，
+    # 请参考下面的“修复步骤”移除 registry-mirrors 或在 CI/私服中预拉镜像。
+    image: tdengine/tdengine:latest
     container_name: quantbull_tdengine
     restart: always
     environment:
@@ -130,6 +133,23 @@ services:
     depends_on:
       - tdengine
       - postgres
+    networks:
+      - quantbull-net
+
+  # Task Service：统一异步任务平台（MVP）
+  task-service:
+    build:
+      context: ./task_service
+      dockerfile: Dockerfile
+    container_name: quantbull_task_service
+    restart: always
+    ports:
+      - "9000:9000"
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+      SERVICE_PORT: "9000"
+    depends_on:
+      - redis
     networks:
       - quantbull-net
 
