@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     data_service_url: str = "http://data-service:8001"  # /data/* 转发到这里
     quant_engine_url: str = "http://quant-engine:8003"  # /quant/* 转发到这里
     daily_report_url: str = "http://daily-report:8004"  # /report/* 转发到这里
+    task_service_url: str = "http://task-service:9000"
     
     # 路由映射配置
     route_mapping: dict = {
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
     rate_limit_per_hour: int = 1000
     
     # 代理配置
-    proxy_timeout: float = 5.0  # 下游请求超时时间（秒）
+    proxy_timeout: float = 30.0  # 下游请求超时时间（秒）
     proxy_max_retries: int = 2  # 最大重试次数
     
     model_config = SettingsConfigDict(

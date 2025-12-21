@@ -7,6 +7,8 @@ from core.logger import configure_logging, get_logger
 from routers import api_router
 from scheduler import create_scheduler, start_scheduler, shutdown_scheduler
 from db.session import init_db
+from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler, envelope_middleware
+from core.response import success
 
 # 配置日志
 configure_logging(settings)
@@ -78,6 +80,13 @@ def create_app() -> FastAPI:
     
     # 注册路由
     app.include_router(api_router, prefix="/api")
+
+    # 全局异常处理与响应封装中间件
+    from fastapi.exceptions import HTTPException as StarletteHTTPException, RequestValidationError
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
+    app.middleware("http")(envelope_middleware)
     
     return app
 
@@ -88,22 +97,22 @@ app = create_app()
 @app.get("/health", tags=["健康检查"])
 async def health_check() -> dict:
     """健康检查接口"""
-    return {
+    return success({
         "status": "ok",
         "service": "daily-report",
         "version": "1.0.0",
         "env": settings.env,
-    }
+    })
 
 
 @app.get("/", tags=["根路径"])
 async def root() -> dict:
     """根路径"""
-    return {
+    return success({
         "message": "Daily Report Service API",
         "docs": "/docs",
         "health": "/health",
-    }
+    })
 
 
 if __name__ == "__main__":

@@ -7,12 +7,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     
     # 数据库配置
-    database_url: str = "postgresql+psycopg2://postgres:passworld@postgres-quantbull:5432/quant"
-    
+    database_url: str = "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
+    sync_database_url: str = "postgresql+psycopg2://quantbull:change_me@postgres:5432/quantbull_db"
     # Tushare 配置
     tushare_token: str = "ced0595b8c1603011a2fd4bee5e8cca551ce661fdf779a7bda47e66c"
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
+    #model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
 
 @lru_cache

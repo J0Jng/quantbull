@@ -1,5 +1,3 @@
-version: '3.9'
-
 # Docker Compose for QuantBull backend microservices (production-ready defaults)
 # - 所有服务共享自定义网络 `quantbull-net`
 # - PostgreSQL, TDengine, Redis 提供持久化卷
@@ -22,7 +20,7 @@ services:
     environment:
       POSTGRES_USER: quantbull
       POSTGRES_PASSWORD: change_me
-      POSTGRES_DB: quantbull
+      POSTGRES_DB: quantbull_db
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -40,7 +38,10 @@ services:
 
   # TDengine：行情 / 时间序列数据库（容器化镜像由 taos 提供）
   tdengine:
-    image: taosdata/tdengine:latest
+    # 使用 TDengine 官方 Docker Hub 镜像（若网络/镜像代理允许）
+    # 说明：之前尝试 ghcr 镜像报 not found；若你的网络有镜像加速器导致访问被拦截，
+    # 请参考下面的“修复步骤”移除 registry-mirrors 或在 CI/私服中预拉镜像。
+    image: tdengine/tdengine:latest
     container_name: quantbull_tdengine
     restart: always
     environment:
@@ -60,11 +61,16 @@ services:
     ports:
       - "8000:8000" # 仅暴露网关端口到宿主机
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8000"
+      DATA_SERVICE_URL: "http://data-service:8001"
+      QUANT_ENGINE_URL: "http://quant-engine:8003"
+      TASK_SERVICE_URL: "http://task-service:9000"
+      DAILY_REPORT_URL: "http://daily-report:8004"
+      AI_HUB_URL: "http://ai-hub:8002"
     depends_on:
       - postgres
       - redis
@@ -84,11 +90,17 @@ services:
     container_name: quantbull_data_service
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      SYNC_DATABASE_URL: "postgresql+psycopg2://quantbull:change_me@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8001"
+      QUANT_ENGINE_URL: "http://quant-engine:8003"
+      AI_HUB_URL: "http://ai-hub:8002"
+      TASK_SERVICE_URL: "http://task-service:9000"
+      DAILY_REPORT_URL: "http://daily-report:8004"
+      API_GATEWAY_URL: "http://api-gateway:8000"
     depends_on:
       - postgres
       - redis
@@ -103,11 +115,16 @@ services:
     container_name: quantbull_ai_hub
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8002"
+      DATA_SERVICE_URL: "http://data-service:8001"
+      QUANT_ENGINE_URL: "http://quant-engine:8003"
+      TASK_SERVICE_URL: "http://task-service:9000"
+      DAILY_REPORT_URL: "http://daily-report:8004"
+      API_GATEWAY_URL: "http://api-gateway:8000"
     depends_on:
       - redis
       - postgres
@@ -122,14 +139,41 @@ services:
     container_name: quantbull_quant_engine
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8003"
+      DATA_SERVICE_URL: "http://data-service:8001"
+      TASK_SERVICE_URL: "http://task-service:9000"
+      DAILY_REPORT_URL: "http://daily-report:8004"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      AI_HUB_URL: "http://ai-hub:8002"
     depends_on:
       - tdengine
       - postgres
+    networks:
+      - quantbull-net
+
+  # Task Service：统一异步任务平台（MVP）
+  task-service:
+    build:
+      context: ./task_service
+      dockerfile: Dockerfile
+    container_name: quantbull_task_service
+    restart: always
+    ports:
+      - "9000:9000"
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+      SERVICE_PORT: "9000"
+      DATA_SERVICE_URL: "http://data-service:8001"
+      QUANT_ENGINE_URL: "http://quant-engine:8003"
+      DAILY_REPORT_URL: "http://daily-report:8004"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      AI_HUB_URL: "http://ai-hub:8002"
+    depends_on:
+      - redis
     networks:
       - quantbull-net
 
@@ -141,11 +185,16 @@ services:
     container_name: quantbull_daily_report
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8004"
+      DATA_SERVICE_URL: "http://data-service:8001"
+      QUANT_ENGINE_URL: "http://quant-engine:8003"
+      TASK_SERVICE_URL: "http://task-service:9000"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      AI_HUB_URL: "http://ai-hub:8002"
     depends_on:
       - ai-hub
       - postgres
