@@ -1,5 +1,6 @@
 import asyncio
 from typing import Optional, Tuple
+import re
 
 import httpx
 from fastapi import APIRouter, Request, HTTPException, status
@@ -17,24 +18,37 @@ class ProxyService:
     
     # 路由前缀到服务地址的映射
     ROUTE_MAPPING = {
-        "/news": settings.ai_hub_url,
-        "/data": settings.data_service_url,
-        "/quant": settings.quant_engine_url,
-        "/report": settings.daily_report_url,
+        "news": settings.ai_hub_url,          # /api/news/* -> ai-hub
+        "data": settings.data_service_url,    # /api/data/* -> data-service
+        "quant": settings.quant_engine_url,   # /api/quant/* -> quant-engine
+        "report": settings.daily_report_url,  # /api/report/* -> daily-report
     }
+    
+    @classmethod
+    def should_proxy(cls, path: str) -> bool:
+        """判断是否需要代理"""
+        # 空路径不代理
+        if not path or path == "/":
+            return False
+        
+        # 检查是否匹配路由前缀
+        for prefix in cls.ROUTE_MAPPING.keys():
+            if path == prefix or path.startswith(prefix + "/"):
+                return True
+        
+        return False
     
     @classmethod
     def get_target_url(cls, path: str) -> Tuple[str, str]:
         """根据路径获取目标服务地址和剩余路径"""
-        # 移除开头的斜杠
-        path = path.lstrip("/")
+        if not cls.should_proxy(path):
+            raise ValueError(f"路径 /{path} 不由代理服务处理")
         
         # 查找匹配的路由前缀
         for prefix, base_url in cls.ROUTE_MAPPING.items():
-            prefix_clean = prefix.lstrip("/")
-            if path.startswith(prefix_clean):
+            if path.startswith(prefix):
                 # 移除前缀，获取剩余路径
-                remaining_path = path[len(prefix_clean):].lstrip("/")
+                remaining_path = path[len(prefix):].lstrip("/")
                 target_url = f"{base_url}/{remaining_path}" if remaining_path else base_url
                 return target_url, remaining_path
         
@@ -45,7 +59,7 @@ class ProxyService:
         cls,
         request: Request,
         path: str,
-        max_retries: int = None
+        max_retries: int
     ) -> Response:
         """代理请求到下游服务（带重试机制）"""
         max_retries = max_retries or settings.proxy_max_retries
@@ -138,10 +152,14 @@ class ProxyService:
 
 
 @router.api_route(
-    "/{path:path}",
+    "/{service_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     include_in_schema=False
 )
-async def proxy_handler(request: Request, path: str) -> Response:
-    """统一代理处理器"""
-    return await ProxyService.proxy_request(request, path)
+async def proxy_handler(request: Request, service_path: str):
+    """代理处理器 - 只处理微服务转发"""
+    # 记录调试信息
+    logger.debug(f"代理请求: path={service_path}, method={request.method}")
+    
+    # 转发到对应服务
+    return await ProxyService.proxy_request(request, service_path, max_retries=3)

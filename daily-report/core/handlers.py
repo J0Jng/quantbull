@@ -16,6 +16,11 @@ async def http_exception_handler(request: Request, exc: Exception):
     payload = ApiResponse(code=status, message=str(detail), data=None).model_dump()
     return JSONResponse(status_code=status, content=payload)
 
+async def generic_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Internal server error"}
+    )
 
 async def validation_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, RequestValidationError):
