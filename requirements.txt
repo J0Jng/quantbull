@@ -3,3 +3,5 @@ uvicorn[standard]>=0.22
 sqlmodel>=0.0.8
 psycopg2-binary>=2.9
 SQLAlchemy>=1.4
+psycopg2-binary>=2.9.9  # 同步 PostgreSQL 驱动
+asyncpg>=0.29.0         # 异步 PostgreSQL 驱动

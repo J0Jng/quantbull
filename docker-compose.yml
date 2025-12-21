@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_USER: quantbull
       POSTGRES_PASSWORD: change_me
-      POSTGRES_DB: quantbull
+      POSTGRES_DB: quantbull_db
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -61,7 +61,7 @@ services:
     ports:
       - "8000:8000" # 仅暴露网关端口到宿主机
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -90,7 +90,8 @@ services:
     container_name: quantbull_data_service
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      SYNC_DATABASE_URL: "postgresql+psycopg2://quantbull:change_me@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -114,7 +115,7 @@ services:
     container_name: quantbull_ai_hub
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -138,7 +139,7 @@ services:
     container_name: quantbull_quant_engine
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -184,7 +185,7 @@ services:
     container_name: quantbull_daily_report
     restart: always
     environment:
-      DATABASE_URL: "postgres://quantbull:change_me@postgres:5432/quantbull"
+      DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
