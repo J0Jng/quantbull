@@ -7,11 +7,11 @@ from sqlmodel import SQLModel, create_engine, Session
 from core.config import settings
 
 # 同步引擎（用于 SQLModel）
-sync_database_url = settings.database_url.replace("postgresql+psycopg2://", "postgresql://")
+sync_database_url = settings.sync_database_url
 engine = create_engine(sync_database_url, echo=True)
 
 # 异步引擎（用于异步操作）
-async_database_url = settings.database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+async_database_url = settings.database_url
 async_engine = create_async_engine(async_database_url, echo=True)
 
 # 同步会话工厂
@@ -39,17 +39,25 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-def init_db() -> None:
-    """初始化数据库表（失败时仅记录警告，不阻止应用启动）"""
+async def init_db() -> None:
+    """初始化数据库表（修复异步环境下的同步操作问题）"""
     import logging
     from sqlalchemy import inspect
+    import asyncio  # 新增导入
     
     logger = logging.getLogger(__name__)
     
     try:
         # 导入所有模型以确保表被注册
         import models
-        SQLModel.metadata.create_all(engine)
+        
+        # 关键修复：在异步环境中通过线程池执行同步操作
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,  # 使用默认线程池
+            lambda: SQLModel.metadata.create_all(engine)  # 同步操作封装为lambda
+        )
+        
         logger.info("数据库表初始化成功")
     except Exception as e:
         msg = str(e).lower()

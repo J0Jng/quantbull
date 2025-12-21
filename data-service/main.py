@@ -30,8 +30,8 @@ def create_app() -> FastAPI:
     
     # 初始化数据库表和 Tushare
     @app.on_event("startup")
-    def on_startup():
-        init_db()
+    async def on_startup():
+        await init_db()
         
         # 初始化 Tushare API（如果配置了 token）
         if settings.tushare_token:
