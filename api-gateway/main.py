@@ -10,6 +10,7 @@ import os
 import json
 from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler, envelope_middleware
 from core.response import success
+from core.openapi_aggregator import OpenAPIAggregator
 
 
 def create_app() -> FastAPI:
@@ -40,6 +41,18 @@ def create_app() -> FastAPI:
         ]
     )
     
+    # 加载服务配置并创建 OpenAPI 聚合器
+    services_config_path = os.path.join(os.path.dirname(__file__), "services.json")
+    services_config = []
+    if os.path.exists(services_config_path):
+        try:
+            with open(services_config_path, "r", encoding="utf-8") as f:
+                services_config = json.load(f)
+        except Exception as e:
+            app.logger.warning(f"Failed to load services config: {e}")
+    
+    aggregator = OpenAPIAggregator(services_config)
+    
     # 添加中间件（注意顺序：后添加的先执行）
     # 1. CORS 中间件（最外层）
     app.add_middleware(
@@ -66,21 +79,19 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, generic_exception_handler)
     app.middleware("http")(envelope_middleware)
     
-    # 如果存在合并后的 openapi 文件（由 CI 生成），在启动时加载并覆盖 app.openapi
-    # 便于在生产/测试环境直接使用统一文档
-    unified_path = os.getenv("UNIFIED_OPENAPI_PATH", "./unified-openapi.json")
-    if os.path.exists(unified_path):
-        try:
-            with open(unified_path, "r", encoding="utf-8") as f:
-                merged = json.load(f)
-
-            def _openapi_override():
-                return merged
-
-            app.openapi = _openapi_override
-        except Exception:
-            # 保持原有行为，如果加载失败则使用自动生成的 openapi
-            pass
+    # 应用启动事件：执行 OpenAPI 聚合
+    @app.on_event("startup")
+    async def startup_event():
+        await aggregator.aggregate()
+    
+    # 自定义 OpenAPI 生成器
+    def custom_openapi():
+        if aggregator.get_aggregated_openapi():
+            return aggregator.get_aggregated_openapi()
+        # 降级到默认行为
+        return app.openapi_schema
+    
+    app.openapi = custom_openapi
     
     return app
 
