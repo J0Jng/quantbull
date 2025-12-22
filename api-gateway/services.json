@@ -1,0 +1,26 @@
+[
+  {
+    "name": "data-service",
+    "url": "http://data-service:8001/openapi.json",
+    "path_prefix": "/api/data",
+    "enabled": true
+  },
+  {
+    "name": "quant-engine",
+    "url": "http://quant-engine:8003/openapi.json",
+    "path_prefix": "/api/quant",
+    "enabled": true
+  },
+  {
+    "name": "ai-hub",
+    "url": "http://ai-hub:8002/openapi.json",
+    "path_prefix": "/api/ai",
+    "enabled": true
+  },
+  {
+    "name": "daily-report",
+    "url": "http://daily-report:8004/openapi.json",
+    "path_prefix": "/api/report",
+    "enabled": true
+  }
+]

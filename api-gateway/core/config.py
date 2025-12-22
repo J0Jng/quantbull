@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        extra="ignore"  # 忽略未定义的环境变量，避免 Pydantic 验证错误
     )
     
     def get_service_url(self, route_prefix: str) -> str:
