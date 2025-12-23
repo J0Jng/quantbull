@@ -23,9 +23,9 @@
       <div class="container">
         <ul class="nav-list">
           <li><a href="#" class="active">财经头条</a></li>
-          <li><a href="#">财经频道</a></li>
+          <li><router-link to="/finance-channel">财经频道</router-link></li>
           <li><a href="#">每日内参</a></li>
-          <li><a href="#">公司研报</a></li>
+          <li><router-link to="/company-research">公司研报</router-link></li>
             <li><router-link to="/shop">商城</router-link></li>
           <li><a href="#">基金排行榜</a></li>
           <li><a href="#">量化策略</a></li>
@@ -174,7 +174,7 @@
 
         <!-- 商城板块 -->
         <h2 class="section-title">商城</h2>
-          <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看销量 &gt;</router-link>
+          <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
         <section class="mall-section">
           <div class="mall-cards">
             <div class="mall-card">
