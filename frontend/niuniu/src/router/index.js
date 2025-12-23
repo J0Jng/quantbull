@@ -8,6 +8,7 @@ import UserProfile from '@/views/UserProfile.vue'
 import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
 import DailyInsightPage from '@/views/DailyInsightPage.vue'
 import FundRankingPage from '@/views/FundRankingPage.vue'
+import StockDataPage from '@/views/StockDataPage.vue'
 
 const routes = [
   {
@@ -54,6 +55,11 @@ const routes = [
     path: '/fund-ranking',
     name: 'FundRanking',
     component: FundRankingPage
+  },
+  {
+    path: '/stock-data',
+    name: 'StockData',
+    component: StockDataPage
   }
 ]
 

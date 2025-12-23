@@ -22,13 +22,14 @@
     <nav class="main-nav">
       <div class="container">
         <ul class="nav-list">
-          <li><a href="#" class="active">财经头条</a></li>
+          <li><a href="#" class="active">首页</a></li>
           <li><router-link to="/finance-channel">财经频道</router-link></li>
           <li><router-link to="/daily-insight">每日内参</router-link></li>
           <li><router-link to="/company-research">公司研报</router-link></li>
             <li><router-link to="/shop">商城</router-link></li>
           <li><router-link to="/fund-ranking">基金排行榜</router-link></li>
-          <li><a href="#">量化策略</a></li>
+          <li><router-link to="/stock-data">股票数据中心</router-link></li>
+          <li><a href="#" @click.prevent="scrollToSection('strategy-platform')">量化策略</a></li>
           <li><a href="#" style="color:#ff7f00">更多&gt;</a></li>
         </ul>
       </div>
@@ -149,7 +150,7 @@
 
         <!-- 策略技术平台板块 -->
         <h2 class="section-title">策略技术平台</h2>
-        <section class="strategy-platform">
+        <section id="strategy-platform" class="strategy-platform">
           <div class="platform-cards">
             <div class="platform-card orange">
               <h3>量化分析工具</h3>
@@ -159,9 +160,11 @@
               </router-link>
             </div>
             <div class="platform-card blue">
-              <h3>智能选股系统</h3>
-              <p>基于产业链逻辑选股，挖掘潜力个股和板块</p>
-              <button class="try-btn" style="color:#1e90ff;font-size:14px;border-radius: 100px;">立即体验</button>
+              <h3>股票数据中心</h3>
+              <p>显示股票的相关数据</p>
+              <router-link to="/stock-data">
+                <button class="try-btn" style="color:#1e90ff;font-size:14px;border-radius: 100px;">立即体验</button>
+              </router-link>
             </div>
             <div class="platform-card green">
               <h3>风险管理系统</h3>
@@ -475,6 +478,32 @@ const getApiStatusText = () => {
   return statusText[apiStatus.value] || '未知状态'
 }
 
+// 滚动到指定区域并添加高亮效果
+const scrollToSection = (elementId) => {
+  const element = document.getElementById(elementId);
+  if (element) {
+    // 移除之前可能存在的高亮效果
+    const previousHighlighted = document.querySelector('.strategy-platform.highlighted');
+    if (previousHighlighted) {
+      previousHighlighted.classList.remove('highlighted');
+    }
+    
+    // 添加高亮效果
+    element.classList.add('highlighted');
+    
+    // 滚动到元素位置，使其位于屏幕中央
+    element.scrollIntoView({ 
+      behavior: 'smooth',
+      block: 'center'  // 改为'center'使元素位于屏幕中央
+    });
+    
+    // 3秒后移除高亮效果
+    setTimeout(() => {
+      element.classList.remove('highlighted');
+    }, 3000);
+  }
+}
+
 // 模拟API调用 - 实际项目中应该替换为真实API调用
 const generateNews = async () => {
   if (!newsInput.value.trim()) {
@@ -648,3 +677,32 @@ const funds = [
   { rank: '03', name: '华夏能源革新股票A', type: '股票型基金', nav: '2.3179', trend: '+0.7%', trendColor: 'green', periods: ['11.76%', '115.85%', '15.43%', '17.62%', '24.40%', '137.09%', '173.36%'] }
 ]
 </script>
+
+<style scoped>
+.strategy-platform.highlighted {
+  animation: highlight 2s ease;
+  position: relative;
+  transition: transform 0.1s;
+}
+
+@keyframes highlight {
+  0% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+  30% {
+    background-color: rgba(255, 127, 0, 0.6);
+    box-shadow: 0 0 15px rgba(255, 127, 0, 0.8);
+    transform: scale(1.05);
+  }
+  60% {
+    background-color: rgba(255, 127, 0, 0.6);
+    box-shadow: 0 0 15px rgba(255, 127, 0, 0.8);
+    transform: scale(1.05);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+</style>
