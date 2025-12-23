@@ -7,6 +7,7 @@ import CompanyResearchPage from '@/views/CompanyResearchPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
 import DailyInsightPage from '@/views/DailyInsightPage.vue'
+import FundRankingPage from '@/views/FundRankingPage.vue'
 
 const routes = [
   {
@@ -48,6 +49,11 @@ const routes = [
     path: '/daily-insight',
     name: 'DailyInsight',
     component: DailyInsightPage
+  },
+  {
+    path: '/fund-ranking',
+    name: 'FundRanking',
+    component: FundRankingPage
   }
 ]
 
