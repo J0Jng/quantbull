@@ -1,5 +1,38 @@
 <template>
   <div class="fund-ranking-page">
+    <!-- 登录弹窗 -->
+    <div class="login-modal" v-show="showLogin">
+      <div class="login-box">
+        <span class="close-login" @click="closeLogin">&times;</span>
+        <div class="login-title">量化牛牛基金 - 登录</div>
+        <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
+        <form class="login-form" @submit.prevent>
+          <input v-model="username" type="text" placeholder="请输入账号" />
+          <input v-model="password" type="password" placeholder="请输入密码" />
+          <button type="button" class="login-btn" @click="submitLogin">登录</button>
+        </form>
+        <div class="login-tips">演示账号：123 | 演示密码：123</div>
+      </div>
+    </div>
+
+    <!-- 动态风险提示弹窗 -->
+    <div class="risk-modal" v-show="showRiskTip">
+      <div class="risk-box">
+        <div class="risk-icon">⚠️</div>
+        <div class="risk-title">风险提示</div>
+        <div class="risk-content">
+          <p>尊敬的用户，您正在登录量化牛牛基金平台。投资有风险，入市需谨慎。请注意：</p>
+          <ul>
+            <li>基金投资可能面临市场风险、流动性风险等</li>
+            <li>过去业绩不代表未来表现</li>
+            <li>请根据自身风险承受能力合理配置资产</li>
+            <li>建议您详细了解产品风险收益特征</li>
+          </ul>
+        </div>
+        <button class="risk-confirm-btn" @click="confirmRiskTip">我已阅读并了解风险</button>
+      </div>
+    </div>
+
     <!-- 顶部栏 -->
     <header class="top-bar">
       <div class="container">
@@ -12,8 +45,13 @@
           <button class="search-btn">搜索</button>
         </div>
         <div class="top-right">
-          <a href="#" class="login-btn">登录</a>
-          <a href="#" class="register-btn">注册</a>
+          <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
+            <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
+            <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+              <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
+              <div class="dropdown-item logout" @click="logout">退出登录</div>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -131,7 +169,7 @@
               </div>
               <div class="action-col">
                 <button class="fav-btn small" @click.stop="toggleFavorite(fund)">收藏</button>
-                <button class="buy-btn small">购买</button>
+                <button class="buy-btn small" @click.stop="buyPublicFund(fund)">购买</button>
               </div>
             </div>
           </div>
@@ -200,20 +238,20 @@
               <div class="name-col">{{ fund.name }}</div>
               <div class="strategy-col">{{ fund.strategy }}</div>
               <div class="established-col">{{ fund.established }}</div>
-              <div :class="['return-col', fund.return1m >= 0 ? 'green' : 'red']">
-                {{ fund.return1m >= 0 ? '+' : '' }}{{ fund.return1m }}%
+              <div class="return-col">
+                {{ isQualifiedInvestor ? (fund.return1m >= 0 ? '+' : '') + fund.return1m + '%' : '认证后可见' }}
               </div>
-              <div :class="['return-col', fund.return3m >= 0 ? 'green' : 'red']">
-                {{ fund.return3m >= 0 ? '+' : '' }}{{ fund.return3m }}%
+              <div class="return-col">
+                {{ isQualifiedInvestor ? (fund.return3m >= 0 ? '+' : '') + fund.return3m + '%' : '认证后可见' }}
               </div>
-              <div :class="['return-col', fund.return1y >= 0 ? 'green' : 'red']">
-                {{ fund.return1y >= 0 ? '+' : '' }}{{ fund.return1y }}%
+              <div class="return-col">
+                {{ isQualifiedInvestor ? (fund.return1y >= 0 ? '+' : '') + fund.return1y + '%' : '认证后可见' }}
               </div>
-              <div :class="['return-col', fund.annualizedReturn >= 0 ? 'green' : 'red']">
-                {{ fund.annualizedReturn >= 0 ? '+' : '' }}{{ fund.annualizedReturn }}%
+              <div class="return-col">
+                {{ isQualifiedInvestor ? (fund.annualizedReturn >= 0 ? '+' : '') + fund.annualizedReturn + '%' : '认证后可见' }}
               </div>
-              <div class="risk-col red">{{ fund.maxDrawdown }}%</div>
-              <div class="risk-col">{{ fund.sharpeRatio }}</div>
+              <div class="risk-col">{{ isQualifiedInvestor ? fund.maxDrawdown + '%' : '认证后可见' }}</div>
+              <div class="risk-col">{{ isQualifiedInvestor ? fund.sharpeRatio : '认证后可见' }}</div>
               <div class="action-col">
                 <button class="consult-btn small" @click.stop="showConsultModal(fund)">咨询</button>
                 <button class="buy-btn small" @click.stop="checkQualification(fund)">购买</button>
@@ -288,7 +326,112 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+
+// 登录相关状态
+const username = ref('')
+const password = ref('')
+const showLogin = ref(false)
+const errorVisible = ref(false)
+const logged = ref(false)
+const userText = ref('登录/注册')
+const showUserMenu = ref(false)
+const showRiskTip = ref(false)
+const isQualifiedInvestor = ref(false)
+
+const router = useRouter()
+
+function submitLogin() {
+  if (username.value.trim() === '123' && password.value.trim() === '123') {
+    // 登录成功，显示动态风险提示
+    showRiskTip.value = true
+    showLogin.value = false
+    errorVisible.value = false
+    // 清空输入框
+    username.value = ''
+    password.value = ''
+  } else {
+    errorVisible.value = true
+    setTimeout(() => (errorVisible.value = false), 3000)
+  }
+}
+
+function closeLogin() { showLogin.value = false }
+
+let menuTimeout = null
+let hideTimeout = null
+
+function onMenuEnter() {
+  if (!logged.value) return
+  clearTimeout(hideTimeout)
+  menuTimeout = setTimeout(() => {
+    showUserMenu.value = true
+  }, 300) // 300ms延迟显示
+}
+
+function onMenuLeave() {
+  clearTimeout(menuTimeout)
+  hideTimeout = setTimeout(() => {
+    if (showUserMenu.value) {
+      showUserMenu.value = false
+    }
+  }, 200) // 200ms延迟隐藏
+}
+
+function onDropdownEnter() {
+  clearTimeout(hideTimeout)
+}
+
+function onDropdownLeave() {
+  hideTimeout = setTimeout(() => {
+    showUserMenu.value = false
+  }, 200) // 200ms延迟隐藏
+}
+
+function toggleUserMenu() { 
+  if (!logged.value) {
+    showLogin.value = true 
+    showUserMenu.value = false
+  } else {
+    clearTimeout(menuTimeout)
+    clearTimeout(hideTimeout)
+    showUserMenu.value = !showUserMenu.value
+  }
+}
+
+function logout() {
+  logged.value = false
+  userText.value = '登录/注册'
+  showUserMenu.value = false
+  localStorage.removeItem('quantLogin')
+  localStorage.removeItem('qualifiedInvestor')
+}
+
+function confirmRiskTip() {
+  showRiskTip.value = false
+  logged.value = true
+  userText.value = '已登录（123）'
+  localStorage.setItem('quantLogin', '123')
+  showUserMenu.value = false
+  // 强制检查认证状态
+  isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+}
+
+function goToUserProfile() {
+  showUserMenu.value = false
+  router.push('/profile')
+}
+
+onMounted(() => {
+  const status = localStorage.getItem('quantLogin')
+  if (status === '123') {
+    logged.value = true
+    userText.value = '已登录（123）'
+    // 强制检查认证状态
+    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+  }
+})
 
 // 公募基金数据
 const publicFunds = ref([
@@ -358,10 +501,32 @@ const showConsultModal = (fund) => {
   alert(`已向 ${fund.name} 发送咨询请求`);
 };
 
-// 检查资格
+// 检查购买资格
 const checkQualification = (fund) => {
-  showQualificationModal.value = true;
-  selectedFund.value = fund;
+  if (!logged.value) {
+    showLogin.value = true
+    return
+  }
+  
+  if (!isQualifiedInvestor.value) {
+    showQualificationModal.value = true
+    selectedFund.value = fund
+  } else {
+    // 已经认证为合格投资者，可以直接购买
+    alert('您已是合格投资者，可以进行私募基金购买操作')
+  }
+};
+
+// 公募基金购买函数
+const buyPublicFund = (fund) => {
+  if (!logged.value) {
+    showLogin.value = true
+    return
+  }
+  
+  if (confirm(`确定要购买 ${fund.name} 吗？`)) {
+    alert(`成功购买 ${fund.name}，金额将自动从账户中扣除`)
+  }
 };
 
 // 关闭资格验证模态框
@@ -373,15 +538,64 @@ const closeQualificationModal = () => {
 // 验证资格
 const verifyQualification = () => {
   if (qualification.value.income >= 50 || qualification.value.assets >= 300 || qualification.value.experience >= 2) {
-    alert('资格验证通过，可以购买该私募基金');
-    closeQualificationModal();
+    alert('资格验证通过，您已成为合格投资者')
+    isQualifiedInvestor.value = true
+    localStorage.setItem('qualifiedInvestor', 'certified')
+    closeQualificationModal()
   } else {
-    alert('您不符合合格投资者标准，无法购买该私募基金');
+    alert('您不符合合格投资者标准，无法购买该私募基金')
   }
 };
 </script>
 
 <style scoped>
+/* 认证提示样式 */
+.qualification-prompt {
+  background: #fff8e1;
+  border: 1px solid #ffd54f;
+  padding: 20px;
+  margin: 10px 0 20px 0;
+  border-radius: 4px;
+  color: #5d4037;
+}
+
+.prompt-content {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.prompt-detail {
+  margin: 15px 0;
+  font-size: 14px;
+}
+
+.qualification-list {
+  text-align: left;
+  margin: 15px auto;
+  max-width: 400px;
+  padding-left: 20px;
+}
+
+.qualification-list li {
+  margin-bottom: 8px;
+}
+
+.verify-btn {
+  background-color: #ff7f00;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-top: 15px;
+}
+
+.verify-btn:hover {
+  background-color: #ff6a00;
+}
+
 /* 基础样式 */
 .fund-ranking-page {
   padding: 0;
@@ -446,6 +660,217 @@ const verifyQualification = () => {
 
 .login-btn, .register-btn {
   margin-left: 20px;
+}
+
+/* 登录弹窗样式 */
+.login-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.login-box {
+  width: 90%;
+  max-width: 400px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  border: 2px solid #ff7f24;
+}
+
+.close-login {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 24px;
+  color: #ff7f24;
+  cursor: pointer;
+}
+
+.login-title {
+  font-size: 22px;
+  color: #ff7f24;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-form input {
+  padding: 12px 15px;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+}
+
+.login-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.login-btn:hover {
+  background-color: #ff6a00;
+}
+
+.login-tips {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+  margin-top: 10px;
+}
+
+.error-tips {
+  color: #ff4500;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+/* 用户菜单样式 */
+.user-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.user-btn {
+  background-color: white;
+  color: #ff7f00;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 80px;
+  text-align: center;
+  border: 1px solid #ff7f00;
+}
+
+.user-menu-container:hover .user-btn {
+  background-color: #f5f5f5;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 5px;
+  min-width: 120px;
+}
+
+.dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-item.logout {
+  color: #ff4444;
+  border-bottom: none;
+}
+
+.dropdown-item.logout:hover {
+  background-color: #ffe6e6;
+}
+
+/* 动态风险提示样式 */
+.risk-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10001;
+}
+
+.risk-box {
+  width: 90%;
+  max-width: 500px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  border: 3px solid #ff9933;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.risk-icon {
+  font-size: 40px;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.risk-title {
+  font-size: 24px;
+  color: #ff4500;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.risk-content {
+  margin-bottom: 25px;
+  line-height: 1.6;
+}
+
+.risk-content p {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.risk-content ul {
+  padding-left: 20px;
+  margin-bottom: 15px;
+}
+
+.risk-content li {
+  margin-bottom: 8px;
+  color: #666;
+}
+
+.risk-confirm-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  display: block;
+  margin: 0 auto;
+  transition: background-color 0.3s;
+}
+
+.risk-confirm-btn:hover {
+  background-color: #ff6a00;
 }
 
 .register-btn {
