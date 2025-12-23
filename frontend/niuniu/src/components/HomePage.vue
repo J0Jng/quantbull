@@ -1,0 +1,651 @@
+<template>
+  <div>
+    <!-- 顶部栏 -->
+    <header class="top-bar">
+      <div class="container">
+        <div class="top-left">
+          <h1 class="logo">量化牛牛</h1>
+          <span class="slogan">专业理财平台</span>
+        </div>
+        <div class="top-middle">
+          <input v-model="search" type="text" placeholder="输入股票代码、名称或关键词" class="search-input" />
+          <button class="search-btn">查行情</button>
+        </div>
+        <div class="top-right">
+          <a href="#" class="login-btn">登录</a>
+          <a href="#" class="register-btn">注册</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- 导航菜单 -->
+    <nav class="main-nav">
+      <div class="container">
+        <ul class="nav-list">
+          <li><a href="#" class="active">财经头条</a></li>
+          <li><a href="#">财经频道</a></li>
+          <li><a href="#">每日内参</a></li>
+          <li><a href="#">公司研报</a></li>
+            <li><router-link to="/shop">商城</router-link></li>
+          <li><a href="#">基金排行榜</a></li>
+          <li><a href="#">量化策略</a></li>
+          <li><a href="#">财经日历</a></li>
+          <li><a href="#" style="color:#ff7f00">更多&gt;</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <div class="container">
+        <!-- 财经头条板块 -->
+        <h2 class="section-title">财经头条</h2>
+        <router-link to="/news-detail" class="more-link" style="float:right;margin-top:12px;font-size:14px;">更多&gt;</router-link>
+        <section class="news-section">
+          <div class="news-banner">
+            <img src="/1.png" alt="财经头条主图" />
+            <div class="banner-mask">
+              <h3 class="mask-title">央行：将再降准0.5个百分点 释放资金约1万亿元</h3>
+              <p class="mask-desc">本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。</p>
+            </div>
+          </div>
+          <div class="news-list">
+            <ul>
+              <li><a href="#">24H：A三大集团集体高开 宁德时代涨5.1%</a></li>
+              <li><a href="#">国际油价涨超1% 报103美元/桶 WTI升4%</a></li>
+              <li><a href="#">房地产“超预期政策”密集发布 多家房企发公告</a></li>
+              <li><a href="#">人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口</a></li>
+              <li><a href="#">工信部：加快推进新能源汽车充电桩建设 年内新增超20万个</a></li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 广告横幅 -->
+        <section class="ad-banner">
+            <a href="#">
+            <img src="/2.png" alt="理财广告" />
+          </a>
+        </section>
+
+        <!-- 龙虎榜板块（新增切换内容容器） -->
+        <h2 class="section-title">龙虎榜</h2>
+        <div class="tab-switch dragon-tab-switch">
+          <a href="javascript:;" :class="{ active: dragonTab==='dragon-today' }" @click.prevent="dragonTab='dragon-today'">今日</a>
+          <a href="javascript:;" :class="{ active: dragonTab==='dragon-30day' }" @click.prevent="dragonTab='dragon-30day'">30日</a>
+        </div>
+        <section class="dragon-board">
+          <div v-show="dragonTab==='dragon-today'" class="tab-content dragon-content" id="dragon-today">
+            <table class="dragon-table">
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>最新价</th>
+                  <th>涨跌幅</th>
+                  <th>涨跌</th>
+                  <th>净买入(亿)</th>
+                  <th>上榜理由</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, idx) in dragonToday" :key="idx">
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.price }}</td>
+                  <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
+                  <td>{{ row.delta }}</td>
+                  <td>{{ row.net }}</td>
+                  <td>{{ row.reason }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-show="dragonTab==='dragon-30day'" class="tab-content dragon-content" id="dragon-30day">
+            <table class="dragon-table">
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>最新价</th>
+                  <th>涨跌幅</th>
+                  <th>涨跌</th>
+                  <th>净买入(亿)</th>
+                  <th>上榜理由</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, idx) in dragon30" :key="idx">
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.price }}</td>
+                  <td><span class="green">{{ row.changeText }}</span></td>
+                  <td>{{ row.delta }}</td>
+                  <td>{{ row.net }}</td>
+                  <td>{{ row.reason }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 公司研报板块 -->
+        <h2 class="section-title">公司投研</h2>
+        <router-link to="/company-research" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看全部 &gt;</router-link>
+        <section class="company-report">
+          <div class="report-cards">
+            <div class="report-card" v-for="(card, idx) in reportCards" :key="idx">
+              <div class="card-body">
+                <div class="stock-info">
+                  <span class="stock-name">{{ card.name }}</span>
+                  <span :class="card.tagClass">{{ card.tag }}</span>
+                </div>
+                <div class="price">{{ card.priceLabel }}：<span class="current-price">{{ card.price }}</span></div>
+                <div class="profit">{{ card.profitLabel }}:<span style="float:right;">{{ card.profit }}</span></div>
+                <ul class="report-ul">
+                  <li v-for="(t, i) in card.tags" :key="i">{{ t }}</li>
+                </ul>
+                <div style="clear:both;"></div>
+                <button class="view-btn">查看研报</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 策略技术平台板块 -->
+        <h2 class="section-title">策略技术平台</h2>
+        <section class="strategy-platform">
+          <div class="platform-cards">
+            <div class="platform-card orange">
+              <h3>量化分析工具</h3>
+              <p>多因子选股、量化回测、量化一站式平台</p>
+              <router-link to="/quant-analysis">
+                <button class="try-btn" style="color:#ff7f00;font-size:14px;border-radius: 100px;">立即体验</button>
+              </router-link>
+            </div>
+            <div class="platform-card blue">
+              <h3>智能选股系统</h3>
+              <p>基于产业链逻辑选股，挖掘潜力个股和板块</p>
+              <button class="try-btn" style="color:#1e90ff;font-size:14px;border-radius: 100px;">立即体验</button>
+            </div>
+            <div class="platform-card green">
+              <h3>风险管理系统</h3>
+              <p>实时监控投资组合，优化配置方案</p>
+              <button class="try-btn" style="color:#00b300;font-size:14px;border-radius: 100px;">立即体验</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 商城板块 -->
+        <h2 class="section-title">商城</h2>
+          <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看销量 &gt;</router-link>
+        <section class="mall-section">
+          <div class="mall-cards">
+            <div class="mall-card">
+                <div class="card-icon">
+                <img src="/4.png" alt="基金图标" />
+              </div>
+              <div class="card-info">
+                <h4>黄金理财组合</h4>
+                <p>黄金定投收益稳，年化收益可达6.5%</p>
+                <p class="price">¥8,800</p>
+              </div>
+              <button class="buy-btn">立即购买</button>
+            </div>
+            <div class="mall-card">
+                <div class="card-icon">
+                <img src="/5.png" alt="AI图标" />
+              </div>
+              <div class="card-info">
+                <h4>AI智能选股</h4>
+                <p>人工智能驱动的个性化选股组合服务</p>
+                <p class="price">¥15,000/年</p>
+              </div>
+              <button class="buy-btn">立即购买</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 基金排行榜板块 -->
+        <h2 class="section-title">基金排行榜</h2>
+        <section class="fund-rank">
+          <div class="fund-list">
+            <div class="fund-item" v-for="(fund, idx) in funds" :key="idx">
+              <div class="fund-col check-col">
+                <input type="radio" name="fund-radio" :id="'fund'+idx" />
+              </div>
+              <div class="fund-col num-col">{{ fund.rank }}</div>
+              <div class="fund-col name-col">
+                <div class="fund-name">{{ fund.name }}</div>
+                <div class="fund-type">{{ fund.type }}</div>
+              </div>
+              <div class="fund-col data-col">
+                <div class="data-value">{{ fund.nav }}</div>
+                <div class="data-time">单位净值</div>
+              </div>
+              <div class="fund-col trend-col" :class="fund.trendColor">{{ fund.trend }}</div>
+
+              <div class="fund-col data-col" v-for="(d, i) in fund.periods" :key="i">
+                <div class="data-value">{{ d }}</div>
+              </div>
+
+              <div class="fund-col trend-img-col">
+                <img :src="'/3.png'" alt="上涨走势" class="trend-img" />
+              </div>
+              <div class="fund-col btn-col">
+                <button class="buy-btn small">立即购买</button>
+                <button class="fav-btn small">自选</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 每日内参板块（新增切换内容容器） -->
+        <h2 class="section-title">每日内参</h2>
+        <div class="tab-switch report-tab-switch">
+          <a href="javascript:;" :class="{ active: reportTab==='report-latest' }" @click.prevent="reportTab='report-latest'">最新</a>
+          <a href="javascript:;" :class="{ active: reportTab==='report-yesterday' }" @click.prevent="reportTab='report-yesterday'">昨日</a>
+          <a href="javascript:;" :class="{ active: reportTab==='report-history' }" @click.prevent="reportTab='report-history'">历史</a>
+        </div>
+        <section class="daily-report">
+          <div v-show="reportTab==='report-latest'" class="tab-content report-content" id="report-latest">
+            <div class="report-item">
+              <h3>新能源板块迎来布局良机</h3>
+              <p>光伏、风电产业链上游价格回落，需求端政策力度大，行业景气度有望持续，建议关注具备技术壁垒和产能扩张能力的企业。</p>
+              <span class="design">张明 | 首席设计师</span><span class="date">2025-12-17 09:30</span>
+            </div>
+            <div class="report-item">
+              <h3>低估值煤炭板块存修复机会</h3>
+              <p>煤炭板块估值处于低位，建议关注业绩稳健、高股息、低估值的中周期标的。</p>
+            </div>
+          </div>
+
+          <div v-show="reportTab==='report-yesterday'" class="tab-content report-content" id="report-yesterday">
+            <div class="report-item">
+              <h3>央行逆回购操作加码 市场流动性充裕</h3>
+              <p>昨日央行开展1500亿元7天期逆回购操作，中标利率2.00%，完全对冲当日到期量，市场资金面保持宽松。</p>
+              <span class="design">张明 | 首席设计师</span><span class="date">2025-12-16 15:45</span>
+            </div>
+            <div class="report-item">
+              <h3>消费板块回暖 食品饮料领涨</h3>
+              <p>昨日消费板块集体走强，食品饮料板块涨幅超2%，白酒、休闲食品等细分领域表现亮眼，资金布局跨年行情。</p>
+            </div>
+          </div>
+
+          <div v-show="reportTab==='report-history'" class="tab-content report-content" id="report-history">
+            <div class="report-item">
+              <h3>2025年12月核心数据解读</h3>
+              <p>12月上旬社融数据超预期，新增人民币贷款2.8万亿元，企业中长期贷款占比提升，实体经济融资需求回暖。</p>
+              <span class="design">张明 | 首席设计师</span><span class="date">2025-12-10 10:20</span>
+            </div>
+            <div class="report-item">
+              <h3>年末资金面前瞻：流动性无虞</h3>
+              <p>监管层多次表态将维护年末流动性平稳，预计12月降准落地后，市场资金利率将维持在低位，利好股市跨年行情。</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI智能服务入口 -->
+        <h2 class="section-title">AI智能投研助手</h2>
+        <a href="#" style="float:right;color:#ff7f00;margin-top:12px;font-size:14px;">更多功能 &gt;</a>
+        <section class="ai-service-section">
+          <div class="ai-service-cards">
+            <!-- 智能新闻解读 -->
+            <div class="ai-service-card" @click="openAiModal('news')">
+              <div class="ai-icon news-icon">📰</div>
+              <h3>智能新闻解读</h3>
+              <p>基于新闻快讯生成深度解读分析</p>
+              <div class="ai-tag">DeepSeek R1</div>
+            </div>
+
+            <!-- 策略代码生成 -->
+            <div class="ai-service-card" @click="openAiModal('strategy')">
+              <div class="ai-icon strategy-icon">💡</div>
+              <h3>策略代码生成</h3>
+              <p>AI生成Backtrader量化策略代码</p>
+              <div class="ai-tag">Qwen2.5</div>
+            </div>
+
+            <!-- 投研摘要 -->
+            <div class="ai-service-card" @click="openAiModal('summary')">
+              <div class="ai-icon summary-icon">📊</div>
+              <h3>智能投研摘要</h3>
+              <p>生成结构化研究和投资建议</p>
+              <div class="ai-tag">Qwen2.5</div>
+            </div>
+
+            <!-- 报告生成 -->
+            <div class="ai-service-card" @click="openAiModal('report')">
+              <div class="ai-icon report-icon">📈</div>
+              <h3>公司研报生成</h3>
+              <p>自动分析公司信息生成研究报告</p>
+              <div class="ai-tag">智能路由</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI服务模态框 -->
+        <div v-if="showAiModal" class="ai-modal-overlay" @click="hideAiModal">
+          <div class="ai-modal-content" @click.stop>
+            <div class="ai-modal-header">
+              <h3>{{ getAiModalTitle() }}</h3>
+              <button class="close-btn" @click="hideAiModal">×</button>
+            </div>
+            <div class="ai-modal-body">
+              <!-- 新闻解读 -->
+              <div v-if="activeAiService === 'news'" class="ai-input-section">
+                <textarea v-model="newsInput" placeholder="请输入财经新闻快讯..." rows="4"></textarea>
+                <div class="ai-options">
+                  <label>
+                    股票代码：<input v-model="newsStockCode" placeholder="如：000001" type="text">
+                  </label>
+                  <button @click="generateNews" class="ai-submit-btn">生成解读</button>
+                </div>
+              </div>
+
+              <!-- 策略生成 -->
+              <div v-if="activeAiService === 'strategy'" class="ai-input-section">
+                <textarea v-model="strategyInput" placeholder="请描述您的量化策略思路..." rows="4"></textarea>
+                <div class="ai-options">
+                  <label>
+                    框架选择：
+                    <select v-model="strategyFramework">
+                      <option value="backtrader">Backtrader</option>
+                      <option value="zipline">Zipline</option>
+                    </select>
+                  </label>
+                  <button @click="generateStrategy" class="ai-submit-btn">生成策略</button>
+                </div>
+              </div>
+
+              <!-- 投研摘要 -->
+              <div v-if="activeAiService === 'summary'" class="ai-input-section">
+                <textarea v-model="summaryInput" placeholder="请输入要摘要的投研内容..." rows="4"></textarea>
+                <div class="ai-options">
+                  <label>
+                    摘要类型：
+                    <select v-model="summaryType">
+                      <option value="structured">结构化</option>
+                      <option value="bullet">要点式</option>
+                      <option value="paragraph">段落式</option>
+                    </select>
+                  </label>
+                  <button @click="generateSummary" class="ai-submit-btn">生成摘要</button>
+                </div>
+              </div>
+
+              <!-- 研报生成 -->
+              <div v-if="activeAiService === 'report'" class="ai-input-section">
+                <textarea v-model="reportInput" placeholder="请输入公司信息和市场数据..." rows="4"></textarea>
+                <div class="ai-options">
+                  <label>
+                    <input type="checkbox" v-model="includeRisks"> 包含风险分析
+                  </label>
+                  <button @click="generateReport" class="ai-submit-btn">生成研报</button>
+                </div>
+              </div>
+
+              <!-- 结果显示 -->
+              <div v-if="aiResult" class="ai-result-section">
+                <h4>AI生成结果：</h4>
+                <div class="ai-result-content">
+                  <pre>{{ aiResult }}</pre>
+                </div>
+                <div class="ai-result-meta">
+                  <span>使用模型：{{ aiModel }}</span>
+                  <span>生成时间：{{ new Date().toLocaleTimeString() }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- API状态指示器 -->
+        <div class="api-status" :class="apiStatus">
+          AI服务状态：{{ getApiStatusText() }}
+        </div>
+      </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="page-footer">
+      <div class="container">
+        <p>以上内容仅供参考，不构成投资建议 请遵循国家法律法规投资</p>
+      </div>
+    </footer>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+
+const search = ref('')
+const dragonTab = ref('dragon-today')
+const reportTab = ref('report-latest')
+
+// AI服务相关状态
+const showAiModal = ref(false)
+const activeAiService = ref('')
+const aiResult = ref('')
+const aiModel = ref('')
+
+// 输入数据
+const newsInput = ref('')
+const newsStockCode = ref('')
+const strategyInput = ref('')
+const strategyFramework = ref('backtrader')
+const summaryInput = ref('')
+const summaryType = ref('structured')
+const reportInput = ref('')
+const includeRisks = ref(true)
+
+// API状态
+const apiStatus = ref('checking') // checking, online, offline
+
+// AI服务函数
+const openAiModal = (service) => {
+  activeAiService.value = service
+  showAiModal.value = true
+  aiResult.value = ''
+}
+
+const hideAiModal = () => {
+  showAiModal.value = false
+  activeAiService.value = ''
+  // 清空输入和结果
+  newsInput.value = ''
+  strategyInput.value = ''
+  summaryInput.value = ''
+  reportInput.value = ''
+  aiResult.value = ''
+}
+
+const getAiModalTitle = () => {
+  const titles = {
+    'news': '智能新闻解读',
+    'strategy': '量化策略生成',
+    'summary': '智能投研摘要',
+    'report': '公司研报生成'
+  }
+  return titles[activeAiService.value] || 'AI智能服务'
+}
+
+// 获取API状态文本
+const getApiStatusText = () => {
+  const statusText = {
+    'checking': '检查中...',
+    'online': '服务正常',
+    'offline': '服务异常'
+  }
+  return statusText[apiStatus.value] || '未知状态'
+}
+
+// 模拟API调用 - 实际项目中应该替换为真实API调用
+const generateNews = async () => {
+  if (!newsInput.value.trim()) {
+    aiResult.value = '请输入新闻内容'
+    return
+  }
+  
+  try {
+    const response = await fetch('/api/ai/api/ai/generate/news', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        news_flash: newsInput.value,
+        stock_code: newsStockCode.value || undefined
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    aiResult.value = data.news_content
+    aiModel.value = data.model
+  } catch (error) {
+    aiResult.value = `生成新闻解读失败: ${error.message}`
+    aiModel.value = '未知'
+  }
+}
+
+const generateStrategy = async () => {
+  if (!strategyInput.value.trim()) {
+    aiResult.value = '请输入策略描述'
+    return
+  }
+  
+  try {
+    const response = await fetch('/api/ai/api/ai/generate/strategy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        user_description: strategyInput.value,
+        framework: strategyFramework.value
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    aiResult.value = `${data.explanation}\n\n${data.strategy_code}`
+    aiModel.value = data.model
+  } catch (error) {
+    aiResult.value = `生成策略失败: ${error.message}`
+    aiModel.value = '未知'
+  }
+}
+
+const generateSummary = async () => {
+  if (!summaryInput.value.trim()) {
+    aiResult.value = '请输入要摘要的内容'
+    return
+  }
+  
+  try {
+    const response = await fetch('/api/ai/api/ai/generate/summary', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: summaryInput.value,
+        summary_type: summaryType.value
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    aiResult.value = data.summary
+    aiModel.value = data.model
+  } catch (error) {
+    aiResult.value = `生成摘要失败: ${error.message}`
+    aiModel.value = '未知'
+  }
+}
+
+const generateReport = async () => {
+  if (!reportInput.value.trim()) {
+    aiResult.value = '请输入公司信息'
+    return
+  }
+  
+  try {
+    const response = await fetch('/api/ai/api/ai/report/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        company_info: reportInput.value,
+        include_risks: includeRisks.value
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    aiResult.value = data.report_content
+    aiModel.value = data.model
+  } catch (error) {
+    aiResult.value = `生成研报失败: ${error.message}`
+    aiModel.value = '未知'
+  }
+}
+
+// 检查API状态
+const checkApiStatus = async () => {
+  apiStatus.value = 'checking'
+  try {
+    const response = await fetch('/api/ai/health')
+    if (response.ok) {
+      apiStatus.value = 'online'
+    } else {
+      apiStatus.value = 'offline'
+    }
+  } catch (error) {
+    apiStatus.value = 'offline'
+  }
+}
+
+// 页面加载时检查API状态
+onMounted(() => {
+  checkApiStatus()
+})
+
+const dragonToday = [
+  { name: '宁德时代', price: '545.40', change: 5.23, changeText: '+5.23%', delta: '8.24', net: '8.24', reason: '日涨幅偏离值达7%' },
+  { name: '贵州茅台', price: '1535.00', change: 1.45, changeText: '+1.45%', delta: '6.92', net: '6.92', reason: '连续三个交易日内涨幅20%' },
+  { name: '招商银行', price: '42.16', change: -1.51, changeText: '-1.51%', delta: '-2.95', net: '-2.95', reason: '日换手率达20%' },
+  { name: '隆基绿能', price: '76.25', change: 4.84, changeText: '+4.84%', delta: '5.43', net: '5.43', reason: '日换手率达20%' },
+  { name: '东方财富', price: '23.33', change: -1.18, changeText: '-1.18%', delta: '-1.27', net: '-1.27', reason: '日跌幅偏离值达7%' }
+]
+
+const dragon30 = [
+  { name: '宁德时代', price: '568.80', changeText: '+12.8%', delta: '65.40', net: '128.60', reason: '30日涨幅偏离值达20%' },
+  { name: '贵州茅台', price: '1589.00', changeText: '+8.5%', delta: '124.00', net: '98.50', reason: '30日换手率达15%' },
+  { name: '招商银行', price: '45.20', changeText: '+6.5%', delta: '2.84', net: '45.80', reason: '30日净流入超50亿' },
+  { name: '隆基绿能', price: '82.50', changeText: '+15.6%', delta: '11.05', net: '78.20', reason: '30日涨幅偏离值达18%' },
+  { name: '东方财富', price: '25.80', changeText: '+10.6%', delta: '2.47', net: '65.30', reason: '30日成交量翻倍' }
+]
+
+const reportCards = [
+  { name: '键凯科技', tag: '买入', tagClass: 'mai-ru', priceLabel: '当前价', price: '71.25元', profitLabel: '目标价格', profit: '94.00%', tags: ['光伏', '碳中和', '新能源'] },
+  { name: '宁德时代', tag: '买入', tagClass: 'mai-ru', priceLabel: '目标价', price: '544.40元', profitLabel: '机构预测', profit: '68.00%', tags: ['光伏', '碳中和', '新能源'] },
+  { name: '招商银行', tag: '增持', tagClass: 'mai-ru-zeng', priceLabel: '目标价', price: '42.50元', profitLabel: '机构预测', profit: '44.30%', tags: ['光伏', '碳中和', '新能源'] }
+]
+
+const funds = [
+  { rank: '01', name: '中欧医疗健康混合C', type: '混合型基金', nav: '1.3609', trend: '+1.1%', trendColor: 'green', periods: ['25.90%', '16.92%', '13.54%', '16.04%', '24.75%', '230.90%', '72.47%'] },
+  { rank: '02', name: '易方达蓝筹精选混合', type: '混合型基金', nav: '4.9100', trend: '-0.5%', trendColor: 'red', periods: ['30.50%', '84.71%', '11.29%', '5.85%', '26.76%', '367.42%', '14.27%'] },
+  { rank: '03', name: '华夏能源革新股票A', type: '股票型基金', nav: '2.3179', trend: '+0.7%', trendColor: 'green', periods: ['11.76%', '115.85%', '15.43%', '17.62%', '24.40%', '137.09%', '173.36%'] }
+]
+</script>
