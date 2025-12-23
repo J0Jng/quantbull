@@ -66,7 +66,6 @@
           <li><router-link to="/company-research">公司研报</router-link></li>
           <li><router-link to="/shop">商城</router-link></li>
           <li><router-link to="/fund-ranking" class="active">基金排行榜</router-link></li>
-          <li><router-link to="/quant-analysis">量化策略</router-link></li>
           <li><a href="#" style="color:#ff7f00">更多&gt;</a></li>
         </ul>
       </div>
@@ -272,11 +271,11 @@
                 <p><strong>基金类型：</strong>{{ selectedFund.type || selectedFund.strategy }}</p>
                 <p><strong>单位净值：</strong>{{ selectedFund.nav || 'N/A' }}</p>
                 <p><strong>日涨跌幅：</strong>{{ selectedFund.change ? (selectedFund.change >= 0 ? '+' : '') + selectedFund.change + '%' : 'N/A' }}</p>
-                <p><strong>近1年收益率：</strong>{{ selectedFund.return1y ? (selectedFund.return1y >= 0 ? '+' : '') + selectedFund.return1y + '%' : 'N/A' }}</p>
+                <p><strong>近1年收益率：</strong>{{ (selectedFund.return1y && isQualifiedInvestor) ? (selectedFund.return1y >= 0 ? '+' : '') + selectedFund.return1y + '%' : '认证后可见' }}</p>
                 <p><strong>成立时间：</strong>{{ selectedFund.established || 'N/A' }}</p>
-                <p><strong>年化收益率：</strong>{{ selectedFund.annualizedReturn ? (selectedFund.annualizedReturn >= 0 ? '+' : '') + selectedFund.annualizedReturn + '%' : 'N/A' }}</p>
-                <p><strong>最大回撤：</strong>{{ selectedFund.maxDrawdown ? selectedFund.maxDrawdown + '%' : 'N/A' }}</p>
-                <p><strong>夏普比率：</strong>{{ selectedFund.sharpeRatio || 'N/A' }}</p>
+                <p><strong>年化收益率：</strong>{{ (selectedFund.annualizedReturn && isQualifiedInvestor) ? (selectedFund.annualizedReturn >= 0 ? '+' : '') + selectedFund.annualizedReturn + '%' : '认证后可见' }}</p>
+                <p><strong>最大回撤：</strong>{{ (selectedFund.maxDrawdown && isQualifiedInvestor) ? selectedFund.maxDrawdown + '%' : '认证后可见' }}</p>
+                <p><strong>夏普比率：</strong>{{ (selectedFund.sharpeRatio && isQualifiedInvestor) ? selectedFund.sharpeRatio : '认证后可见' }}</p>
               </div>
             </div>
           </div>
@@ -481,6 +480,19 @@ const getRankClass = (index) => {
 
 // 显示基金详情
 const showFundDetail = (fund) => {
+  // 检查是否是私募基金且用户未认证
+  if (fund.strategy && !isQualifiedInvestor.value) {
+    if (!logged.value) {
+      // 未登录，提示登录
+      showLogin.value = true;
+    } else {
+      // 已登录但未认证，提醒去个人主页认证
+      alert('需要去个人主页进行合格投资者认证');
+      router.push('/profile');
+    }
+    return;
+  }
+  
   selectedFund.value = fund;
   showDetailModal.value = true;
 };
