@@ -6,6 +6,7 @@ import NewsDetailPage from '@/views/NewsDetailPage.vue'
 import CompanyResearchPage from '@/views/CompanyResearchPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
+import DailyInsightPage from '@/views/DailyInsightPage.vue'
 
 const routes = [
   {
@@ -42,12 +43,20 @@ const routes = [
     path: '/finance-channel',
     name: 'FinanceChannel',
     component: FinanceChannelPage
+  },
+  {
+    path: '/daily-insight',
+    name: 'DailyInsight',
+    component: DailyInsightPage
   }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior() {
+    return { top: 0 }
+  }
 })
 
 export default router
