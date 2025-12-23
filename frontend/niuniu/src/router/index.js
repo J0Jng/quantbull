@@ -5,6 +5,7 @@ import QuantAnalysisTool from '@/views/QuantAnalysisTool.vue'
 import NewsDetailPage from '@/views/NewsDetailPage.vue'
 import CompanyResearchPage from '@/views/CompanyResearchPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
+import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
 
 const routes = [
   {
@@ -36,6 +37,11 @@ const routes = [
     path: '/profile',
     name: 'UserProfile',
     component: UserProfile
+  },
+  {
+    path: '/finance-channel',
+    name: 'FinanceChannel',
+    component: FinanceChannelPage
   }
 ]
 
