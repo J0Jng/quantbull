@@ -24,7 +24,7 @@
         <ul class="nav-list">
           <li><a href="#" class="active">财经头条</a></li>
           <li><router-link to="/finance-channel">财经频道</router-link></li>
-          <li><a href="#">每日内参</a></li>
+          <li><router-link to="/daily-insight">每日内参</router-link></li>
           <li><router-link to="/company-research">公司研报</router-link></li>
             <li><router-link to="/shop">商城</router-link></li>
           <li><a href="#">基金排行榜</a></li>
