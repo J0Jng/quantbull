@@ -2,7 +2,7 @@
   <div class="user-profile">
     <!-- 头部 -->
     <div class="header">
-      <div class="logo" @click="goHome">量化牛牛商店</div>
+      <div class="logo" @click="goHome">个人主页</div>
       <div class="header-opt">
         <a href="#">我的订单</a>
         <a href="#">购物车</a>
@@ -108,7 +108,7 @@
         <!-- 操作按钮 -->
         <div class="action-section">
           <button class="action-btn primary" @click="editProfile">编辑个人信息</button>
-          <button class="action-btn secondary" @click="goBack">返回商店</button>
+          <button class="action-btn secondary" @click="goHome">返回首页</button>
         </div>
       </div>
     </div>
