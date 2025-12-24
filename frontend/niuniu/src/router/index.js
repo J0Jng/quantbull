@@ -10,6 +10,7 @@ import DailyInsightPage from '@/views/DailyInsightPage.vue'
 import FundRankingPage from '@/views/FundRankingPage.vue'
 import StockDataPage from '@/views/StockDataPage.vue'
 import GoodsDetail from '@/views/GoodsDetail.vue'
+import CartPage from '@/views/CartPage.vue'
 
 const routes = [
   {
@@ -21,6 +22,11 @@ const routes = [
     path: '/shop',
     name: 'Shop',
     component: ShopPage
+  },
+  {
+    path: '/cart',
+    name: 'Cart',
+    component: CartPage
   },
   {
     path: '/quant-analysis',
