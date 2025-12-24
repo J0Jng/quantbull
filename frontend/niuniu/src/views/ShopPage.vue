@@ -38,7 +38,10 @@
       <div class="logo" @click="goHome">量化牛牛商店</div>
       <div class="header-opt">
         <a href="#">我的订单</a>
-        <a href="#">购物车</a>
+        <a href="#" @click.prevent="goToCart" class="cart-link">
+          购物车
+          <span class="cart-badge" v-if="cartBadgeCount > 0">{{ cartBadgeCount }}</span>
+        </a>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
@@ -77,10 +80,10 @@
             <span class="goods-tag">因子</span>
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ item.price }}</div>
-            <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('factor')">立即购买</button>
-              <button class="detail-btn" @click="goToGoodsDetail('factor')">详情</button>
-            </div>
+          <div class="goods-btn">
+            <button class="buy-btn" @click="addToCart(item, 'factor')">加入购物车</button>
+            <button class="detail-btn" @click="goToGoodsDetail('factor')">详情</button>
+          </div>
           </div>
         </div>
       </div>
@@ -94,10 +97,10 @@
             <span class="goods-tag">策略</span>
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ item.price }}</div>
-            <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('strategy')">立即购买</button>
-              <button class="detail-btn" @click="goToGoodsDetail('strategy')">详情</button>
-            </div>
+          <div class="goods-btn">
+            <button class="buy-btn" @click="addToCart(item, 'strategy')">加入购物车</button>
+            <button class="detail-btn" @click="goToGoodsDetail('strategy')">详情</button>
+          </div>
           </div>
         </div>
       </div>
@@ -112,7 +115,7 @@
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ (logged && isQualifiedInvestor) ? item.price : '*****' }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('fund')">预约认购</button>
+              <button class="buy-btn" @click="addToCart(item, 'fund')">预约认购</button>
               <button class="detail-btn" @click="goToGoodsDetail('fund')">详情</button>
             </div>
           </div>
@@ -129,7 +132,7 @@
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ (logged && isQualifiedInvestor) ? item.price : '*****' }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('advisor')">立即购买</button>
+              <button class="buy-btn" @click="addToCart(item, 'advisor')">加入购物车</button>
               <button class="detail-btn" @click="goToGoodsDetail('advisor')">详情</button>
             </div>
           </div>
@@ -146,7 +149,7 @@
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ item.price }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('course')">立即购买</button>
+              <button class="buy-btn" @click="addToCart(item, 'course')">加入购物车</button>
               <button class="detail-btn" @click="goToGoodsDetail('course')">详情</button>
             </div>
           </div>
@@ -163,7 +166,7 @@
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ item.price }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('book')">立即购买</button>
+              <button class="buy-btn" @click="addToCart(item, 'book')">加入购物车</button>
               <button class="detail-btn" @click="goToGoodsDetail('book')">详情</button>
             </div>
           </div>
@@ -180,7 +183,7 @@
             <div class="goods-name">{{ item.name }}</div>
             <div class="goods-price">{{ item.price }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="goToGoodsDetail('talent')">咨询对接</button>
+              <button class="buy-btn" @click="addToCart(item, 'talent')">咨询对接</button>
               <button class="detail-btn" @click="goToGoodsDetail('talent')">详情</button>
             </div>
           </div>
@@ -200,23 +203,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useCartStore } from '@/stores/cart.js'
 
 const username = ref('')
 const password = ref('')
 const showLogin = ref(false)
 const errorVisible = ref(false)
 const logged = ref(false)
-const userText = ref('登录/注册')
-const showFund = ref(false)
-const showUserMenu = ref(false)
-const searchQuery = ref('')
-const activeCategory = ref('factor')
-const showRiskTip = ref(false)
-const isQualifiedInvestor = ref(false)
+  const userText = ref('登录/注册')
+  const showFund = ref(false)
+  const showUserMenu = ref(false)
+  const searchQuery = ref('')
+  const activeCategory = ref('factor')
+  const showRiskTip = ref(false)
+  const isQualifiedInvestor = ref(false)
+  
+  // 购物车徽章显示
+  const cartBadgeCount = computed(() => cartStore.totalItems)
 
 const router = useRouter()
+const cartStore = useCartStore()
 
 function goHome() { router.push('/') }
 
@@ -293,19 +301,55 @@ function checkInvestorCertification() {
   }
 }
 
-// 添加事件监听器来响应认证状态变化
-function setupInvestorCertificationListener() {
-  window.addEventListener('storage', (event) => {
-    if (event.key === 'qualifiedInvestor') {
-      checkInvestorCertification()
+  // 添加商品到购物车
+  function addToCart(item, type) {
+    if (!logged.value) {
+      alert('请先登录后再添加商品到购物车')
+      showLogin.value = true
+      return
     }
-  })
-  
-  // 添加自定义事件监听器，用于同一个标签页内的状态同步
-  window.addEventListener('investorCertificationChanged', () => {
-    checkInvestorCertification()
-  })
-}
+    
+    // 如果是基金或投顾产品，检查合格投资者认证
+    if ((type === 'fund' || type === 'advisor') && !isQualifiedInvestor.value) {
+      alert('该产品仅对合格投资者开放，请先前往个人主页完成合格投资者认证。')
+      return
+    }
+    
+    // 创建购物车商品对象
+    const cartItem = {
+      id: `${type}-${item.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
+      name: item.name,
+      price: item.price,
+      img: item.img,
+      type: type
+    }
+    
+    cartStore.addToCart(cartItem)
+    
+    // 显示添加成功提示
+    const productTypeName = type === 'factor' ? '因子' : 
+                            type === 'strategy' ? '策略' : 
+                            type === 'fund' ? '基金' : 
+                            type === 'advisor' ? '投顾' : 
+                            type === 'course' ? '课程' : 
+                            type === 'book' ? '书籍' : '人才'
+    
+    alert(`已成功添加 ${productTypeName} 产品到购物车！`)
+  }
+
+  // 添加事件监听器来响应认证状态变化
+  function setupInvestorCertificationListener() {
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'qualifiedInvestor') {
+        checkInvestorCertification()
+      }
+    })
+    
+    // 添加自定义事件监听器，用于同一个标签页内的状态同步
+    window.addEventListener('investorCertificationChanged', () => {
+      checkInvestorCertification()
+    })
+  }
 
 onMounted(() => {
   const status = localStorage.getItem('quantLogin')
@@ -411,6 +455,15 @@ function goToUserProfile() {
   router.push('/profile')
 }
 
+function goToCart() {
+  if (!logged.value) {
+    alert('请先登录后查看购物车')
+    showLogin.value = true
+    return
+  }
+  router.push('/cart')
+}
+
 function go(id) {
   activeCategory.value = id
   const el = document.getElementById(id)
@@ -435,7 +488,8 @@ body{background-color:#fff8f0;color:#333}
 .header{background-color:#ff7f24;padding:12px 20px;color:white;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:99}
 .logo{font-size:22px;font-weight:bold;color:#ffffff;cursor:pointer}
 .header-opt{display:flex;align-items:center;gap:20px}
-.header-opt a{color:white;text-decoration:none;font-size:14px}
+.header-opt a{color:white;text-decoration:none;font-size:14px;position:relative}
+.cart-link { position: relative; }
 .header-opt{position:relative}
 .user-menu-container{position:relative;display:inline-block}
 .header-opt .user-btn{background-color:white;color:#ff7f24;padding:6px 12px;border-radius:4px;cursor:pointer;position:relative}
@@ -554,4 +608,27 @@ body{background-color:#fff8f0;color:#333}
 .risk-confirm-btn:hover {
   background-color: #ff6a00;
 }
+/* 购物车徽章样式 */
+.cart-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ff4d4f;
+  color: white;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* 购物车链接悬停效果 */
+.cart-link:hover {
+  opacity: 0.8;
+}
+
 </style>
