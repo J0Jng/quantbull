@@ -5,6 +5,11 @@
 	box-sizing: border-box;
 	font-family: "微软雅黑", Arial, sans-serif;
 }
+
+/* 页面整体背景 */
+html, body {
+	background-color: #fff8f0;
+}
 a {
 	text-decoration: none;
 	color: inherit;
@@ -28,7 +33,7 @@ table {
 .top-bar {
 	height: 60px;
 	line-height: 60px;
-	background: #fff;
+	background: #fff8f0;
 	border-bottom: 1px solid #f0f0f0;
 }
 .top-left {
@@ -75,16 +80,65 @@ table {
 }
 .login-btn, .register-btn {
 	margin-left: 20px;
+	background: transparent;
 }
 .register-btn {
 	color: #ff7f00;
+}
+
+/* 用户菜单容器 */
+.user-menu-container {
+	background: transparent;
+	position: relative;
+}
+
+/* 用户按钮样式 */
+.user-btn {
+	background: transparent !important;
+	color: #ff7f24 !important;
+	padding: 6px 12px !important;
+	border: none !important;
+	border-radius: 4px !important;
+	cursor: pointer !important;
+	font-size: 14px !important;
+	display: inline-block !important;
+	text-decoration: none !important;
+}
+
+.user-btn:hover,
+.user-btn:focus,
+.user-btn:active {
+	background: transparent !important;
+}
+
+/* 用户下拉菜单 */
+.user-dropdown {
+	background: #fff8f0;
+	border: 1px solid #ffb380;
+	position: absolute;
+	right: 0;
+	top: 100%;
+	min-width: 120px;
+	z-index: 100;
+}
+
+/* 下拉菜单项 */
+.dropdown-item {
+	padding: 8px 12px;
+	display: block;
+	color: #333;
+	text-decoration: none;
+}
+
+.dropdown-item:hover {
+	background-color: #ffebd8;
 }
 
 /* 主导航菜单 */
 .main-nav {
 	height: 40px;
 	line-height: 40px;
-	background: #fff;
+	background: #fff8f0;
 	border-bottom: 2px solid #ff7f00;
 }
 .nav-list {
@@ -106,7 +160,7 @@ table {
 /* 主内容区 */
 .main-content {
 	padding: 15px 0;
-	background: #f9f9f9;
+	background: #fff8f0;
 }
 
 /* 外置板块标题样式 */
@@ -827,7 +881,7 @@ table {
 .page-footer {
 	height: 50px;
 	line-height: 50px;
-	background: #fff;
+	background: #fff8f0;
 	text-align: center;
 	font-size: 12px;
 	color: #999;

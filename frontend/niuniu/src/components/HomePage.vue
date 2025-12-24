@@ -230,7 +230,7 @@
                 <p>黄金定投收益稳，年化收益可达6.5%</p>
                 <p class="price">¥8,800</p>
               </div>
-              <button class="buy-btn">立即购买</button>
+              <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
             </div>
             <div class="mall-card">
                 <div class="card-icon">
@@ -241,7 +241,7 @@
                 <p>人工智能驱动的个性化选股组合服务</p>
                 <p class="price">¥15,000/年</p>
               </div>
-              <button class="buy-btn">立即购买</button>
+              <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
             </div>
           </div>
         </section>
@@ -273,8 +273,8 @@
                 <img :src="'/3.png'" alt="上涨走势" class="trend-img" />
               </div>
               <div class="fund-col btn-col">
-                <button class="buy-btn small">立即购买</button>
-                <button class="fav-btn small">自选</button>
+                <button class="buy-btn small" @click="$router.push('/fund-ranking')">立即购买</button>
+                <button class="fav-btn small" @click="$router.push('/fund-ranking')">自选</button>
               </div>
             </div>
           </div>

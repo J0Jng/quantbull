@@ -611,13 +611,13 @@ const verifyQualification = () => {
 /* 基础样式 */
 .fund-ranking-page {
   padding: 0;
-  background: #f9f9f9;
+  background: #fff8f0;
 }
 
 .top-bar {
   height: 60px;
   line-height: 60px;
-  background: #fff;
+  background: #fff8f0;
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -892,7 +892,7 @@ const verifyQualification = () => {
 .main-nav {
   height: 40px;
   line-height: 40px;
-  background: #fff;
+  background: #fff8f0;
   border-bottom: 2px solid #ff7f00;
 }
 
@@ -917,7 +917,7 @@ const verifyQualification = () => {
 
 .main-content {
   padding: 15px 0;
-  background: #f9f9f9;
+  background: #fff8f0;
 }
 
 .section-title {
