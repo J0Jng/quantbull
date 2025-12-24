@@ -4,7 +4,6 @@
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛研报中心</div>
       <div class="header-opt">
-        <router-link to="/">返回首页</router-link>
         <router-link to="/shop">商店</router-link>
       </div>
     </div>
