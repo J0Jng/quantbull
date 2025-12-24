@@ -1,4 +1,37 @@
 <template>
+  <!-- 登录弹窗 -->
+  <div class="login-modal" v-show="showLogin">
+    <div class="login-box">
+      <span class="close-login" @click="closeLogin">&times;</span>
+      <div class="login-title">量化牛牛财经频道 - 登录</div>
+      <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
+      <form class="login-form" @submit.prevent>
+        <input v-model="username" type="text" placeholder="请输入账号" />
+        <input v-model="password" type="password" placeholder="请输入密码" />
+        <button type="button" class="login-btn" @click="submitLogin">登录</button>
+      </form>
+      <div class="login-tips">演示账号：123 | 演示密码：123</div>
+    </div>
+  </div>
+
+  <!-- 动态风险提示弹窗 -->
+  <div class="risk-modal" v-show="showRiskTip">
+    <div class="risk-box">
+      <div class="risk-icon">⚠️</div>
+      <div class="risk-title">风险提示</div>
+      <div class="risk-content">
+        <p>尊敬的用户，您正在登录量化牛牛财经频道。投资有风险，入市需谨慎。请注意：</p>
+        <ul>
+          <li>金融市场存在波动风险，过往业绩不代表未来表现</li>
+          <li>财经信息仅供参考，不构成投资建议</li>
+          <li>请根据自身风险承受能力合理决策</li>
+          <li>建议您详细了解产品风险收益特征</li>
+        </ul>
+      </div>
+      <button class="risk-confirm-btn" @click="confirmRiskTip">我已阅读并了解风险</button>
+    </div>
+  </div>
+
   <div>
     <!-- 头部 -->
     <div class="header">
@@ -126,11 +159,17 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
-const searchQuery = ref('')
-const activeCategory = ref('finance-news')
+const username = ref('')
+const password = ref('')
+const showLogin = ref(false)
+const errorVisible = ref(false)
 const logged = ref(false)
 const userText = ref('登录/注册')
 const showUserMenu = ref(false)
+const searchQuery = ref('')
+const activeCategory = ref('finance-news')
+const showRiskTip = ref(false)
+const isQualifiedInvestor = ref(false)
 
 const router = useRouter()
 
@@ -148,6 +187,86 @@ function go(id) {
   const el = document.getElementById(id)
   if (el) window.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' })
 }
+
+function toggleUserMenu() {
+  if (!logged.value) {
+    showLogin.value = true 
+    showUserMenu.value = false
+  } else {
+    showUserMenu.value = !showUserMenu.value
+  }
+}
+
+function onMenuEnter() {
+  if (!logged.value) return
+  showUserMenu.value = true
+}
+
+function onMenuLeave() {
+  setTimeout(() => {
+    showUserMenu.value = false
+  }, 300)
+}
+
+function onDropdownEnter() {
+  showUserMenu.value = true
+}
+
+function onDropdownLeave() {
+  showUserMenu.value = false
+}
+
+function submitLogin() {
+  if (username.value.trim() === '123' && password.value.trim() === '123') {
+    // 登录成功，显示动态风险提示
+    showRiskTip.value = true
+    showLogin.value = false
+    errorVisible.value = false
+    // 清空输入框
+    username.value = ''
+    password.value = ''
+  } else {
+    errorVisible.value = true
+    setTimeout(() => (errorVisible.value = false), 3000)
+  }
+}
+
+function closeLogin() { 
+  showLogin.value = false 
+}
+
+function confirmRiskTip() {
+  showRiskTip.value = false
+  logged.value = true
+  userText.value = '已登录（123）'
+  localStorage.setItem('quantLogin', '123')
+  showUserMenu.value = false
+  // 强制检查认证状态
+  isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+}
+
+function logout() {
+  logged.value = false
+  userText.value = '登录/注册'
+  showUserMenu.value = false
+  localStorage.removeItem('quantLogin')
+}
+
+// 检查本地存储中的登录状态
+onMounted(() => {
+  const status = localStorage.getItem('quantLogin')
+  if (status === '123') {
+    logged.value = true
+    userText.value = '已登录（123）'
+    // 强制检查并设置认证状态
+    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+  } else {
+    // 如果没有登录，确保认证状态为false
+    isQualifiedInvestor.value = false
+  }
+  // 如果未登录，默认显示登录弹窗以与原始静态页面行为一致
+  if (!logged.value) showLogin.value = true
+})
 
 // 模拟数据
 const newsItems = ref([
@@ -220,60 +339,23 @@ const policyItems = ref([
   { title: '关于推进绿色金融发展的实施方案', summary: '为推动绿色金融发展，支持经济绿色转型，相关部门联合制定实施方案，明确发展目标和路径。', date: '2024-12-28' }
 ])
 
-let menuTimeout = null
-let hideTimeout = null
-
-function onMenuEnter() {
-  if (!logged.value) return
-  clearTimeout(hideTimeout)
-  menuTimeout = setTimeout(() => {
-    showUserMenu.value = true
-  }, 300) // 300ms延迟显示
-}
-
-function onMenuLeave() {
-  clearTimeout(menuTimeout)
-  hideTimeout = setTimeout(() => {
-    if (showUserMenu.value) {
-      showUserMenu.value = false
-    }
-  }, 200) // 200ms延迟隐藏
-}
-
-function onDropdownEnter() {
-  clearTimeout(hideTimeout)
-}
-
-function onDropdownLeave() {
-  hideTimeout = setTimeout(() => {
-    showUserMenu.value = false
-  }, 200) // 200ms延迟隐藏
-}
-
-function toggleUserMenu() { 
-  if (!logged.value) {
-    router.push('/login') 
-    showUserMenu.value = false
-  } else {
-    clearTimeout(menuTimeout)
-    clearTimeout(hideTimeout)
-    showUserMenu.value = !showUserMenu.value
-  }
-}
-
-function logout() {
-  logged.value = false
-  userText.value = '登录/注册'
-  showUserMenu.value = false
-  // 实际项目中这里应该调用登出API
-  // localStorage.removeItem('quantLogin')
-}
+// 移除重复的函数定义 - 这些功能已经在前面部分实现
 </script>
 
 <style scoped>
 /* 直接复用原页面样式（简化并保留核心） */
 *{margin:0;padding:0;box-sizing:border-box;font-family:"微软雅黑",sans-serif}
 body{background-color:#fff8f0;color:#333}
+.login-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);display:flex;justify-content:center;align-items:center;z-index:9999}
+.login-box{width:90%;max-width:400px;background:white;border-radius:10px;padding:30px;position:relative;border:2px solid #ff7f24}
+.close-login{position:absolute;top:15px;right:15px;font-size:24px;color:#ff7f24;cursor:pointer}
+.login-title{font-size:22px;color:#ff7f24;text-align:center;margin-bottom:20px;font-weight:bold}
+.login-form{display:flex;flex-direction:column;gap:15px}
+.login-form input{padding:12px 15px;border:1px solid #ffb380;border-radius:6px}
+.login-btn{background-color:#ff7f24;color:white;border:none;padding:12px 0;border-radius:6px;cursor:pointer}
+.login-btn:hover{background-color:#ff6a00}
+.login-tips{ text-align:center;font-size:14px;color:#666;margin-top:10px }
+.error-tips{color:#ff4500;text-align:center}
 .header{background-color:#ff7f24;padding:12px 20px;color:white;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:99}
 .logo{font-size:22px;font-weight:bold;color:#ffffff;cursor:pointer}
 .header-opt{display:flex;align-items:center;gap:20px}
@@ -347,4 +429,81 @@ body{background-color:#fff8f0;color:#333}
 .policy-summary{font-size:14px;margin-bottom:10px;color:#666}
 .policy-date{font-size:12px;color:#999;text-align:right}
 .footer{background-color:#ff7f24;color:white;text-align:center;padding:20px;margin-top:40px}
+
+/* 动态风险提示样式 */
+.risk-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.risk-box {
+  width: 90%;
+  max-width: 500px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  border: 3px solid #ff9933;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.risk-icon {
+  font-size: 40px;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.risk-title {
+  font-size: 24px;
+  color: #ff4500;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.risk-content {
+  margin-bottom: 25px;
+  line-height: 1.6;
+}
+
+.risk-content p {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.risk-content ul {
+  padding-left: 20px;
+  margin-bottom: 15px;
+}
+
+.risk-content li {
+  margin-bottom: 8px;
+  color: #666;
+}
+
+.risk-confirm-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  display: block;
+  margin: 0 auto;
+  transition: background-color 0.3s;
+}
+
+.risk-confirm-btn:hover {
+  background-color: #ff6a00;
+}
 </style>
