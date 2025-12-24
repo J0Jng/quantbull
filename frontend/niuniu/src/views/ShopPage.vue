@@ -469,7 +469,7 @@ body{background-color:#fff8f0;color:#333}
 .goods-card:hover{transform:translateY(-5px);box-shadow:0 4px 12px rgba(255,127,36,.15)}
 .goods-img{width:100%;height:160px;object-fit:cover}
 .goods-info{padding:15px}
-.goods-name{font-size:16px;margin-bottom:8px;color:#333;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.goods-name{font-size:16px;margin-bottom:8px;color:#333;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .goods-tag{display:inline-flex;align-items:center;justify-content:center;height:24px;line-height:1;background-color:#ff7f24;color:#ffffff;font-size:12px;padding:0 8px;border-radius:4px;margin-bottom:8px;vertical-align:middle;transform:translateX(-1px)}
 .goods-price{font-size:18px;color:#ff7f24;font-weight:bold;margin-bottom:10px;display:block}
 .category-item.fund{display:none}
