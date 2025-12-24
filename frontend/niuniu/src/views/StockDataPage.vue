@@ -2,9 +2,8 @@
   <!-- 头部导航 -->
   <div class="stock-data-container">
     <header class="header">
-      <div class="logo">量化牛牛 - 股票数据中心</div>
+      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
       <div class="header-nav">
-        <router-link to="/">首页</router-link>
         <router-link to="/stock-data" class="active">股票数据</router-link>
         <router-link to="/quant-analysis">量化策略</router-link>
         <router-link to="/profile">我的自选</router-link>
@@ -505,6 +504,11 @@ onMounted(() => {
   font-size: 22px;
   font-weight: bold;
   color: white;
+  text-decoration: none; /* 去除默认下划线 */
+}
+
+.logo:hover {
+  text-decoration: underline; /* 鼠标悬停时显示下划线 */
 }
 
 .header-nav {

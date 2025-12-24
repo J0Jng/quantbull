@@ -28,7 +28,6 @@
           <li><router-link to="/company-research">公司研报</router-link></li>
             <li><router-link to="/shop">商城</router-link></li>
           <li><router-link to="/fund-ranking">基金排行榜</router-link></li>
-          <li><router-link to="/stock-data">股票数据中心</router-link></li>
           <li><a href="#" @click.prevent="scrollToSection('strategy-platform')">量化策略</a></li>
           <li><a href="#" style="color:#ff7f00">更多&gt;</a></li>
         </ul>
