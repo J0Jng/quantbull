@@ -1,5 +1,38 @@
 <template>
   <div>
+    <!-- 登录弹窗 -->
+    <div class="login-modal" v-show="showLogin">
+      <div class="login-box">
+        <span class="close-login" @click="closeLogin">&times;</span>
+        <div class="login-title">量化牛牛 - 登录</div>
+        <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
+        <form class="login-form" @submit.prevent>
+          <input v-model="username" type="text" placeholder="请输入账号" />
+          <input v-model="password" type="password" placeholder="请输入密码" />
+          <button type="button" class="login-btn" @click="submitLogin">登录</button>
+        </form>
+        <div class="login-tips">演示账号：123 | 演示密码：123</div>
+      </div>
+    </div>
+
+    <!-- 动态风险提示弹窗 -->
+    <div class="risk-modal" v-show="showRiskTip">
+      <div class="risk-box">
+        <div class="risk-icon">⚠️</div>
+        <div class="risk-title">风险提示</div>
+        <div class="risk-content">
+          <p>尊敬的用户，您正在登录量化牛牛交易平台。投资有风险，入市需谨慎。请注意：</p>
+          <ul>
+            <li>量化交易可能面临市场风险、流动性风险等</li>
+            <li>过去业绩不代表未来表现</li>
+            <li>请根据自身风险承受能力合理配置资产</li>
+            <li>建议您详细了解产品风险收益特征</li>
+          </ul>
+        </div>
+        <button class="risk-confirm-btn" @click="confirmRiskTip">我已阅读并了解风险</button>
+      </div>
+    </div>
+
     <!-- 顶部栏 -->
     <header class="top-bar">
       <div class="container">
@@ -12,8 +45,18 @@
           <button class="search-btn">查行情</button>
         </div>
         <div class="top-right">
-          <a href="#" class="login-btn">登录</a>
-          <a href="#" class="register-btn">注册</a>
+          <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
+            <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
+            <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+              <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
+              <div class="dropdown-item logout" @click="logout">退出登录</div>
+            </div>
+            <!-- 如果未登录，显示登录/注册选项 -->
+            <div class="user-dropdown" v-show="showUserMenu && !logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+              <div class="dropdown-item" @click="showLoginModal">登录</div>
+              <div class="dropdown-item" @click="showLoginModal">注册</div>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -52,7 +95,7 @@
             <ul>
               <li><a href="#">24H：A三大集团集体高开 宁德时代涨5.1%</a></li>
               <li><a href="#">国际油价涨超1% 报103美元/桶 WTI升4%</a></li>
-              <li><a href="#">房地产“超预期政策”密集发布 多家房企发公告</a></li>
+              <li><a href="#">房地产"超预期政策"密集发布 多家房企发公告</a></li>
               <li><a href="#">人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口</a></li>
               <li><a href="#">工信部：加快推进新能源汽车充电桩建设 年内新增超20万个</a></li>
             </ul>
@@ -415,10 +458,125 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 const search = ref('')
 const dragonTab = ref('dragon-today')
 const reportTab = ref('report-latest')
+
+// 用户菜单相关状态
+const showUserMenu = ref(false)
+const username = ref('')
+const password = ref('')
+const showLogin = ref(false)
+const errorVisible = ref(false)
+const logged = ref(false)
+const userText = ref('登录/注册')
+const showRiskTip = ref(false)
+const isQualifiedInvestor = ref(false)
+
+const router = useRouter()
+
+let menuTimeout = null
+let hideTimeout = null
+
+const onMenuEnter = () => {
+  if (!logged.value) return
+  clearTimeout(hideTimeout)
+  menuTimeout = setTimeout(() => {
+    showUserMenu.value = true
+  }, 300) // 300ms延迟显示
+}
+
+const onMenuLeave = () => {
+  clearTimeout(menuTimeout)
+  hideTimeout = setTimeout(() => {
+    if (showUserMenu.value) {
+      showUserMenu.value = false
+    }
+  }, 200) // 200ms延迟隐藏
+}
+
+const onDropdownEnter = () => {
+  clearTimeout(hideTimeout)
+}
+
+const onDropdownLeave = () => {
+  hideTimeout = setTimeout(() => {
+    showUserMenu.value = false
+  }, 200) // 200ms延迟隐藏
+}
+
+const toggleUserMenu = () => {
+  if (!logged.value) {
+    showLogin.value = true
+    showUserMenu.value = false
+  } else {
+    clearTimeout(menuTimeout)
+    clearTimeout(hideTimeout)
+    showUserMenu.value = !showUserMenu.value
+  }
+}
+
+const showLoginModal = () => {
+  showUserMenu.value = false
+  showLogin.value = true
+}
+
+const submitLogin = () => {
+  if (username.value.trim() === '123' && password.value.trim() === '123') {
+    // 登录成功，显示动态风险提示
+    showRiskTip.value = true
+    showLogin.value = false
+    errorVisible.value = false
+    // 清空输入框
+    username.value = ''
+    password.value = ''
+  } else {
+    errorVisible.value = true
+    setTimeout(() => (errorVisible.value = false), 3000)
+  }
+}
+
+const closeLogin = () => { showLogin.value = false }
+
+const confirmRiskTip = () => {
+  showRiskTip.value = false
+  logged.value = true
+  userText.value = '已登录（123）'
+  localStorage.setItem('quantLogin', '123')
+  showUserMenu.value = false
+  // 强制检查认证状态
+  isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+}
+
+const logout = () => {
+  logged.value = false
+  userText.value = '登录/注册'
+  showUserMenu.value = false
+  localStorage.removeItem('quantLogin')
+}
+
+const goToUserProfile = () => {
+  showUserMenu.value = false
+  router.push('/profile')
+}
+
+// 页面加载时检查登录状态
+onMounted(() => {
+  const status = localStorage.getItem('quantLogin')
+  if (status === '123') {
+    logged.value = true
+    userText.value = '已登录（123）'
+    // 强制检查并设置认证状态
+    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+  } else {
+    // 如果没有登录，确保认证状态为false
+    isQualifiedInvestor.value = false
+  }
+  // 如果未登录，默认显示登录弹窗以与原始静态页面行为一致
+  if (!logged.value) showLogin.value = true
+})
 
 // AI服务相关状态
 const showAiModal = ref(false)
@@ -703,5 +861,213 @@ const funds = [
     background-color: transparent;
     transform: scale(1);
   }
+}
+
+/* 用户菜单样式 */
+.user-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.user-btn {
+  background-color: white;
+  color: #ff7f24;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.user-menu-container:hover .user-btn {
+  background-color: #f5f5f5;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 1000;
+  margin-top: 5px;
+  min-width: 120px;
+}
+
+.dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-item.logout {
+  color: #ff4444;
+  border-bottom: none;
+}
+
+.dropdown-item.logout:hover {
+  background-color: #ffe6e6;
+}
+
+/* 登录弹窗样式 */
+.login-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.login-box {
+  width: 90%;
+  max-width: 400px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  border: 2px solid #ff7f24;
+}
+
+.close-login {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 24px;
+  color: #ff7f24;
+  cursor: pointer;
+}
+
+.login-title {
+  font-size: 22px;
+  color: #ff7f24;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-form input {
+  padding: 12px 15px;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+}
+
+.login-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.login-btn:hover {
+  background-color: #ff6a00;
+}
+
+.login-tips {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+  margin-top: 10px;
+}
+
+.error-tips {
+  color: #ff4500;
+  text-align: center;
+}
+
+/* 动态风险提示样式 */
+.risk-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.risk-box {
+  width: 90%;
+  max-width: 500px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  border: 3px solid #ff9933;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.risk-icon {
+  font-size: 40px;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.risk-title {
+  font-size: 24px;
+  color: #ff4500;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.risk-content {
+  margin-bottom: 25px;
+  line-height: 1.6;
+}
+
+.risk-content p {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.risk-content ul {
+  padding-left: 20px;
+  margin-bottom: 15px;
+}
+
+.risk-content li {
+  margin-bottom: 8px;
+  color: #666;
+}
+
+.risk-confirm-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  display: block;
+  margin: 0 auto;
+  transition: background-color 0.3s;
+}
+
+.risk-confirm-btn:hover {
+  background-color: #ff6a00;
 }
 </style>
