@@ -11,6 +11,7 @@ import FundRankingPage from '@/views/FundRankingPage.vue'
 import StockDataPage from '@/views/StockDataPage.vue'
 import GoodsDetail from '@/views/GoodsDetail.vue'
 import CartPage from '@/views/CartPage.vue'
+import OrderPage from '@/views/OrderPage.vue'
 
 const routes = [
   {
@@ -24,9 +25,14 @@ const routes = [
     component: ShopPage
   },
   {
-    path: '/cart',
+    path: '/shop/cart',
     name: 'Cart',
     component: CartPage
+  },
+  {
+    path: '/shop/orders',
+    name: 'Orders',
+    component: OrderPage
   },
   {
     path: '/quant-analysis',

@@ -37,7 +37,8 @@
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛商店</div>
       <div class="header-opt">
-        <a href="#">我的订单</a>
+        
+        <a href="#" @click.prevent="goToOrders">我的订单</a>
         <a href="#" @click.prevent="goToCart" class="cart-link">
           购物车
           <span class="cart-badge" v-if="cartBadgeCount > 0">{{ cartBadgeCount }}</span>
@@ -461,7 +462,16 @@ function goToCart() {
     showLogin.value = true
     return
   }
-  router.push('/cart')
+  router.push('/shop/cart')
+}
+
+function goToOrders() {
+  if (!logged.value) {
+    alert('请先登录后查看订单')
+    showLogin.value = true
+    return
+  }
+  router.push('/shop/orders')
 }
 
 function go(id) {
