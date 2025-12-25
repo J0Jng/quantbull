@@ -29,14 +29,14 @@
 
       <!-- 商品信息 -->
       <div class="goods-info">
-        <span class="goods-tag">教育培训</span>
-        <h1 class="goods-title">理财入门实战课 - 零基础年化收益可达65%</h1>
+        <span class="goods-tag">{{ currentGoods?.category || '商品' }}</span>
+        <h1 class="goods-title">{{ currentGoods?.title || '加载中...' }}</h1>
 
         <!-- 价格区域 -->
         <div class="price-area">
           <div class="price-label">售价</div>
-          <div class="current-price">¥99.00</div>
-          <div class="origin-price">原价：¥199.00</div>
+          <div class="current-price">¥{{ currentGoods?.price?.toFixed(2) || '0.00' }}</div>
+          <div class="origin-price">原价：¥{{ currentGoods?.originalPrice?.toFixed(2) || '0.00' }}</div>
         </div>
 
         <!-- 规格选择 -->
@@ -221,8 +221,61 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { watch } from 'vue'
+
+const props = defineProps({
+  id: {
+    type: String,
+    required: true
+  }
+})
 
 const router = useRouter()
+const currentGoods = ref(null)
+
+// 根据ID加载商品数据
+function loadGoodsData() {
+  // 模拟商品数据映射
+  const goodsDataMap = {
+    'factor-0': {
+      title: '量价因子合集 - 超100个经典A股量价因子（可直接回测）',
+      price: 1299.00,
+      originalPrice: 1999.00,
+      category: '因子',
+      description: '包含100+个经过验证的A股量价因子...'
+    },
+    'strategy-0': {
+      title: '双均线择时策略 - 年化收益25%+（附Python源码）',
+      price: 699.00,
+      originalPrice: 999.00,
+      category: '策略',
+      description: '经典双均线策略，附带完整Python实现...'
+    },
+    // 其他模拟商品数据...
+  }
+
+  // 检查商品是否存在
+  if (goodsDataMap[props.id]) {
+    currentGoods.value = goodsDataMap[props.id]
+  } else {
+    currentGoods.value = {
+      title: '商品不存在',
+      price: 0,
+      originalPrice: 0,
+      category: '错误',
+      description: '抱歉，您请求的商品不存在或已下架'
+    }
+    // 可以在这里添加错误提示逻辑
+  }
+}
+
+// 监听ID变化
+watch(() => props.id, () => {
+  loadGoodsData()
+})
+
+// 初始化加载
+loadGoodsData()
 const selectedSpec = ref('basic')
 const activeTab = ref('outline')
 const showModal = ref(false)
