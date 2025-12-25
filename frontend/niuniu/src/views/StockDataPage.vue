@@ -1,13 +1,32 @@
 <template>
   <!-- 头部导航 -->
   <div class="stock-data-container">
+    <!-- 登录弹窗 -->
+    <div class="login-modal" v-show="showLogin">
+      <div class="login-box">
+        <span class="close-login" @click="closeLogin">&times;</span>
+        <div class="login-title">量化牛牛 - 登录</div>
+        <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
+        <form class="login-form" @submit.prevent>
+          <input v-model="username" type="text" placeholder="请输入账号" />
+          <input v-model="password" type="password" placeholder="请输入密码" />
+          <button type="button" class="login-btn" @click="submitLogin">登录</button>
+        </form>
+        <div class="login-tips">演示账号：123 | 演示密码：123</div>
+      </div>
+    </div>
+
     <header class="header">
       <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
       <div class="header-nav">
-        <router-link to="/stock-data" class="active">股票数据</router-link>
         <router-link to="/quant-analysis">量化策略</router-link>
-        <router-link to="/profile">我的自选</router-link>
-        <div class="user-btn">登录/注册</div>
+        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
+          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
+          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
+            <div class="dropdown-item logout" @click="logout">退出登录</div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -234,6 +253,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 // ============================================
 // API 配置
@@ -259,6 +279,15 @@ const INDEX_CODES = {
   '000300': '沪深300',
   '000905': '中证500'
 };
+
+// 登录相关状态
+const username = ref('');
+const password = ref('');
+const showLogin = ref(false);
+const errorVisible = ref(false);
+const logged = ref(false);
+const userText = ref('登录/注册');
+const showUserMenu = ref(false);
 
 // 响应式数据
 const marketIndexes = ref([]);
@@ -458,8 +487,92 @@ const formatDate = (date) => {
   return `${year}${month}${day}`;
 };
 
+const router = useRouter();
+
+// 登录功能
+function submitLogin() {
+  if (username.value.trim() === '123' && password.value.trim() === '123') {
+    // 登录成功
+    logged.value = true;
+    userText.value = '已登录（123）';
+    showLogin.value = false;
+    errorVisible.value = false;
+    localStorage.setItem('quantLogin', '123');
+    // 清空输入框
+    username.value = '';
+    password.value = '';
+  } else {
+    errorVisible.value = true;
+    setTimeout(() => (errorVisible.value = false), 3000);
+  }
+}
+
+function closeLogin() { 
+  showLogin.value = false; 
+}
+
+function goToUserProfile() {
+  showUserMenu.value = false;
+  router.push('/profile');
+}
+
+let menuTimeout = null;
+let hideTimeout = null;
+
+function onMenuEnter() {
+  if (!logged.value) return;
+  clearTimeout(hideTimeout);
+  menuTimeout = setTimeout(() => {
+    showUserMenu.value = true;
+  }, 300); // 300ms延迟显示
+}
+
+function onMenuLeave() {
+  clearTimeout(menuTimeout);
+  hideTimeout = setTimeout(() => {
+    if (showUserMenu.value) {
+      showUserMenu.value = false;
+    }
+  }, 200); // 200ms延迟隐藏
+}
+
+function onDropdownEnter() {
+  clearTimeout(hideTimeout);
+}
+
+function onDropdownLeave() {
+  hideTimeout = setTimeout(() => {
+    showUserMenu.value = false;
+  }, 200); // 200ms延迟隐藏
+}
+
+function toggleUserMenu() { 
+  if (!logged.value) {
+    showLogin.value = true; 
+    showUserMenu.value = false;
+  } else {
+    clearTimeout(menuTimeout);
+    clearTimeout(hideTimeout);
+    showUserMenu.value = !showUserMenu.value;
+  }
+}
+
+function logout() {
+  logged.value = false;
+  userText.value = '登录/注册';
+  showUserMenu.value = false;
+  localStorage.removeItem('quantLogin');
+}
+
 // 页面加载时初始化数据
 onMounted(() => {
+  // 检查登录状态
+  const status = localStorage.getItem('quantLogin');
+  if (status === '123') {
+    logged.value = true;
+    userText.value = '已登录（123）';
+  }
+  
   loadMarketOverview();
   loadStockData();
   
@@ -629,6 +742,124 @@ onMounted(() => {
   padding: 12px;
   border-radius: 6px;
   background-color: #fff8f0;
+}
+
+/* 登录弹窗样式 */
+.login-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.login-box {
+  width: 90%;
+  max-width: 400px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  border: 2px solid #ff7f24;
+}
+
+.close-login {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 24px;
+  color: #ff7f24;
+  cursor: pointer;
+}
+
+.login-title {
+  font-size: 22px;
+  color: #ff7f24;
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-form input {
+  padding: 12px 15px;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #ff7f24;
+}
+
+.login-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.login-btn:hover {
+  background-color: #ff6a00;
+}
+
+.login-tips {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+  margin-top: 10px;
+}
+
+.error-tips {
+  color: #ff4500;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.user-menu-container {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 120px;
+}
+
+.dropdown-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #fff3e6;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #fff8f0;
+}
+
+.dropdown-item.logout {
+  color: #ff4500;
 }
 
 .index-name {
