@@ -185,6 +185,75 @@
       <div v-if="error" class="error-message card">
         {{ error }}
       </div>
+      
+      <!-- 历史回测记录 -->
+      <div class="section card">
+        <div class="section-header">
+          <h2 class="section-title">历史回测记录</h2>
+          <button 
+            class="btn-secondary" 
+            :disabled="loadingHistory" 
+            @click="fetchHistoryRecords"
+          >
+            {{ loadingHistory ? '加载中...' : '刷新' }}
+          </button>
+        </div>
+        
+        <div v-if="loadingHistory" class="loading-indicator">
+          加载中...
+        </div>
+        
+        <div v-else>
+          <div class="table-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>回测ID</th>
+                  <th>股票代码</th>
+                  <th>回测日期范围</th>
+                  <th>策略类型</th>
+                  <th>年化收益率</th>
+                  <th>夏普比率</th>
+                  <th>最大回撤</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in historyRecords" :key="record.id">
+                  <td>{{ record.id }}</td>
+                  <td>{{ record.stock_code }}</td>
+                  <td>{{ record.start_date }} 至 {{ record.end_date }}</td>
+                  <td>{{ record.strategy_type }}</td>
+                  <td :class="{'positive': record.annual_return > 0, 'negative': record.annual_return < 0}">
+                    {{ (record.annual_return * 100).toFixed(2) }}%
+                  </td>
+                  <td>{{ record.sharpe_ratio.toFixed(2) }}</td>
+                  <td>{{ (record.max_drawdown * 100).toFixed(2) }}%</td>
+                  <td>
+                    <button class="btn-view-detail" @click="viewDetail(record.id)">查看详情</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="pagination">
+            <button 
+              :disabled="currentPage === 1" 
+              @click="changePage(currentPage - 1)"
+            >
+              上一页
+            </button>
+            <span>第 {{ currentPage }} 页</span>
+            <button 
+              :disabled="historyRecords.length < pageSize" 
+              @click="changePage(currentPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -356,6 +425,48 @@ const getMetricLabel = (key) => {
   }
   return labels[key] || key
 }
+
+// 历史记录相关变量
+const historyRecords = ref([])
+const loadingHistory = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+// 获取历史回测记录
+const fetchHistoryRecords = async () => {
+  loadingHistory.value = true
+  error.value = ''
+  
+  try {
+    const response = await fetch(`/api/quant/api/backtest?limit=${pageSize.value}&offset=${(currentPage.value - 1) * pageSize.value}`)
+    
+    if (!response.ok) {
+      throw new Error(`获取历史记录失败: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    historyRecords.value = data.records || []
+  } catch (err) {
+    error.value = `获取历史记录失败: ${err.message}`
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+// 切换分页
+const changePage = (page) => {
+  currentPage.value = page
+  fetchHistoryRecords()
+}
+
+// 查看详情
+const viewDetail = (backtestId) => {
+  // 这里可以跳转到详情页面或显示模态框
+  console.log(`查看回测详情: ${backtestId}`)
+}
+
+// 初始化时获取历史记录
+fetchHistoryRecords()
 </script>
 
 <style scoped>
@@ -601,6 +712,99 @@ const getMetricLabel = (key) => {
   margin-top: 20px;
 }
 
+/* 历史记录区域样式 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.loading-indicator {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #e1e1e1;
+}
+
+.history-table th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+  color: #333;
+}
+
+.history-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.positive {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.negative {
+  color: #f44336;
+  font-weight: bold;
+}
+
+.btn-view-detail {
+  padding: 6px 12px;
+  background-color: #ff7f00;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-view-detail:hover {
+  background-color: #e06f00;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.pagination button {
+  padding: 8px 16px;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.pagination button:hover:not(:disabled) {
+  background-color: #ff7f00;
+  color: white;
+  border-color: #ff7f00;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .container {
     width: 95%;
@@ -622,6 +826,17 @@ const getMetricLabel = (key) => {
   
   .page-title {
     font-size: 1.5rem;
+  }
+  
+  .history-table th,
+  .history-table td {
+    padding: 8px;
+    font-size: 0.9rem;
+  }
+  
+  .btn-view-detail {
+    padding: 4px 8px;
+    font-size: 0.8rem;
   }
 }
 </style>
