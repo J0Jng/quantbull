@@ -44,7 +44,7 @@
               <li v-for="(tag, i) in item.tags" :key="i">{{ tag }}</li>
             </ul>
             <div style="clear:both;"></div>
-            <button class="view-btn">查看研报</button>
+            <button class="view-btn" @click="viewReport(index)">查看研报</button>
           </div>
         </div>
       </div>
@@ -125,6 +125,12 @@ const filteredReports = computed(() => {
 
 function goHome() {
   router.push('/')
+}
+
+function viewReport(index) {
+  // 在实际应用中，这里应该使用真实的研报ID
+  // 目前我们使用索引作为ID模拟
+  router.push(`/company-research/research-detail/${index + 1}`)
 }
 
 function go(id) {
