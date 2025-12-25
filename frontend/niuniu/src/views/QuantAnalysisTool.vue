@@ -1,6 +1,9 @@
 <template>
   <div class="quant-analysis-tool">
     <div class="container">
+      <div class="back-to-home">
+        <router-link to="/" class="back-btn">返回主页</router-link>
+      </div>
       <h1 class="page-title">量化分析工具</h1>
       
       <!-- 策略创建与回测 -->
@@ -366,6 +369,27 @@ const getMetricLabel = (key) => {
   width: 1200px;
   margin: 0 auto;
   position: relative;
+}
+
+.back-to-home {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.back-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: #ff7f00;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.back-btn:hover {
+  background-color: #e06f00;
 }
 
 .page-title {
