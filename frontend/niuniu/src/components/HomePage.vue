@@ -184,7 +184,7 @@
                   <li v-for="(t, i) in card.tags" :key="i">{{ t }}</li>
                 </ul>
                 <div style="clear:both;"></div>
-                <button class="view-btn">查看研报</button>
+                <button class="view-btn" @click="goToCompanyResearch">查看研报</button>
               </div>
             </div>
           </div>
@@ -516,6 +516,10 @@ const toggleUserMenu = () => {
     clearTimeout(hideTimeout)
     showUserMenu.value = !showUserMenu.value
   }
+}
+
+const goToCompanyResearch = () => {
+  router.push('/company-research')
 }
 
 const showLoginModal = () => {
