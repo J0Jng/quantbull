@@ -83,6 +83,47 @@
             <pre class="code-preview">{{ generatedStrategy || backtestForm.strategy_code }}</pre>
           </div>
           
+          <!-- 回测模式选择 -->
+          <div class="form-group">
+            <label for="backtest-mode">回测模式:</label>
+            <div class="mode-toggle">
+              <div class="toggle-option">
+                <input 
+                  type="radio" 
+                  id="sync-mode" 
+                  v-model="backtestMode" 
+                  value="sync" 
+                  class="toggle-input"
+                />
+                <label for="sync-mode" class="toggle-label">
+                  <span class="toggle-icon">⏳</span>
+                  <span class="toggle-text">同步模式</span>
+                  <span class="toggle-description">快速回测，实时等待结果</span>
+                </label>
+              </div>
+              <div class="toggle-option">
+                <input 
+                  type="radio" 
+                  id="async-mode" 
+                  v-model="backtestMode" 
+                  value="async" 
+                  class="toggle-input"
+                />
+                <label for="async-mode" class="toggle-label">
+                  <span class="toggle-icon">⚡</span>
+                  <span class="toggle-text">异步模式</span>
+                  <span class="toggle-description">提交后继续操作，后台处理</span>
+                </label>
+              </div>
+            </div>
+            <div class="mode-tip" v-if="backtestMode === 'sync'">
+              <small>适合快速回测（小数据量），界面锁定等待结果</small>
+            </div>
+            <div class="mode-tip" v-else>
+              <small>适合长时间运行任务，可在历史记录中查看进度</small>
+            </div>
+          </div>
+          
           <div class="form-group">
             <label for="initial-cash">初始资金:</label>
             <input 
@@ -127,8 +168,29 @@
             :disabled="runningBacktest" 
             @click="runBacktest"
           >
-            {{ runningBacktest ? '回测中...' : '开始回测' }}
+            {{ getBacktestButtonText() }}
           </button>
+          
+          <!-- 异步任务状态显示 -->
+          <div v-if="pendingTaskId" class="async-task-status card">
+            <h4>异步任务状态</h4>
+            <div class="task-info">
+              <div class="task-id">任务ID: {{ pendingTaskId }}</div>
+              <div class="task-status" :class="taskStatus">
+                状态: {{ getTaskStatusText(taskStatus) }}
+              </div>
+              <button 
+                class="btn-secondary" 
+                @click="checkAsyncTaskStatus(pendingTaskId)"
+                :disabled="taskStatus === 'completed'"
+              >
+                刷新状态
+              </button>
+            </div>
+            <div v-if="taskStatus === 'completed'" class="task-completed">
+              <p>✅ 任务已完成！结果已显示在上方。</p>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -281,6 +343,9 @@ const generatingStrategy = ref(false)
 const runningBacktest = ref(false)
 const backtestResult = ref(null)
 const error = ref('')
+const backtestMode = ref('sync') // sync 或 async
+const pendingTaskId = ref(null) // 异步任务ID
+const taskStatus = ref(null) // 异步任务状态
 
 // 获取API基础URL
 const API_BASE_URL = '/api'
@@ -346,9 +411,11 @@ const runBacktest = async () => {
   runningBacktest.value = true
   error.value = ''
   backtestResult.value = null
+  pendingTaskId.value = null
+  taskStatus.value = null
   
   try {
-    // 提交回测任务
+    // 准备回测数据
     const backtestPayload = {
       stock_code: backtestForm.stock_code,
       start_date: backtestForm.start_date,
@@ -366,12 +433,28 @@ const runBacktest = async () => {
       backtestPayload.strategy_name = backtestForm.strategy_name
     }
     
+    if (backtestMode.value === 'sync') {
+      // 同步模式 - 使用轮询
+      await runSyncBacktest(backtestPayload)
+    } else {
+      // 异步模式 - 提交任务后立即返回
+      await runAsyncBacktest(backtestPayload)
+    }
+  } catch (err) {
+    error.value = `回测失败: ${err.message}`
+    runningBacktest.value = false
+  }
+}
+
+// 同步回测模式
+const runSyncBacktest = async (payload) => {
+  try {
     const response = await fetch('/api/quant/api/backtest/run', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(backtestPayload)
+      body: JSON.stringify(payload)
     })
     
     if (!response.ok) {
@@ -381,24 +464,90 @@ const runBacktest = async () => {
     const submitResult = await response.json()
     const backtestId = submitResult.backtest_id
     
-    // 轮询获取回测结果
-    let result
-    do {
-      await new Promise(resolve => setTimeout(resolve, 1000)) // 等待1秒
+    // 使用指数退避策略进行轮询
+    let retryCount = 0
+    const maxRetries = 60 // 最多等待60秒
+    const baseDelay = 1000 // 基础延迟1秒
+    const maxDelay = 10000 // 最大延迟10秒
+    
+    while (retryCount < maxRetries) {
+      await new Promise(resolve => {
+        // 指数退避延迟
+        const delay = Math.min(baseDelay * Math.pow(1.5, retryCount), maxDelay)
+        setTimeout(resolve, delay)
+      })
       
       const resultResponse = await fetch(`/api/quant/api/backtest/${backtestId}`)
       if (!resultResponse.ok) {
         throw new Error(`获取回测结果失败: ${resultResponse.status}`)
       }
       
-      result = await resultResponse.json()
-    } while (result.data && !result.data.success)
+      const result = await resultResponse.json()
+      
+      if (result.data && result.data.success) {
+        backtestResult.value = result.data
+        break
+      }
+      
+      retryCount++
+    }
     
-    backtestResult.value = result.data
-  } catch (err) {
-    error.value = `回测失败: ${err.message}`
+    if (retryCount >= maxRetries) {
+      throw new Error('回测超时，请使用异步模式或稍后查看历史记录')
+    }
   } finally {
     runningBacktest.value = false
+  }
+}
+
+// 异步回测模式
+const runAsyncBacktest = async (payload) => {
+  try {
+    const response = await fetch('/api/quant/api/backtest/run_async', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+    
+    if (!response.ok) {
+      throw new Error(`异步回测提交失败: ${response.status}`)
+    }
+    
+    const submitResult = await response.json()
+    pendingTaskId.value = submitResult.task_id
+    taskStatus.value = 'submitted'
+    
+    // 显示成功消息
+    error.value = `异步任务已提交！任务ID: ${submitResult.task_id}。可在历史记录中查看进度。`
+  } finally {
+    runningBacktest.value = false
+  }
+}
+
+// 检查异步任务状态
+const checkAsyncTaskStatus = async (taskId) => {
+  try {
+    const response = await fetch(`/api/quant/api/backtest/${taskId}`)
+    if (!response.ok) {
+      throw new Error(`检查任务状态失败: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    if (result.data) {
+      taskStatus.value = result.data.success ? 'completed' : 'processing'
+      
+      if (result.data.success) {
+        backtestResult.value = result.data
+        pendingTaskId.value = null
+      }
+    }
+    
+    return result.data
+  } catch (err) {
+    console.error('检查任务状态时出错:', err)
+    return null
   }
 }
 
@@ -465,6 +614,25 @@ const viewDetail = (backtestId) => {
   console.log(`查看回测详情: ${backtestId}`)
 }
 
+// 获取回测按钮文本
+const getBacktestButtonText = () => {
+  if (runningBacktest.value) {
+    return backtestMode.value === 'sync' ? '回测中...' : '提交中...'
+  }
+  return backtestMode.value === 'sync' ? '开始回测' : '异步提交'
+}
+
+// 获取任务状态文本
+const getTaskStatusText = (status) => {
+  const statusMap = {
+    'submitted': '已提交',
+    'processing': '处理中',
+    'completed': '已完成',
+    'failed': '失败'
+  }
+  return statusMap[status] || '未知'
+}
+
 // 初始化时获取历史记录
 fetchHistoryRecords()
 </script>
@@ -472,7 +640,7 @@ fetchHistoryRecords()
 <style scoped>
 .quant-analysis-tool {
   padding: 20px 0;
-  background: #f9f9f9;
+  background: #fff8f0;
   min-height: calc(100vh - 100px);
 }
 
@@ -800,10 +968,168 @@ fetchHistoryRecords()
   border-color: #ff7f00;
 }
 
-.pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+  .pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* 模式切换样式 */
+  .mode-toggle {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .toggle-option {
+    flex: 1;
+  }
+
+  .toggle-input {
+    display: none;
+  }
+
+  .toggle-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f8f8f8;
+    text-align: center;
+  }
+
+  .toggle-input:checked + .toggle-label {
+    border-color: #ff7f00;
+    background-color: #fff8f0;
+    box-shadow: 0 0 10px rgba(255, 127, 0, 0.2);
+  }
+
+  .toggle-icon {
+    font-size: 1.5rem;
+    margin-bottom: 5px;
+  }
+
+  .toggle-text {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 2px;
+  }
+
+  .toggle-description {
+    font-size: 0.8rem;
+    color: #666;
+  }
+
+  .mode-tip {
+    margin-top: 5px;
+    padding: 5px 10px;
+    background: #f0f8ff;
+    border-radius: 4px;
+    border-left: 3px solid #1e90ff;
+  }
+
+  .mode-tip small {
+    color: #4169e1;
+  }
+
+  /* 异步任务状态样式 */
+  .async-task-status {
+    margin-top: 20px;
+    border-left: 4px solid #1e90ff;
+    background: #f8fdff;
+  }
+
+  .async-task-status h4 {
+    color: #1e90ff;
+    margin: 0 0 15px 0;
+    font-size: 1.1rem;
+  }
+
+  .task-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .task-id {
+    font-family: monospace;
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  .task-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+  }
+
+  .task-status.submitted {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+  }
+
+  .task-status.processing {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+
+  .task-status.completed {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+
+  .task-status.failed {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+
+  .task-completed {
+    padding: 10px;
+    background: #d4edda;
+    border-radius: 4px;
+    text-align: center;
+  }
+
+  .task-completed p {
+    margin: 0;
+    color: #155724;
+    font-weight: bold;
+  }
+
+  /* 响应式调整 */
+  @media (max-width: 768px) {
+    .mode-toggle {
+      flex-direction: column;
+    }
+    
+    .task-info {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .toggle-label {
+      padding: 10px;
+    }
+    
+    .toggle-icon {
+      font-size: 1.2rem;
+    }
+  }
 
 @media (max-width: 768px) {
   .container {

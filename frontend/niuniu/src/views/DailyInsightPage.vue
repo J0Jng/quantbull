@@ -1,5 +1,5 @@
 <template>
-  <div class="daily-insight-page">
+  <div class="daily-insight-page" style="background: #fff8f0; min-height: 100vh;">
     <!-- 头部 -->
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛 - 每日内参</div>
