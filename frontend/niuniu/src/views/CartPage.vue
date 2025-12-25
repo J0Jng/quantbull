@@ -1,5 +1,5 @@
 <template>
-  <div class="cart-page">
+  <div class="cart-page" style="background: #fff8f0; min-height: 100vh;">
     <!-- 头部导航 -->
     <div class="cart-header">
       <div class="header-content">

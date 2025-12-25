@@ -1,6 +1,6 @@
 <template>
   <!-- 头部导航 -->
-  <div class="stock-data-container">
+  <div class="stock-data-container" style="background: #fff8f0; min-height: 100vh;">
     <!-- 登录弹窗 -->
     <div class="login-modal" v-show="showLogin">
       <div class="login-box">

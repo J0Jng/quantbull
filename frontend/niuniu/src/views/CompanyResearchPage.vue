@@ -1,5 +1,5 @@
 <template>
-  <div class="company-research-page">
+  <div class="company-research-page" style="background: #fff8f0; min-height: 100vh;">
     <!-- 头部 -->
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛研报中心</div>
