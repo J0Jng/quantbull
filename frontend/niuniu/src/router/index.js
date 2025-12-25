@@ -81,9 +81,10 @@ const routes = [
     component: StockDataPage
   },
   {
-    path: '/goods-detail',
+    path: '/shop/goods-detail/:id',
     name: 'GoodsDetail',
-    component: GoodsDetail
+    component: GoodsDetail,
+    props: true
   }
 ]
 

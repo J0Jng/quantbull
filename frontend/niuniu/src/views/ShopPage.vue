@@ -83,7 +83,7 @@
             <div class="goods-price">{{ item.price }}</div>
           <div class="goods-btn">
             <button class="buy-btn" @click="addToCart(item, 'factor')">加入购物车</button>
-            <button class="detail-btn" @click="goToGoodsDetail('factor')">详情</button>
+            <button class="detail-btn" @click="goToGoodsDetail('factor', i)">详情</button>
           </div>
           </div>
         </div>
@@ -100,7 +100,7 @@
             <div class="goods-price">{{ item.price }}</div>
           <div class="goods-btn">
             <button class="buy-btn" @click="addToCart(item, 'strategy')">加入购物车</button>
-            <button class="detail-btn" @click="goToGoodsDetail('strategy')">详情</button>
+            <button class="detail-btn" @click="goToGoodsDetail('strategy', i)">详情</button>
           </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ const cartStore = useCartStore()
 
 function goHome() { router.push('/') }
 
-function goToGoodsDetail(category = 'general') {
+function goToGoodsDetail(category = 'general', itemIndex) {
   // 首先检查用户是否已登录
   if (!logged.value) {
     alert('请先登录后再查看商品详情和购买。')
@@ -242,7 +242,10 @@ function goToGoodsDetail(category = 'general') {
     alert('该产品仅对合格投资者开放，请先前往个人主页完成合格投资者认证。')
     return
   }
-  router.push('/goods/detail')
+  
+  // 生成商品ID，格式为：category-index
+  const goodsId = `${category}-${itemIndex || 0}`
+  router.push(`/shop/goods-detail/${goodsId}`)
 }
 
 const factorItems = ref([
@@ -502,7 +505,7 @@ body{background-color:#fff8f0;color:#333}
 .cart-link { position: relative; }
 .header-opt{position:relative}
 .user-menu-container{position:relative;display:inline-block}
-.header-opt .user-btn{background-color:white;color:#ff7f24;padding:6px 12px;border-radius:4px;cursor:pointer;position:relative}
+.header-opt .user-btn{background-color:white;color:#ffffff;padding:6px 12px;border-radius:4px;cursor:pointer;position:relative}
 .user-menu-container:hover .user-btn{background-color:#f5f5f5}
 .user-dropdown{position:absolute;top:100%;right:0;background-color:white;border:1px solid #ddd;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:1000;margin-top:5px;min-width:120px}
 .dropdown-item{padding:8px 12px;cursor:pointer;font-size:14px;color:#333;border-bottom:1px solid #f0f0f0}

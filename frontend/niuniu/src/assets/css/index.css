@@ -94,21 +94,24 @@ table {
 
 /* 用户按钮样式 */
 .user-btn {
-	background: transparent !important;
-	color: #ff7f24 !important;
-	padding: 6px 12px !important;
-	border: none !important;
-	border-radius: 4px !important;
-	cursor: pointer !important;
-	font-size: 14px !important;
-	display: inline-block !important;
-	text-decoration: none !important;
+    background: #ff7f24 !important;
+    color: #ffffff !important;
+    padding: 5px 12px !important;  /* 减小上下padding，从6px改为4px */
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    display: inline-block !important;
+    text-decoration: none !important;
+    font-weight: bold !important;
+    transition: background-color 0.3s ease !important;
+    line-height: 1.2 !important;  /* 添加行高控制，确保垂直居中 */
 }
 
 .user-btn:hover,
 .user-btn:focus,
 .user-btn:active {
-	background: transparent !important;
+    background: #ff6a00 !important;
 }
 
 /* 用户下拉菜单 */

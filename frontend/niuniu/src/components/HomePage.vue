@@ -874,16 +874,19 @@ const funds = [
 }
 
 .user-btn {
-  background-color: white;
-  color: #ff7f24;
+  background-color: #000000;  /* 橙色实心背景 */
+  color: white;                /* 白色字体确保清晰显示 */
   padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: bold;           /* 字体加粗增强可读性 */
+  border: none;               /* 移除默认边框 */
+  transition: background-color 0.3s ease; /* 添加过渡效果 */
 }
 
 .user-menu-container:hover .user-btn {
-  background-color: #f5f5f5;
+  background-color: #ff6a00;  /* 鼠标悬停时稍深的橙色 */
 }
 
 .user-dropdown {
