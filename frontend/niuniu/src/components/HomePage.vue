@@ -82,22 +82,22 @@
       <div class="container">
         <!-- 财经头条板块 -->
         <h2 class="section-title">财经头条</h2>
-        <router-link to="/news-detail" class="more-link" style="float:right;margin-top:12px;font-size:14px;">更多&gt;</router-link>
+        <router-link to="/news-list" class="more-link" style="float:right;margin-top:12px;font-size:14px;">更多&gt;</router-link>
         <section class="news-section">
           <div class="news-banner">
             <img src="/1.png" alt="财经头条主图" />
-            <div class="banner-mask">
+            <div class="banner-mask" @click="goToNewsDetail(1)">
               <h3 class="mask-title">央行：将再降准0.5个百分点 释放资金约1万亿元</h3>
               <p class="mask-desc">本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。</p>
             </div>
           </div>
           <div class="news-list">
             <ul>
-              <li><a href="#">24H：A三大集团集体高开 宁德时代涨5.1%</a></li>
-              <li><a href="#">国际油价涨超1% 报103美元/桶 WTI升4%</a></li>
-              <li><a href="#">房地产"超预期政策"密集发布 多家房企发公告</a></li>
-              <li><a href="#">人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口</a></li>
-              <li><a href="#">工信部：加快推进新能源汽车充电桩建设 年内新增超20万个</a></li>
+              <li><a href="#" @click.prevent="goToNewsDetail(2)">24H：A三大集团集体高开 宁德时代涨5.1%</a></li>
+              <li><a href="#" @click.prevent="goToNewsDetail(3)">国际油价涨超1% 报103美元/桶 WTI升4%</a></li>
+              <li><a href="#" @click.prevent="goToNewsDetail(4)">房地产"超预期政策"密集发布 多家房企发公告</a></li>
+              <li><a href="#" @click.prevent="goToNewsDetail(5)">人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口</a></li>
+              <li><a href="#" @click.prevent="goToNewsDetail(6)">工信部：加快推进新能源汽车充电桩建设 年内新增超20万个</a></li>
             </ul>
           </div>
         </section>
@@ -564,6 +564,11 @@ const logout = () => {
 const goToUserProfile = () => {
   showUserMenu.value = false
   router.push('/profile')
+}
+
+// 跳转到新闻详情页
+const goToNewsDetail = (id) => {
+  router.push(`/news-detail/${id}`)
 }
 
 // 页面加载时检查登录状态

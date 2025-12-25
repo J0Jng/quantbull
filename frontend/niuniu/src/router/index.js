@@ -13,6 +13,7 @@ import StockDataPage from '@/views/StockDataPage.vue'
 import GoodsDetail from '@/views/GoodsDetail.vue'
 import CartPage from '@/views/CartPage.vue'
 import OrderPage from '@/views/OrderPage.vue'
+import NewsListPage from '@/views/NewsListPage.vue'
 
 const routes = [
   {
@@ -41,9 +42,15 @@ const routes = [
     component: QuantAnalysisTool
   },
   {
-    path: '/news-detail',
+    path: '/news-list',
+    name: 'NewsList',
+    component: NewsListPage
+  },
+  {
+    path: '/news-detail/:id',
     name: 'NewsDetail',
-    component: NewsDetailPage
+    component: NewsDetailPage,
+    props: true
   },
   {
     path: '/company-research',
