@@ -891,3 +891,121 @@ table {
 	border-top: 1px solid #f0f0f0;
 	margin-top: 20px;
 }
+
+/* 聊天窗口特殊样式增强 */
+.chat-widget-container * {
+  box-sizing: border-box;
+}
+
+/* 聊天窗口动画效果 */
+@keyframes chatPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.chat-icon:hover {
+  animation: chatPulse 2s infinite;
+}
+
+/* 新消息闪烁效果 */
+@keyframes newMessageFlash {
+  0% { box-shadow: 0 0 0 0 rgba(255, 127, 0, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 127, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 127, 0, 0); }
+}
+
+.chat-icon.has-unread {
+  animation: newMessageFlash 2s infinite;
+}
+
+/* 消息气泡动画 */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+/* 加载动画增强 */
+@keyframes typingDots {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+.typing-indicator span {
+  animation: typingDots 1.4s ease-in-out infinite both;
+}
+
+/* 拖拽时的半透明效果 */
+.chat-window.dragging {
+  opacity: 0.8;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* 响应式优化 */
+@media (max-width: 480px) {
+  .chat-window {
+    width: 95vw !important;
+    height: 80vh !important;
+    left: 2.5vw !important;
+    top: 10vh !important;
+  }
+  
+  .chat-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+}
+
+/* 无障碍访问支持 */
+.chat-window:focus-within {
+  outline: 2px solid #ff7f00;
+  outline-offset: 2px;
+}
+
+.send-btn:focus,
+.message-input:focus,
+.action-btn:focus {
+  outline: 2px solid #ff7f00;
+  outline-offset: 2px;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .chat-window {
+    border: 2px solid #ff7f00;
+  }
+  
+  .message-content {
+    border: 1px solid #333;
+  }
+}
+
+/* 减少动画支持 */
+@media (prefers-reduced-motion: reduce) {
+  .chat-icon:hover,
+  .message,
+  .typing-indicator span {
+    animation: none;
+  }
+  
+  .chat-icon:hover {
+    transform: none;
+  }
+}
