@@ -69,8 +69,9 @@
           <li><router-link to="/finance-channel">财经频道</router-link></li>
           <li><router-link to="/daily-insight">每日内参</router-link></li>
           <li><router-link to="/company-research">公司研报</router-link></li>
-            <li><router-link to="/shop">商城</router-link></li>
+          <li><router-link to="/shop">商城</router-link></li>
           <li><router-link to="/fund-ranking">基金排行榜</router-link></li>
+          <li><router-link to="/stock-data">股票数据中心</router-link></li>
           <li><a href="#" @click.prevent="scrollToSection('strategy-platform')">量化策略</a></li>
           <li><a href="#" style="color:#ff7f00">更多&gt;</a></li>
         </ul>
@@ -202,15 +203,15 @@
               </router-link>
             </div>
             <div class="platform-card blue">
-              <h3>股票数据中心</h3>
-              <p>显示股票的相关数据</p>
+              <h3>策略管理工具</h3>
+              <p>策略管理模块</p>
               <router-link to="/stock-data">
                 <button class="try-btn" style="color:#1e90ff;font-size:14px;border-radius: 100px;">立即体验</button>
               </router-link>
             </div>
             <div class="platform-card green">
-              <h3>风险管理系统</h3>
-              <p>实时监控投资组合，优化配置方案</p>
+              <h3>因子分析工具</h3>
+              <p>实时分析因子，优化配置方案</p>
               <button class="try-btn" style="color:#00b300;font-size:14px;border-radius: 100px;">立即体验</button>
             </div>
           </div>
