@@ -205,7 +205,7 @@
             <div class="platform-card blue">
               <h3>策略管理工具</h3>
               <p>策略管理模块</p>
-              <router-link to="/stock-data">
+              <router-link to="/strategies">
                 <button class="try-btn" style="color:#1e90ff;font-size:14px;border-radius: 100px;">立即体验</button>
               </router-link>
             </div>
