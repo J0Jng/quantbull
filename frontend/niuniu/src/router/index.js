@@ -14,6 +14,10 @@ import GoodsDetail from '@/views/GoodsDetail.vue'
 import CartPage from '@/views/CartPage.vue'
 import OrderPage from '@/views/OrderPage.vue'
 import NewsListPage from '@/views/NewsListPage.vue'
+import StrategyListPage from '@/views/StrategyListPage.vue'
+import StrategyCreatePage from '@/views/StrategyCreatePage.vue'
+import StrategyDetailPage from '@/views/StrategyDetailPage.vue'
+import StrategyEditPage from '@/views/StrategyEditPage.vue'
 
 const routes = [
   {
@@ -92,6 +96,33 @@ const routes = [
     name: 'GoodsDetail',
     component: GoodsDetail,
     props: true
+  },
+  // 策略管理路由
+  {
+    path: '/strategies',
+    name: 'StrategyList',
+    component: StrategyListPage,
+    meta: { title: '策略管理' }
+  },
+  {
+    path: '/strategies/create',
+    name: 'StrategyCreate',
+    component: StrategyCreatePage,
+    meta: { title: '创建策略' }
+  },
+  {
+    path: '/strategies/:id',
+    name: 'StrategyDetail',
+    component: StrategyDetailPage,
+    props: true,
+    meta: { title: '策略详情' }
+  },
+  {
+    path: '/strategies/:id/edit',
+    name: 'StrategyEdit',
+    component: StrategyEditPage,
+    props: true,
+    meta: { title: '编辑策略' }
   }
 ]
 
@@ -101,6 +132,13 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 }
   }
+})
+
+// 设置页面标题
+router.beforeEach((to, from, next) => {
+  const title = to.meta.title || '量化牛牛'
+  document.title = `${title} - 量化牛牛`
+  next()
 })
 
 export default router
