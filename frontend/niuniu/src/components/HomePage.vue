@@ -212,7 +212,9 @@
             <div class="platform-card green">
               <h3>因子分析工具</h3>
               <p>实时分析因子，优化配置方案</p>
-              <button class="try-btn" style="color:#00b300;font-size:14px;border-radius: 100px;">立即体验</button>
+              <router-link to="/factors">
+                <button class="try-btn" style="color:#00b300;font-size:14px;border-radius: 100px;">立即体验</button>
+              </router-link>
             </div>
           </div>
         </section>

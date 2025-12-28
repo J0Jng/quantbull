@@ -123,6 +123,33 @@ const routes = [
     component: StrategyEditPage,
     props: true,
     meta: { title: '编辑策略' }
+  },
+  // 因子管理路由
+  {
+    path: '/factors',
+    name: 'FactorList',
+    component: () => import('@/views/FactorListPage.vue'),
+    meta: { title: '因子管理' }
+  },
+  {
+    path: '/factors/create',
+    name: 'FactorCreate',
+    component: () => import('@/views/FactorCreatePage.vue'),
+    meta: { title: '创建因子' }
+  },
+  {
+    path: '/factors/:id',
+    name: 'FactorDetail',
+    component: () => import('@/views/FactorDetailPage.vue'),
+    props: true,
+    meta: { title: '因子详情' }
+  },
+  {
+    path: '/factors/:id/edit',
+    name: 'FactorEdit',
+    component: () => import('@/views/FactorEditPage.vue'),
+    props: true,
+    meta: { title: '编辑因子' }
   }
 ]
 
