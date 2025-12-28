@@ -233,67 +233,19 @@ const backtestHistory = ref([])
 const loadingHistory = ref(false)
 const isRunningBacktest = ref(false)
 
-// 模拟API调用获取策略详情
+// 获取策略详情
 const fetchStrategyDetail = async () => {
   loading.value = true
   error.value = ''
   
   try {
-    // 模拟API延迟
-    await new Promise(resolve => setTimeout(resolve, 800))
+    const response = await getStrategy(strategyId.value)
     
-    // 模拟数据 - 实际项目中替换为真实API调用
-    strategyData.value = {
-      id: strategyId.value,
-      name: '均线交叉策略',
-      description: '基于5日均线和20日均线交叉的简单交易策略，当短期均线上穿长期均线时买入，下穿时卖出。',
-      status: 'active',
-      created_at: '2025-12-15T10:30:00Z',
-      updated_at: '2025-12-20T14:25:00Z',
-      creator: 'quant_user',
-      code: `import backtrader as bt
-
-class SimpleMovingAverage(bt.Strategy):
-    params = (
-        ('window', 20),
-    )
-    
-    def __init__(self):
-        self.sma = bt.indicators.SimpleMovingAverage(
-            self.datas[0], period=self.params.window
-        )
-    
-    def next(self):
-        if not self.position:
-            if self.data.close[0] > self.sma[0]:
-                self.buy()
-        else:
-            if self.data.close[0] < self.sma[0]:
-                self.sell()
-    
-    def stop(self):
-        self.log(f'最终资产: {self.broker.getvalue():.2f}')`,
-      parameters: {
-        window: 20,
-        threshold: 0.01,
-        commission: 0.001
-      },
-      operations: [
-        {
-          type: 'create',
-          timestamp: '2025-12-15T10:30:00Z',
-          user: 'quant_user',
-          description: '创建策略'
-        },
-        {
-          type: 'update',
-          timestamp: '2025-12-20T14:25:00Z',
-          user: 'quant_user',
-          description: '优化交易逻辑'
-        }
-      ]
+    if (response.success) {
+      strategyData.value = response.data
+    } else {
+      error.value = response.message || '获取策略详情失败'
     }
-    
   } catch (err) {
     error.value = `获取策略详情失败: ${err.message}`
   } finally {
@@ -370,29 +322,13 @@ const fetchBacktestHistory = async () => {
   loadingHistory.value = true
   
   try {
-    // 模拟API调用获取回测历史
-    await new Promise(resolve => setTimeout(resolve, 600))
+    const response = await getStrategyBacktests(strategyId.value)
     
-    backtestHistory.value = [
-      {
-        id: 'BT001',
-        stock_code: '000001',
-        start_date: '2025-01-01',
-        end_date: '2025-12-01',
-        status: 'completed',
-        annual_return: 0.1543,
-        sharpe_ratio: 1.23
-      },
-      {
-        id: 'BT002',
-        stock_code: '000002',
-        start_date: '2025-06-01',
-        end_date: '2025-12-01',
-        status: 'completed',
-        annual_return: -0.0234,
-        sharpe_ratio: -0.45
-      }
-    ]
+    if (response.success) {
+      backtestHistory.value = response.data || []
+    } else {
+      console.error('获取回测历史失败:', response.message)
+    }
   } catch (err) {
     console.error('获取回测历史失败:', err)
   } finally {
