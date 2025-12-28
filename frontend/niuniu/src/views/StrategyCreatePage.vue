@@ -282,41 +282,19 @@ const validateCode = async () => {
   validationResult.value = null
 
   try {
-    // 模拟API调用验证代码
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const response = await validateStrategyCode(strategyForm.value.code)
     
-    // 基础验证逻辑
-    const errors = []
-    
-    if (lineCount.value < 10) {
-      errors.push('代码行数不足10行')
-    }
-    
-    if (!hasRequiredClasses.value) {
-      errors.push('代码中缺少必要的类和函数定义')
-    }
-    
-    // 简单语法检查
-    try {
-      // 检查Python语法（简单版本）
-      if (strategyForm.value.code.includes('syntax error')) {
-        errors.push('检测到语法错误')
-      }
-    } catch (e) {
-      errors.push('Python语法检查失败: ' + e.message)
-    }
-    
-    if (errors.length === 0) {
+    if (response.success) {
       validationResult.value = {
         status: 'success',
-        message: '代码验证通过！策略代码语法正确且包含必要的基本结构。',
-        details: '策略类定义完成，包含必要的交易逻辑框架。'
+        message: response.message || '代码验证通过！',
+        details: response.errors ? response.errors.join('\n') : '策略代码语法正确且包含必要的基本结构。'
       }
     } else {
       validationResult.value = {
         status: 'error',
-        message: '代码验证失败，请检查以下问题：',
-        details: errors.join('\n')
+        message: response.message || '代码验证失败',
+        details: response.errors ? response.errors.join('\n') : '请检查代码问题'
       }
     }
   } catch (error) {
@@ -427,22 +405,29 @@ const createStrategy = async () => {
   creationResult.value = null
   
   try {
-    // 模拟API调用创建策略
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // 模拟创建成功
-    const strategyId = 'STR' + Date.now().toString().slice(-6)
-    
-    creationResult.value = {
-      status: 'success',
-      title: '策略创建成功！',
-      message: `策略 "${strategyForm.value.name}" 已成功创建。`,
-      strategyId: strategyId
+    const strategyData = {
+      name: strategyForm.value.name,
+      description: strategyForm.value.description,
+      code: strategyForm.value.code,
+      parameters: JSON.parse(strategyForm.value.parameters)
     }
     
-    // 重置表单（可选）
-    // strategyForm.value = { name: '', description: '', code: '', parameters: '{}' }
+    const response = await createStrategy(strategyData)
     
+    if (response.success) {
+      creationResult.value = {
+        status: 'success',
+        title: '策略创建成功！',
+        message: `策略 "${strategyForm.value.name}" 已成功创建。`,
+        strategyId: response.data.id
+      }
+    } else {
+      creationResult.value = {
+        status: 'error',
+        title: '创建失败',
+        message: response.message || '创建策略时发生错误'
+      }
+    }
   } catch (error) {
     creationResult.value = {
       status: 'error',

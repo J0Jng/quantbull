@@ -183,43 +183,22 @@ const error = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-// 模拟API调用获取策略列表
+// 获取策略列表
 const fetchStrategies = async () => {
   loading.value = true
   error.value = ''
   
   try {
-    // 模拟API延迟
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const response = await getStrategies({
+      status: statusFilter.value === 'all' ? null : statusFilter.value,
+      search: searchText.value.trim() || null
+    })
     
-    // 模拟数据 - 实际项目中替换为真实API调用
-    strategies.value = [
-      {
-        id: 'STR001',
-        name: '均线交叉策略',
-        description: '基于5日均线和20日均线交叉的简单交易策略',
-        status: 'active',
-        created_at: '2025-12-15T10:30:00Z',
-        updated_at: '2025-12-20T14:25:00Z'
-      },
-      {
-        id: 'STR002',
-        name: 'RSI超买超卖策略',
-        description: '基于RSI指标的震荡策略',
-        status: 'active',
-        created_at: '2025-12-10T09:15:00Z',
-        updated_at: '2025-12-18T16:40:00Z'
-      },
-      {
-        id: 'STR003',
-        name: '布林带突破策略',
-        description: '基于布林带上轨突破的动量策略',
-        status: 'inactive',
-        created_at: '2025-12-05T11:20:00Z',
-        updated_at: '2025-12-12T13:55:00Z'
-      }
-    ]
-    
+    if (response.success) {
+      strategies.value = response.data.strategies || []
+    } else {
+      error.value = response.message || '获取策略列表失败'
+    }
   } catch (err) {
     error.value = `获取策略列表失败: ${err.message}`
   } finally {
