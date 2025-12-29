@@ -6,6 +6,8 @@ from core.logger import configure_logging
 from routers import api_router
 from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler
 from core.response import success
+from db import init_db
+from models import backtest_record  # ensure models are imported for SQLModel metadata
 
 
 def create_app() -> FastAPI:
@@ -17,6 +19,10 @@ def create_app() -> FastAPI:
         description="量化牛牛 量化引擎 - 回测、因子库、策略执行",
         version="0.1.0"
     )
+
+    @app.on_event("startup")
+    async def _startup():
+        init_db()
     
     # CORS 中间件
     app.add_middleware(

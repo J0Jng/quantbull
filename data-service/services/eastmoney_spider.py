@@ -32,13 +32,18 @@ class EastMoneySpider:
         "603": "1",  # 上海主板
         "605": "1",  # 上海主板
         "688": "1",  # 上海科创板
+        # ETF 前缀
+        "15": "0",   # 深圳 ETF (159xxx)
+        "16": "0",   # 深圳 ETF (16xxxx)
+        "51": "1",   # 上海 ETF (512xxx, 515xxx, 516xxx, 517xxx, 518xxx)
+        "56": "1",   # 上海 ETF (563xxx, 566xxx, 567xxx, 568xxx, 569xxx)
     }
     
     def _get_market_code(self, stock_code: str) -> Optional[str]:
         """根据股票代码判断市场
         
         Args:
-            stock_code: 股票代码，如 "000001", "600000"
+            stock_code: 股票代码，如 "000001", "600000", "159915"
             
         Returns:
             市场代码："0" 表示深圳，"1" 表示上海，None 表示不支持
@@ -46,8 +51,18 @@ class EastMoneySpider:
         if len(stock_code) < 3:
             return None
         
-        prefix = stock_code[:3]
-        return self.MARKET_MAP.get(prefix)
+        prefix3 = stock_code[:3]
+        prefix2 = stock_code[:2]
+        
+        # 先检查 3 位前缀
+        if prefix3 in self.MARKET_MAP:
+            return self.MARKET_MAP[prefix3]
+        
+        # 检查 2 位前缀 (ETF)
+        if prefix2 in self.MARKET_MAP:
+            return self.MARKET_MAP[prefix2]
+        
+        return None
     
     def _build_secid(self, stock_code: str) -> Optional[str]:
         """构建 secid 参数

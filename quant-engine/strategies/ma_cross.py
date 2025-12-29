@@ -1,5 +1,6 @@
 """双均线交叉策略（Moving Average Crossover）"""
 import backtrader as bt
+from backtrader.indicators import CrossOver, SMA
 
 
 class MACrossStrategy(bt.Strategy):
@@ -19,17 +20,17 @@ class MACrossStrategy(bt.Strategy):
     def __init__(self):
         """初始化指标"""
         # 计算移动平均线
-        self.fast_ma = bt.indicators.SMA(
+        self.fast_ma = SMA(
             self.data.close,
-            period=self.params.fast_period
+            period=self.params.fast_period  # type: ignore[attr-defined]
         )
-        self.slow_ma = bt.indicators.SMA(
+        self.slow_ma = SMA(
             self.data.close,
-            period=self.params.slow_period
+            period=self.params.slow_period  # type: ignore[attr-defined]
         )
         
         # 交叉信号
-        self.crossover = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)
+        self.crossover = CrossOver(self.fast_ma, self.slow_ma)
         
         # 订单和持仓跟踪
         self.order = None
@@ -39,7 +40,7 @@ class MACrossStrategy(bt.Strategy):
     def log(self, txt, dt=None):
         """日志记录"""
         if self.params.printlog:
-            dt = dt or self.datas[0].datetime.date(0)
+            dt = dt or bt.num2date(self.datas[0].datetime[0]).date()
             print(f"{dt.isoformat()}: {txt}")
     
     def notify_order(self, order):
@@ -98,7 +99,7 @@ class MACrossStrategy(bt.Strategy):
         self.log(
             f"期末总资产: {self.broker.getvalue():.2f}, "
             f"总收益率: {(self.broker.getvalue() / self.broker.startingcash - 1) * 100:.2f}%",
-            dt=self.datas[0].datetime.date(0)
+            dt=bt.num2date(self.datas[0].datetime[0]).date()
         )
 
 

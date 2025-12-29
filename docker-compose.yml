@@ -165,6 +165,7 @@ services:
     ports:
       - "9000:9000"
     environment:
+      DATABASE_URL: "postgresql+psycopg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       SERVICE_PORT: "9000"
       DATA_SERVICE_URL: "http://data-service:8001"
@@ -173,6 +174,29 @@ services:
       API_GATEWAY_URL: "http://api-gateway:8000"
       AI_HUB_URL: "http://ai-hub:8002"
     depends_on:
+      - redis
+    networks:
+      - quantbull-net
+
+  # Task Worker：异步任务执行器
+  task-worker:
+    build:
+      context: ./task_service
+      dockerfile: Dockerfile
+    container_name: task-worker
+    restart: always
+    environment:
+      DATABASE_URL: "postgresql+psycopg://quantbull:change_me@postgres:5432/quantbull_db"
+      REDIS_URL: "redis://redis:6379/0"
+      SERVICE_PORT: "9000"
+      DATA_SERVICE_URL: "http://data-service:8001"
+      QUANT_ENGINE_URL: "http://quant-engine:8003"
+      DAILY_REPORT_URL: "http://daily-report:8004"
+      API_GATEWAY_URL: "http://api-gateway:8000"
+      AI_HUB_URL: "http://ai-hub:8002"
+    command: celery -A task_service.celery_app worker --loglevel=info
+    depends_on:
+      - postgres
       - redis
     networks:
       - quantbull-net
