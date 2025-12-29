@@ -1,4 +1,6 @@
 """RSI 策略（Relative Strength Index）"""
+from typing import Any
+
 import backtrader as bt
 
 
@@ -10,20 +12,34 @@ class RSIStrategy(bt.Strategy):
     - RSI > 70 时卖出（超买）
     """
     
-    params = (
+    params: tuple[tuple[str, Any], ...] = (
         ("rsi_period", 14),      # RSI 周期
         ("rsi_low", 30),          # RSI 低位阈值
         ("rsi_high", 70),         # RSI 高位阈值
         ("printlog", False),      # 是否打印日志
     )
+
+    @property
+    def rsi_period(self) -> int:
+        return int(getattr(self.params, "rsi_period", 14))
+
+    @property
+    def rsi_low(self) -> int:
+        return int(getattr(self.params, "rsi_low", 30))
+
+    @property
+    def rsi_high(self) -> int:
+        return int(getattr(self.params, "rsi_high", 70))
+
+    @property
+    def printlog(self) -> bool:
+        return bool(getattr(self.params, "printlog", False))
     
     def __init__(self):
         """初始化指标"""
         # 计算 RSI
-        self.rsi = bt.indicators.RSI(
-            self.data.close,
-            period=self.params.rsi_period
-        )
+        # 某些类型检查器会误报 "模块不可调用"，运行时正常
+        self.rsi = bt.indicators.RSI(self.data.close, period=self.rsi_period)  # type: ignore[misc]
         
         # 订单和持仓跟踪
         self.order = None
@@ -32,8 +48,8 @@ class RSIStrategy(bt.Strategy):
     
     def log(self, txt, dt=None):
         """日志记录"""
-        if self.params.printlog:
-            dt = dt or self.datas[0].datetime.date(0)
+        if self.printlog:
+            dt = dt or bt.num2date(self.datas[0].datetime[0]).date()
             print(f"{dt.isoformat()}: {txt}")
     
     def notify_order(self, order):
@@ -80,7 +96,7 @@ class RSIStrategy(bt.Strategy):
         # 检查是否有持仓
         if not self.position:
             # 没有持仓，检查买入信号（RSI < 低位阈值）
-            if self.rsi[0] < self.params.rsi_low:
+            if self.rsi[0] < self.rsi_low:
                 self.log(
                     f"买入信号 (RSI 超卖), 价格: {self.data.close[0]:.2f}, "
                     f"RSI: {self.rsi[0]:.2f}"
@@ -88,7 +104,7 @@ class RSIStrategy(bt.Strategy):
                 self.order = self.buy()
         else:
             # 有持仓，检查卖出信号（RSI > 高位阈值）
-            if self.rsi[0] > self.params.rsi_high:
+            if self.rsi[0] > self.rsi_high:
                 self.log(
                     f"卖出信号 (RSI 超买), 价格: {self.data.close[0]:.2f}, "
                     f"RSI: {self.rsi[0]:.2f}"
@@ -100,7 +116,7 @@ class RSIStrategy(bt.Strategy):
         self.log(
             f"期末总资产: {self.broker.getvalue():.2f}, "
             f"总收益率: {(self.broker.getvalue() / self.broker.startingcash - 1) * 100:.2f}%",
-            dt=self.datas[0].datetime.date(0)
+            dt=bt.num2date(self.datas[0].datetime[0]).date()
         )
 
 

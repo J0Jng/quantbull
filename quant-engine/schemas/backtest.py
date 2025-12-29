@@ -131,3 +131,10 @@ class BacktestSubmitResponse(BaseModel):
     """回测任务提交响应，返回 task_id，前端使用统一查询接口轮询状态"""
     task_id: str
 
+
+class BacktestExecuteRequest(BacktestRequest):
+    """供 task-service worker 调用的同步执行请求"""
+
+    backtest_id: str | None = Field(default=None, description="回测ID，可由上游指定")
+    task_id: str | None = Field(default=None, description="task-service 的任务ID，便于链路追踪")
+

@@ -1,33 +1,101 @@
 import asyncio
-from typing import Callable, Dict, Any
+import os
+from typing import Any, Callable, Dict
+
+import httpx
+
+from .celery_app import celery_app
+from .task_repository import TaskRepository
+
+HandlerType = Callable[[Dict[str, Any], Callable[[float], None]], Any]
+
+# registry keeps business executors out of FastAPI thread pool
+handler_registry: Dict[str, HandlerType] = {}
 
 
-async def backtest_handler(payload: Dict[str, Any], update_progress: Callable[[float], None]):
-    """Simulated long-running backtest handler for demonstration.
+def register_handler(task_type: str, handler: HandlerType) -> None:
+    handler_registry[task_type] = handler
 
-    It periodically calls update_progress and returns a result URL string.
+
+def register_default_handlers():
+    register_handler("backtest", backtest_handler)
+
+
+def _resolve_handler(task_type: str) -> HandlerType | None:
+    return handler_registry.get(task_type)
+
+
+def _coerce_result(res: Any) -> Dict[str, Any]:
+    if res is None:
+        return {}
+    if isinstance(res, dict):
+        return res
+    return {"result": res}
+
+
+def _run_sync_or_async(handler: HandlerType, payload: Dict[str, Any], update_progress: Callable[[float], None]) -> Any:
+    result = handler(payload, update_progress)
+    if asyncio.iscoroutine(result):
+        return asyncio.run(result)
+    return result
+
+
+@celery_app.task(
+    name="task_service.execute",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    soft_time_limit=int(os.getenv("TASK_SOFT_TIME_LIMIT", "300")),
+    time_limit=int(os.getenv("TASK_HARD_TIME_LIMIT", "330")),
+)
+def execute_task(self, task_id: str, task_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Entry point executed by Celery workers."""
+    handler = _resolve_handler(task_type)
+    if not handler:
+        TaskRepository.mark_failed(task_id, f"No handler registered for {task_type}", error_code="no_handler")
+        return {}
+
+    TaskRepository.mark_running(task_id, progress=0.0)
+
+    def update_progress(progress: float) -> None:
+        TaskRepository.mark_progress(task_id, progress)
+
+    try:
+        payload_with_ids = dict(payload or {})
+        payload_with_ids.setdefault("task_id", task_id)
+        res = _run_sync_or_async(handler, payload_with_ids, update_progress)
+        result_dict = _coerce_result(res)
+        TaskRepository.mark_success(
+            task_id,
+            result_url=result_dict.get("result_url"),
+            result=result_dict,
+        )
+        return result_dict
+    except Exception as exc:  # pragma: no cover - defensive
+        TaskRepository.mark_failed(task_id, error_message=str(exc), error_code=getattr(exc, "code", "exception"))
+        raise
+
+
+def backtest_handler(payload: Dict[str, Any], update_progress: Callable[[float], None]) -> Dict[str, Any]:
+    """Forward backtest execution to quant-engine (or another executor) via HTTP.
+
+    This keeps business logic out of task-service while providing a real async worker.
     """
-    total_steps = payload.get("steps", 5)
-    for i in range(total_steps):
-        # simulate work
-        await asyncio.sleep(payload.get("step_delay", 1))
-        update_progress((i + 1) / total_steps * 0.9)  # leave final 10% for finalizing
 
-    # finalize
-    await asyncio.sleep(0.5)
+    exec_url = os.getenv("QUANT_ENGINE_EXEC_URL", "http://quant-engine:8003/api/backtest/run_sync")
+    timeout = float(os.getenv("BACKTEST_TIMEOUT", "120"))
+
+    update_progress(0.05)
+    with httpx.Client(timeout=timeout) as client:
+        resp = client.post(exec_url, json=payload)
+        resp.raise_for_status()
+        data = resp.json() if resp.content else {}
+
     update_progress(1.0)
-    # in real case, upload artifact and return URL
-    return f"/results/backtest/{payload.get('name','unknown')}/{int(asyncio.get_event_loop().time())}"
+    result_url = data.get("result_url") or data.get("backtest_id")
+    return {"result_url": result_url, "result": data}
 
 
-async def quick_task_handler(payload: Dict[str, Any], update_progress: Callable[[float], None]):
-    update_progress(0.2)
-    await asyncio.sleep(0.2)
-    update_progress(1.0)
-    return {"result_url": "/results/quick/ok"}
-
-
-# small helper to register common handlers
-def register_default_handlers(manager):
-    manager.register_handler("backtest", backtest_handler)
-    manager.register_handler("quick", quick_task_handler)
+# ensure built-in handlers are available both in API and Celery worker processes
+register_default_handlers()

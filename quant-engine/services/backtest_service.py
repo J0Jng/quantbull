@@ -11,18 +11,19 @@ from schemas.backtest import BacktestRequest, BacktestResponse
 from services.data_loader import load_market_data
 from services.strategy_loader import load_strategy
 from services.metrics_extractor import MetricsExtractor
+from services.backtest_repository import BacktestRepository
 
 logger = get_logger(__name__)
 
 
 class BacktestService:
     """回测服务"""
-    
+
     def __init__(self):
         """初始化回测服务"""
-        self.backtests: dict[str, dict] = {}  # 内存存储，生产环境应使用数据库
-    
-    async def run_backtest(self, request: BacktestRequest) -> BacktestResponse:
+        self.backtests: dict[str, dict] = {}  # legacy in-memory store; will be deprecated
+
+    async def run_backtest(self, request: BacktestRequest, *, backtest_id: Optional[str] = None, task_id: Optional[str] = None) -> BacktestResponse:
         """
         执行回测
         
@@ -39,8 +40,16 @@ class BacktestService:
                 f"策略模式: {request.strategy_mode}"
             )
             
-            # 生成回测ID
-            backtest_id = f"backtest_{uuid.uuid4().hex[:8]}"
+            backtest_id = backtest_id or f"backtest_{uuid.uuid4().hex[:8]}"
+
+            # 确保存在记录并标记 running
+            existing = BacktestRepository.get(backtest_id)
+            if not existing:
+                BacktestRepository.create_stub(request, backtest_id=backtest_id, task_id=task_id)
+            else:
+                if task_id:
+                    BacktestRepository.link_task(backtest_id, task_id)
+            BacktestRepository.mark_running(backtest_id)
             
             # 1. 加载行情数据
             logger.info(f"加载行情数据: {request.data_source}")
@@ -129,14 +138,14 @@ class BacktestService:
                 ai_review=ai_review,
                 message="回测完成"
             )
-            
-            # 13. 保存回测结果
-            self.backtests[backtest_id] = {
-                "backtest_id": backtest_id,
-                "request": request.model_dump(),
-                "result": response.model_dump(),
-                "created_at": datetime.now().isoformat()
-            }
+
+            # 13. 保存回测结果到数据库
+            BacktestRepository.mark_success(
+                backtest_id,
+                metrics=metrics,
+                equity_curve=daily_nav,
+                message="回测完成",
+            )
             
             annual_return = metrics.get('annual_return', 0) or 0
             logger.info(
@@ -149,6 +158,8 @@ class BacktestService:
             
         except Exception as e:
             logger.error(f"回测执行失败: {e}", exc_info=True)
+            if backtest_id is not None:
+                BacktestRepository.mark_failed(backtest_id, str(e), error_code=getattr(e, "code", "exception"))
             raise
     
     def _create_backtrader_data(self, df: pd.DataFrame) -> bt.feeds.PandasData:
@@ -162,26 +173,31 @@ class BacktestService:
         Returns:
             Backtrader PandasData feed
         """
-        # 确保索引是 datetime
+        # 确保索引是 datetime 且有序（Backtrader 以索引为 datetime）
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index)
-        
-        # 确保列名正确
-        df = df.rename(columns={
-            "vol": "volume",
-            "amount": "volume"  # 如果没有 volume，使用 amount
-        })
-        
-        # 确保必要的列存在
-        required_cols = ["open", "high", "low", "close"]
-        for col in required_cols:
-            if col not in df.columns:
-                raise ValueError(f"数据缺少必要列: {col}")
-        
+        df.index = df.index.tz_localize(None)
+        df = df.sort_index()
+
+        # 列名兼容处理（大小写与常见别名）
+        col_map = {c.lower(): c for c in df.columns}
+        alias = {
+            "open": col_map.get("open") or col_map.get("o"),
+            "high": col_map.get("high") or col_map.get("h"),
+            "low": col_map.get("low") or col_map.get("l"),
+            "close": col_map.get("close") or col_map.get("c"),
+            "volume": col_map.get("volume") or col_map.get("vol") or col_map.get("amount"),
+        }
+        missing = [k for k, v in alias.items() if v is None]
+        if missing:
+            raise ValueError(f"数据缺少必要列: {','.join(missing)}")
+
+        df = df.rename(columns={alias["open"]: "open", alias["high"]: "high", alias["low"]: "low", alias["close"]: "close", alias["volume"]: "volume"})
+
         # 如果没有 volume，创建一个虚拟的
         if "volume" not in df.columns:
             df["volume"] = 0
-        
+
         # 创建 Backtrader 数据源
         data = bt.feeds.PandasData(
             dataname=df,
@@ -191,9 +207,11 @@ class BacktestService:
             low="low",
             close="close",
             volume="volume",
-            openinterest=-1  # 不使用持仓量
+            openinterest=-1,  # 不使用持仓量
+            timeframe=bt.TimeFrame.Days,
+            compression=1,
         )
-        
+
         return data
     
     def _extract_daily_nav(
@@ -248,10 +266,30 @@ class BacktestService:
         return daily_nav
     
     async def get_backtest(self, backtest_id: str) -> Optional[dict]:
-        """获取回测结果"""
-        return self.backtests.get(backtest_id)
-    
+        """获取回测结果（持久化版本）"""
+        rec = BacktestRepository.get(backtest_id)
+        if not rec:
+            return None
+        return self._to_dict(rec)
+
     async def list_backtests(self, limit: int = 10, offset: int = 0) -> list[dict]:
-        """列出回测记录"""
-        items = list(self.backtests.values())
-        return items[offset:offset + limit]
+        """列出回测记录（持久化版本）"""
+        recs = BacktestRepository.list(limit=limit, offset=offset)
+        return [self._to_dict(r) for r in recs]
+
+    def _to_dict(self, rec) -> dict:
+        return {
+            "backtest_id": rec.id,
+            "task_id": rec.task_id,
+            "status": rec.status,
+            "message": rec.message,
+            "metrics": rec.metrics,
+            "daily_nav": rec.equity_curve,
+            "ai_review": None,
+            "params": rec.params,
+            "stock_code": rec.stock_code,
+            "start_date": rec.start_date,
+            "end_date": rec.end_date,
+            "created_at": rec.created_at.isoformat() if rec.created_at else None,
+            "updated_at": rec.updated_at.isoformat() if rec.updated_at else None,
+        }

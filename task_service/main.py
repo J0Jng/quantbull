@@ -2,10 +2,10 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from .db import init_db
 from .task_manager import manager
-from .task_store import store
-from .handlers import register_default_handlers
-from .core.response import success, error
+from .task_repository import TaskRepository
+from .core.response import success
 from .core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler
 
 app = FastAPI(title="task-service", version="0.1.0")
@@ -22,8 +22,7 @@ class TaskResponse(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    # register built-in handlers
-    register_default_handlers(manager)
+    init_db()
 
     # 注册异常处理，保证所有响应遵循 envelope
     from fastapi.exceptions import HTTPException as StarletteHTTPException, RequestValidationError
@@ -40,16 +39,20 @@ async def create_task(req: CreateTaskRequest):
 
 @app.get("/api/tasks/{task_id}")
 async def get_task(task_id: str):
-    rec = store.get(task_id)
+    rec = TaskRepository.get(task_id)
     if not rec:
         raise HTTPException(status_code=404, detail="task not found")
     return success({
-        "task_id": rec.task_id,
-        "status": rec.status,
+        "task_id": rec.id,
+        "status": rec.status.value if hasattr(rec.status, "value") else str(rec.status),
         "progress": float(rec.progress),
         "result_url": rec.result_url,
+        "result": rec.result,
         "error_code": rec.error_code,
         "error_message": rec.error_message,
+        "task_type": rec.task_type,
+        "created_at": rec.created_at.isoformat(),
+        "updated_at": rec.updated_at.isoformat(),
     })
 
 

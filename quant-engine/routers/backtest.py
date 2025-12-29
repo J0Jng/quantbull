@@ -1,50 +1,48 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+import uuid
 
 from core.logger import get_logger
-from schemas.backtest import BacktestRequest, BacktestResponse
+from schemas.backtest import BacktestRequest, BacktestExecuteRequest
 from schemas.response import BaseResponse, PaginatedResponse, BacktestDetail
 from services.backtest_service import BacktestService
-import os
-import httpx
-from schemas.backtest import BacktestSubmitResponse
-import os
-import httpx
-from core.response import success, ApiResponse
+from services.backtest_repository import BacktestRepository
+from core.response import success
 
 logger = get_logger(__name__)
 router = APIRouter()
 
-# 初始化服务
+# 初始化服务（直接执行回测并落库）
 backtest_service = BacktestService()
 
 
-@router.post("/run", summary="提交回测任务（异步，返回 task_id）")
-async def run_backtest(request: BacktestRequest):
-    """将回测任务提交到平台级 `task-service`，立即返回 `task_id` 给前端。
-
-    注意：此接口不在请求中执行回测计算，回测由 task-service 后台异步执行。
-    """
-    TASK_SERVICE_URL = os.getenv("TASK_SERVICE_URL", "http://localhost:9000")
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            resp = await client.post(f"{TASK_SERVICE_URL}/api/tasks", json={
-                "task_type": "backtest",
-                "payload": {
-                    "name": request.stock_code + "_" + request.start_date,
-                    "steps": 5,
-                    "step_delay": 1,
-                    "params": request.model_dump()
-                }
-            })
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            logger.error(f"提交任务到 task-service 失败: {e}")
-            raise HTTPException(status_code=502, detail=f"task-service unavailable: {e}")
-    data = resp.json()
-    return success({"task_id": data.get("task_id")})
+@router.post("/run", summary="异步执行回测（后台任务）")
+async def run_backtest(request: BacktestRequest, background_tasks: BackgroundTasks):
+    """提交回测任务到后台执行，立即返回 backtest_id，客户端轮询状态。"""
+    try:
+        # 创建 backtest 记录，状态 pending
+        backtest_id = f"backtest_{uuid.uuid4().hex[:8]}"
+        BacktestRepository.create_stub(request, backtest_id=backtest_id)
+        
+        # 添加后台任务
+        background_tasks.add_task(execute_backtest_async, request, backtest_id)
+        
+        return success({"backtest_id": backtest_id, "status": "pending"})
+    except Exception as e:
+        logger.error(f"提交回测任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"提交回测任务失败: {str(e)}")
 
 
-@router.get("/{backtest_id}", response_model=BaseResponse[BacktestDetail], summary="获取回测结果")
+async def execute_backtest_async(request: BacktestRequest, backtest_id: str):
+    """后台异步执行回测"""
+    try:
+        await backtest_service.run_backtest(request, backtest_id=backtest_id)
+        logger.info(f"后台回测完成: {backtest_id}")
+    except Exception as e:
+        logger.error(f"后台回测执行失败: {backtest_id}, {e}", exc_info=True)
+        BacktestRepository.mark_failed(backtest_id, str(e))
+
+
+@router.get("/{backtest_id}", summary="获取回测结果")
 async def get_backtest(backtest_id: str):
     """
     获取指定回测的详细结果
@@ -61,7 +59,7 @@ async def get_backtest(backtest_id: str):
         raise HTTPException(status_code=500, detail=f"获取回测结果失败: {str(e)}")
 
 
-@router.get("", response_model=PaginatedResponse[BacktestDetail], summary="列出回测记录")
+@router.get("", summary="列出回测记录")
 async def list_backtests(limit: int = 10, offset: int = 0):
     """
     列出所有回测记录
@@ -75,24 +73,27 @@ async def list_backtests(limit: int = 10, offset: int = 0):
         raise HTTPException(status_code=500, detail=f"列出回测记录失败: {str(e)}")
 
 
-@router.post("/run_async", summary="异步提交回测任务（示例：调用 task-service）")
-async def run_backtest_async(request: BacktestRequest):
-    """示例业务：将回测任务提交到平台级 task-service，立即返回 task_id 给前端。"""
-    TASK_SERVICE_URL = os.getenv("TASK_SERVICE_URL", "http://localhost:9000")
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            resp = await client.post(f"{TASK_SERVICE_URL}/api/tasks", json={
-                "task_type": "backtest",
-                "payload": {
-                    "name": request.stock_code + "_" + request.start_date,
-                    # demo: pass limited steps to control duration in MVP
-                    "steps": 5,
-                    "step_delay": 1,
-                    "params": request.model_dump()
-                }
-            })
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"task-service unavailable: {e}")
-    data = resp.json()
-    return success({"task_id": data.get("task_id")})
+# 兼容旧接口，仍提供异步入口（复用 /run）
+@router.post("/run_async", summary="兼容：异步提交回测（后台执行）")
+async def run_backtest_async(request: BacktestRequest, background_tasks: BackgroundTasks):
+    return await run_backtest(request, background_tasks)
+
+
+# 兼容 task-service worker 的同步执行入口，仍由 quant-engine 真正执行
+@router.post("/run_sync", summary="同步执行回测（task-service worker 调用）")
+async def run_backtest_sync(request: BacktestExecuteRequest):
+    try:
+        result = await backtest_service.run_backtest(
+            request,
+            backtest_id=request.backtest_id,
+            task_id=request.task_id,
+        )
+        return success({
+            "backtest_id": result.backtest_id,
+            "metrics": result.metrics,
+            "daily_nav": result.daily_nav,
+            "result_url": f"/api/backtest/{result.backtest_id}",
+        })
+    except Exception as e:
+        logger.error(f"同步回测执行失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

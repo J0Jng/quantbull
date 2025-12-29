@@ -13,11 +13,11 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     
     # 数据库配置
-    postgres_host: str = "localhost"
+    postgres_host: str = "postgres"
     postgres_port: int = 5432
-    postgres_user: str = "postgres"
-    postgres_password: str = "postgres"
-    postgres_db: str = "quantbull"
+    postgres_user: str = "quantbull"
+    postgres_password: str = "change_me"
+    postgres_db: str = "quantbull_db"
     
     # TDengine 配置（时间序列数据库）
     tdengine_host: str = "localhost"
