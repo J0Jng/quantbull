@@ -1,16 +1,18 @@
+from pathlib import Path
+from typing import Any, Dict
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
 from core.config import settings
+from core.handlers import generic_exception_handler, http_exception_handler, envelope_middleware, validation_exception_handler
 from core.logger import configure_logging
-from middlewares import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
-from routers import proxy, auth, gateway
-import uvicorn
-import os
-import json
-from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler, envelope_middleware
+from core.openapi_aggregator import OpenAPIAggregator, load_service_configs
 from core.response import success
-from core.openapi_aggregator import OpenAPIAggregator
+from middlewares import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
+from routers import auth, gateway, proxy
+import uvicorn
 
 
 def create_app() -> FastAPI:
@@ -42,16 +44,9 @@ def create_app() -> FastAPI:
     )
     
     # 加载服务配置并创建 OpenAPI 聚合器
-    services_config_path = os.path.join(os.path.dirname(__file__), "services.json")
-    services_config = []
-    if os.path.exists(services_config_path):
-        try:
-            with open(services_config_path, "r", encoding="utf-8") as f:
-                services_config = json.load(f)
-        except Exception as e:
-            app.logger.warning(f"Failed to load services config: {e}")
-    
-    aggregator = OpenAPIAggregator(services_config)
+    services_config_path = Path(__file__).resolve().parent / "services.yaml"
+    services = load_service_configs(services_config_path)
+    aggregator = OpenAPIAggregator(app, services)
     
     # 添加中间件（注意顺序：后添加的先执行）
     # 1. CORS 中间件（最外层）
@@ -82,14 +77,18 @@ def create_app() -> FastAPI:
     # 应用启动事件：执行 OpenAPI 聚合
     @app.on_event("startup")
     async def startup_event():
-        await aggregator.aggregate()
+        aggregated = await aggregator.aggregate()
+        app.openapi_schema = aggregated
     
     # 自定义 OpenAPI 生成器
-    def custom_openapi():
-        if aggregator.get_aggregated_openapi():
-            return aggregator.get_aggregated_openapi()
-        # 降级到默认行为
-        return app.openapi_schema
+    def custom_openapi() -> Dict[str, Any]:
+        aggregated = aggregator.get_aggregated_openapi()
+        if aggregated is not None:
+            return aggregated
+        if app.openapi_schema is not None:
+            return app.openapi_schema
+        # 降级到空字典以满足类型要求
+        return {}
     
     app.openapi = custom_openapi
     

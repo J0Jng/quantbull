@@ -54,11 +54,14 @@ async def envelope_middleware(request: Request, call_next):
         except Exception:
             return response
 
+        headers = dict(response.headers)
+        headers.pop("content-length", None)  # 删除旧的长度头，避免重新封装后长度不一致
+
         if isinstance(data, dict) and {"code", "message", "data"}.issubset(set(data.keys())):
-            return JSONResponse(content=data, status_code=response.status_code, headers=dict(response.headers))
+            return JSONResponse(content=data, status_code=response.status_code, headers=headers)
         enveloped = ApiResponse(code=0 if 200 <= response.status_code < 400 else response.status_code,
                                 message="ok" if 200 <= response.status_code < 400 else "error",
                                 data=data).model_dump()
-        return JSONResponse(content=enveloped, status_code=response.status_code, headers=dict(response.headers))
+        return JSONResponse(content=enveloped, status_code=response.status_code, headers=headers)
 
     return response
