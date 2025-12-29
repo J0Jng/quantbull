@@ -19,6 +19,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/openapi.json",
         "/redoc",
         "/",
+        "/api/auth/login",
+        "/api/auth/login/json",
+        "/api/auth/me",
     ]
     
     # 白名单路径正则
@@ -26,6 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/docs",
         r"^/openapi",
         r"^/redoc",
+        r"^/api/auth",
     ]
     
     def __init__(self, app):
@@ -56,6 +60,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         """处理请求"""
+        # 预检请求直接放行，避免因无 Authorization 导致 401
+        if request.method.upper() == "OPTIONS":
+            return await call_next(request)
+
         # 检查是否在白名单中
         if self.is_whitelisted(request.url.path):
             return await call_next(request)

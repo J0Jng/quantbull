@@ -1,194 +1,220 @@
-"""
-OpenAPI 聚合模块
+"""OpenAPI aggregation utilities."""
 
-负责从各个微服务拉取 OpenAPI 文档并合并成统一的文档。
-"""
 import asyncio
-import json
 import logging
+import os
 from copy import deepcopy
-from typing import Dict, List, Optional, Any
-from urllib.parse import urljoin
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import HTTPException
+import time
+import yaml
+from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
+from pydantic import BaseModel, ValidationError, field_validator
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAPIAggregator:
-    """OpenAPI 文档聚合器"""
+def _resolve_env(value: Any) -> Any:
+    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+        key = value[2:-1]
+        return os.getenv(key, value)
+    return value
 
-    def __init__(self, services_config: List[Dict], timeout: float = 30.0):
-        """
-        初始化聚合器
 
-        Args:
-            services_config: 服务配置列表
-            timeout: 请求超时时间
-        """
-        self.services_config = services_config
-        self.timeout = timeout
-        self._merged_spec: Optional[Dict] = None
+class ServiceConfig(BaseModel):
+    name: str
+    display_name: str
+    url: str
+    prefix: str
+    openapi_path: str = "/openapi.json"
+    enabled: bool = True
+    timeout: float = 5.0
 
-    async def fetch_service_openapi(self, service: Dict) -> Optional[Dict]:
-        """异步拉取单个服务的 OpenAPI 文档"""
-        name = service["name"]
-        url = service["url"]
-        enabled = service.get("enabled", True)
+    @field_validator("prefix")
+    @classmethod
+    def normalize_prefix(cls, value: str) -> str:
+        prefix = value or ""
+        if not prefix.startswith("/"):
+            prefix = f"/{prefix}"
+        return prefix.rstrip("/") or "/"
 
-        if not enabled:
-            logger.info(f"Service {name} is disabled, skipping")
-            return None
+    @property
+    def openapi_url(self) -> str:
+        base = self.url.rstrip("/")
+        path = self.openapi_path.lstrip("/")
+        return f"{base}/{path}"
 
+
+def load_service_configs(config_path: Path) -> List[ServiceConfig]:
+    if not config_path.exists():
+        logger.warning("Service config file not found: %s", config_path)
+        return []
+
+    try:
+        raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        logger.warning("Failed to read service config %s: %s", config_path, exc)
+        return []
+
+    services_raw = raw.get("services") if isinstance(raw, dict) else raw
+    if not isinstance(services_raw, list):
+        logger.warning("Service config format invalid, expected list under 'services'")
+        return []
+
+    configs: List[ServiceConfig] = []
+    for entry in services_raw:
+        if not isinstance(entry, dict):
+            continue
+        resolved = {key: _resolve_env(val) for key, val in entry.items()}
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                spec = response.json()
-                logger.info(f"Successfully fetched OpenAPI from {name}")
-                return spec
-        except Exception as e:
-            logger.warning(f"Failed to fetch OpenAPI from {name} ({url}): {e}")
+            configs.append(ServiceConfig(**resolved))
+        except ValidationError as exc:
+            logger.warning("Invalid service config for %s: %s", entry.get("name", "unknown"), exc)
+
+    return configs
+
+
+class OpenAPIAggregator:
+    def __init__(self, app: FastAPI, services: List[ServiceConfig]):
+        self.app = app
+        self.services = services
+        self._merged_spec: Optional[Dict[str, Any]] = None
+
+        # Retry settings for pulling downstream OpenAPI docs to handle slow starts
+        self._fetch_retries = 3
+        self._fetch_backoff = 1.0  # seconds
+
+    async def aggregate(self) -> Dict[str, Any]:
+        base_spec = self._build_base_spec()
+
+        async with httpx.AsyncClient() as client:
+            specs = await asyncio.gather(
+                *[self._fetch_service_openapi(client, svc) for svc in self.services],
+                return_exceptions=True,
+            )
+
+        for svc, spec in zip(self.services, specs):
+            if isinstance(spec, BaseException):
+                logger.warning("OpenAPI fetch for %s raised: %s", svc.name, spec)
+                continue
+            if not spec:
+                continue
+            self._merge_service_spec(base_spec, spec, svc)
+
+        self._merged_spec = base_spec
+        return base_spec
+
+    def get_aggregated_openapi(self) -> Optional[Dict[str, Any]]:
+        return self._merged_spec
+
+    async def _fetch_service_openapi(self, client: httpx.AsyncClient, svc: ServiceConfig) -> Optional[Dict[str, Any]]:
+        if not svc.enabled:
+            logger.info("Service %s disabled, skip OpenAPI pull", svc.name)
             return None
 
-    def _namespace_schema_refs(self, obj: Any, service_name: str) -> Any:
-        """递归重命名 schema 引用"""
-        if isinstance(obj, dict):
-            new_obj = {}
-            for k, v in obj.items():
-                if k == "$ref" and isinstance(v, str) and v.startswith("#/components/schemas/"):
-                    # 重命名 schema 引用
-                    schema_name = v.split("/")[-1]
-                    new_ref = f"#/components/schemas/{service_name}_{schema_name}"
-                    new_obj[k] = new_ref
+        for attempt in range(1, self._fetch_retries + 1):
+            try:
+                response = await client.get(svc.openapi_url, timeout=svc.timeout)
+                response.raise_for_status()
+                logger.info("Fetched OpenAPI from %s", svc.name)
+                return response.json()
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch OpenAPI from %s (%s) (attempt %s/%s): %s",
+                    svc.name,
+                    svc.openapi_url,
+                    attempt,
+                    self._fetch_retries,
+                    exc,
+                )
+                if attempt < self._fetch_retries:
+                    time.sleep(self._fetch_backoff * attempt)
                 else:
-                    new_obj[k] = self._namespace_schema_refs(v, service_name)
-            return new_obj
-        elif isinstance(obj, list):
-            return [self._namespace_schema_refs(item, service_name) for item in obj]
-        else:
-            return obj
+                    return None
 
-    def _merge_paths(self, merged_paths: Dict, service_spec: Dict, service: Dict) -> None:
-        """合并路径"""
-        service_name = service["name"]
-        path_prefix = service["path_prefix"]
+    def _build_base_spec(self) -> Dict[str, Any]:
+        spec = get_openapi(
+            title=self.app.title or "API Gateway",
+            version=self.app.version or "1.0.0",
+            description=self.app.description or "QuantBull API Gateway",
+            routes=self.app.routes,
+        )
 
+        components = spec.setdefault("components", {})
+        components.setdefault("schemas", {})
+        security_schemes = components.setdefault("securitySchemes", {})
+        security_schemes.setdefault(
+            "OAuth2PasswordBearer",
+            {
+                "type": "oauth2",
+                "flows": {
+                    "password": {
+                        "tokenUrl": "/api/auth/login",
+                        "scopes": {},
+                    }
+                },
+            },
+        )
+        spec.setdefault("security", [{"OAuth2PasswordBearer": []}])
+        spec.setdefault("tags", [])
+        spec.setdefault("paths", {})
+        return spec
+
+    def _merge_service_spec(self, base_spec: Dict[str, Any], service_spec: Dict[str, Any], svc: ServiceConfig) -> None:
+        self._merge_tags(base_spec["tags"], svc)
+        self._merge_paths(base_spec["paths"], service_spec, svc)
+        self._merge_components(base_spec["components"], service_spec, svc)
+
+    def _merge_tags(self, merged_tags: List[Dict[str, Any]], svc: ServiceConfig) -> None:
+        if not any(tag.get("name") == svc.display_name for tag in merged_tags):
+            merged_tags.append({"name": svc.display_name, "description": f"{svc.display_name} APIs"})
+
+    def _merge_paths(self, merged_paths: Dict[str, Any], service_spec: Dict[str, Any], svc: ServiceConfig) -> None:
         for path, path_item in service_spec.get("paths", {}).items():
-            # 添加路径前缀
-            prefixed_path = urljoin(path_prefix + "/", path.lstrip("/"))
-
-            # 重命名 schema 引用
-            namespaced_path_item = self._namespace_schema_refs(path_item, service_name)
-
-            # 添加服务标签
-            for method, operation in namespaced_path_item.items():
-                if isinstance(operation, dict):
-                    tags = operation.get("tags", [])
-                    if service_name not in tags:
-                        operation["tags"] = [service_name] + tags
-
-            # 合并到主文档
+            prefixed_path = self._apply_prefix(path, svc.prefix)
             if prefixed_path in merged_paths:
-                logger.warning(f"Path collision: {prefixed_path}, merging operations")
-                merged_paths[prefixed_path].update(namespaced_path_item)
-            else:
-                merged_paths[prefixed_path] = namespaced_path_item
+                logger.warning("Path collision detected, keeping gateway definition: %s", prefixed_path)
+                continue
 
-    def _merge_components(self, merged_components: Dict, service_spec: Dict, service_name: str) -> None:
-        """合并组件"""
+            namespaced_path_item = self._namespace_schema_refs(deepcopy(path_item), svc.name)
+            for _, operation in namespaced_path_item.items():
+                if isinstance(operation, dict):
+                    operation["tags"] = [svc.display_name]
+
+            merged_paths[prefixed_path] = namespaced_path_item
+
+    def _merge_components(self, merged_components: Dict[str, Any], service_spec: Dict[str, Any], svc: ServiceConfig) -> None:
         service_components = service_spec.get("components", {})
 
-        # 合并 schemas（重命名）
-        if "schemas" in service_components:
-            for schema_name, schema_def in service_components["schemas"].items():
-                namespaced_name = f"{service_name}_{schema_name}"
-                namespaced_schema = self._namespace_schema_refs(schema_def, service_name)
-                merged_components.setdefault("schemas", {})[namespaced_name] = namespaced_schema
+        schemas = service_components.get("schemas", {}) or {}
+        for schema_name, schema_def in schemas.items():
+            namespaced_name = f"{svc.name}_{schema_name}"
+            merged_components.setdefault("schemas", {})[namespaced_name] = self._namespace_schema_refs(
+                deepcopy(schema_def), svc.name
+            )
 
-        # 合并 securitySchemes
-        if "securitySchemes" in service_components:
-            merged_components.setdefault("securitySchemes", {}).update(service_components["securitySchemes"])
+        security_schemes = service_components.get("securitySchemes", {}) or {}
+        for scheme_name, scheme_def in security_schemes.items():
+            merged_components.setdefault("securitySchemes", {}).setdefault(scheme_name, scheme_def)
 
-    def _merge_tags(self, merged_tags: List, service_spec: Dict, service_name: str) -> None:
-        """合并标签"""
-        service_tags = service_spec.get("tags", [])
-        for tag in service_tags:
-            if not any(t.get("name") == tag.get("name") for t in merged_tags):
-                merged_tags.append(tag)
+    def _namespace_schema_refs(self, obj: Any, service_name: str) -> Any:
+        if isinstance(obj, dict):
+            new_obj = {}
+            for key, val in obj.items():
+                if key == "$ref" and isinstance(val, str) and val.startswith("#/components/schemas/"):
+                    schema_name = val.split("/")[-1]
+                    new_obj[key] = f"#/components/schemas/{service_name}_{schema_name}"
+                else:
+                    new_obj[key] = self._namespace_schema_refs(val, service_name)
+            return new_obj
+        if isinstance(obj, list):
+            return [self._namespace_schema_refs(item, service_name) for item in obj]
+        return obj
 
-        # 确保服务标签存在
-        if not any(t.get("name") == service_name for t in merged_tags):
-            merged_tags.append({
-                "name": service_name,
-                "description": f"APIs from {service_name}"
-            })
-
-    async def aggregate(self) -> Dict:
-        """执行聚合"""
-        if self._merged_spec is not None:
-            return self._merged_spec
-
-        logger.info("Starting OpenAPI aggregation...")
-
-        # 基础文档结构
-        merged_spec = {
-            "openapi": "3.0.0",
-            "info": {
-                "title": "QuantBull Unified API",
-                "version": "1.0.0",
-                "description": "Unified API documentation for all QuantBull microservices"
-            },
-            "paths": {},
-            "components": {
-                "schemas": {},
-                "securitySchemes": {
-                    "OAuth2PasswordBearer": {
-                        "type": "oauth2",
-                        "flows": {
-                            "password": {
-                                "tokenUrl": "/auth/token",
-                                "scopes": {}
-                            }
-                        }
-                    }
-                }
-            },
-            "tags": [],
-            "security": [
-                {"OAuth2PasswordBearer": []}
-            ]
-        }
-
-        # 并发拉取所有服务的 OpenAPI
-        tasks = [self.fetch_service_openapi(service) for service in self.services_config]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # 处理结果
-        for service, result in zip(self.services_config, results):
-            if isinstance(result, Exception):
-                logger.error(f"Exception while fetching {service['name']}: {result}")
-                continue
-            elif result is None:
-                continue
-
-            service_spec = result
-            service_name = service["name"]
-
-            # 合并各个部分
-            self._merge_paths(merged_spec["paths"], service_spec, service)
-            self._merge_components(merged_spec["components"], service_spec, service_name)
-            self._merge_tags(merged_spec["tags"], service_spec, service_name)
-
-        logger.info("OpenAPI aggregation completed")
-        self._merged_spec = merged_spec
-        return merged_spec
-
-    def get_aggregated_openapi(self) -> Optional[Dict]:
-        """获取已聚合的文档（同步方法，用于 FastAPI 的 openapi 生成器）"""
-        if self._merged_spec is None:
-            # 如果还没有聚合，尝试同步聚合（仅用于开发环境）
-            logger.warning("OpenAPI not yet aggregated, this should not happen in production")
-            return None
-        return self._merged_spec
+    @staticmethod
+    def _apply_prefix(path: str, prefix: str) -> str:
+        normalized = f"{prefix.rstrip('/')}/{path.lstrip('/')}"
+        return "/" + normalized.lstrip("/")

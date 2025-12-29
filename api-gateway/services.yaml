@@ -1,0 +1,36 @@
+services:
+  - name: ai
+    display_name: AI Hub
+    url: http://ai-hub:8002
+    prefix: /api/ai
+    openapi_path: /openapi.json
+    enabled: true
+    timeout: 5
+  - name: data
+    display_name: Data Service
+    url: http://data-service:8001
+    prefix: /api/data
+    openapi_path: /openapi.json
+    enabled: true
+    timeout: 5
+  - name: quant
+    display_name: Quant Engine
+    url: http://quant-engine:8003
+    prefix: /api/quant
+    openapi_path: /openapi.json
+    enabled: true
+    timeout: 5
+  - name: report
+    display_name: Daily Report
+    url: http://daily-report:8004
+    prefix: /api/report
+    openapi_path: /openapi.json
+    enabled: true
+    timeout: 5
+  - name: task
+    display_name: Task Service
+    url: http://task-service:9000
+    prefix: /api/task
+    openapi_path: /openapi.json
+    enabled: true
+    timeout: 5

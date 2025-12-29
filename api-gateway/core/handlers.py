@@ -42,8 +42,14 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 
 async def envelope_middleware(request: Request, call_next):
-    # 跳过 OpenAPI 相关路径，避免破坏流式响应
-    if request.url.path in ["/openapi.json", "/docs", "/redoc"]:
+    # 跳过 OpenAPI/登录路径，避免破坏 Swagger OAuth2 token 响应
+    if request.url.path in [
+        "/openapi.json",
+        "/docs",
+        "/redoc",
+        "/api/auth/login",
+        "/api/auth/login/json",
+    ]:
         return await call_next(request)
         
     response = await call_next(request)

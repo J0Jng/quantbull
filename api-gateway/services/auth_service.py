@@ -35,11 +35,17 @@ class AuthService:
                 settings.jwt_secret,
                 algorithms=[settings.jwt_algorithm]
             )
-            username: str = payload.get("sub")
-            user_id: int = payload.get("user_id")
-            if username is None:
+            username = payload.get("sub")
+            user_id = payload.get("user_id")
+            if not isinstance(username, str):
                 return None
-            return TokenData(username=username, user_id=user_id)
+            if user_id is None:
+                return None
+            try:
+                user_id_int = int(user_id)
+            except (TypeError, ValueError):
+                return None
+            return TokenData(username=username, user_id=user_id_int)
         except JWTError:
             return None
     
