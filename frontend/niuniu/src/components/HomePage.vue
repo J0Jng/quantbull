@@ -114,7 +114,8 @@
         <h2 class="section-title">龙虎榜</h2>
         <div class="tab-switch dragon-tab-switch">
           <a href="javascript:;" :class="{ active: dragonTab==='dragon-today' }" @click.prevent="dragonTab='dragon-today'">今日</a>
-          <a href="javascript:;" :class="{ active: dragonTab==='dragon-30day' }" @click.prevent="dragonTab='dragon-30day'">30日</a>
+          <a href="javascript:;" :class="{ active: dragonTab==='dragon-5day' }" @click.prevent="dragonTab='dragon-5day'">5日</a>
+          <a href="javascript:;" :class="{ active: dragonTab==='dragon-20day' }" @click.prevent="dragonTab='dragon-20day'">20日</a>
         </div>
         <section class="dragon-board">
           <div v-show="dragonTab==='dragon-today'" class="tab-content dragon-content" id="dragon-today">
@@ -142,7 +143,7 @@
             </table>
           </div>
 
-          <div v-show="dragonTab==='dragon-30day'" class="tab-content dragon-content" id="dragon-30day">
+          <div v-show="dragonTab==='dragon-5day'" class="tab-content dragon-content" id="dragon-5day">
             <table class="dragon-table">
               <thead>
                 <tr>
@@ -155,7 +156,32 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(row, idx) in dragon30" :key="idx">
+                <tr v-for="(row, idx) in dragon5" :key="idx">
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.price }}</td>
+                  <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
+                  <td>{{ row.delta }}</td>
+                  <td>{{ row.net }}</td>
+                  <td>{{ row.reason }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-show="dragonTab==='dragon-20day'" class="tab-content dragon-content" id="dragon-20day">
+            <table class="dragon-table">
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>最新价</th>
+                  <th>涨跌幅</th>
+                  <th>涨跌</th>
+                  <th>净买入(亿)</th>
+                  <th>上榜理由</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, idx) in dragon20" :key="idx">
                   <td>{{ row.name }}</td>
                   <td>{{ row.price }}</td>
                   <td><span class="green">{{ row.changeText }}</span></td>
@@ -826,12 +852,20 @@ const dragonToday = [
   { name: '东方财富', price: '23.33', change: -1.18, changeText: '-1.18%', delta: '-1.27', net: '-1.27', reason: '日跌幅偏离值达7%' }
 ]
 
-const dragon30 = [
-  { name: '宁德时代', price: '568.80', changeText: '+12.8%', delta: '65.40', net: '128.60', reason: '30日涨幅偏离值达20%' },
-  { name: '贵州茅台', price: '1589.00', changeText: '+8.5%', delta: '124.00', net: '98.50', reason: '30日换手率达15%' },
-  { name: '招商银行', price: '45.20', changeText: '+6.5%', delta: '2.84', net: '45.80', reason: '30日净流入超50亿' },
-  { name: '隆基绿能', price: '82.50', changeText: '+15.6%', delta: '11.05', net: '78.20', reason: '30日涨幅偏离值达18%' },
-  { name: '东方财富', price: '25.80', changeText: '+10.6%', delta: '2.47', net: '65.30', reason: '30日成交量翻倍' }
+const dragon5 = [
+  { name: '比亚迪', price: '250.60', change: 8.32, changeText: '+8.32%', delta: '19.20', net: '45.60', reason: '5日涨幅偏离值达15%' },
+  { name: '五粮液', price: '185.30', change: 6.15, changeText: '+6.15%', delta: '10.80', net: '32.40', reason: '5日换手率达30%' },
+  { name: '阳光电源', price: '120.50', change: 12.45, changeText: '+12.45%', delta: '13.40', net: '38.90', reason: '5日净流入超30亿' },
+  { name: '迈瑞医疗', price: '305.80', change: 7.23, changeText: '+7.23%', delta: '20.50', net: '28.70', reason: '5日涨幅偏离值达12%' },
+  { name: '爱尔眼科', price: '55.20', change: 9.65, changeText: '+9.65%', delta: '5.10', net: '22.30', reason: '5日成交量翻倍' }
+]
+
+const dragon20 = [
+  { name: '宁德时代', price: '568.80', changeText: '+12.8%', delta: '65.40', net: '128.60', reason: '20日涨幅偏离值达20%' },
+  { name: '贵州茅台', price: '1589.00', changeText: '+8.5%', delta: '124.00', net: '98.50', reason: '20日换手率达15%' },
+  { name: '招商银行', price: '45.20', changeText: '+6.5%', delta: '2.84', net: '45.80', reason: '20日净流入超50亿' },
+  { name: '隆基绿能', price: '82.50', changeText: '+15.6%', delta: '11.05', net: '78.20', reason: '20日涨幅偏离值达18%' },
+  { name: '东方财富', price: '25.80', changeText: '+10.6%', delta: '2.47', net: '65.30', reason: '20日成交量翻倍' }
 ]
 
 const reportCards = [
