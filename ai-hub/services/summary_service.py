@@ -67,6 +67,7 @@ class SummaryService:
             user_message=user_message,
             system_prompt=system_prompt,
             model=model,
+            task_type=TaskType.SUMMARY,
             temperature=0.3,  # 摘要使用较低温度，更客观
             max_tokens=request.max_length * 2 if request.max_length else 1000,
         )
@@ -84,6 +85,6 @@ class SummaryService:
         return SummaryGenerationResponse(
             summary=summary,
             model=response.model,
-            tokens_used=response.tokens_used,
+            tokens_used=response.total_tokens,
             sections=sections,
         )

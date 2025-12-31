@@ -28,9 +28,9 @@ def test_login_json_success(client: TestClient):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
-    assert len(data["access_token"]) > 0
+    assert data["code"] == 0
+    assert data["data"]["token_type"] == "bearer"
+    assert len(data["data"]["access_token"]) > 0
 
 
 def test_login_json_failure(client: TestClient):
@@ -40,7 +40,7 @@ def test_login_json_failure(client: TestClient):
         json={"username": "admin", "password": "wrong_password"}
     )
     assert response.status_code == 401
-    assert "用户名或密码错误" in response.json()["detail"]
+    assert "invalid" in response.json().get("detail", "")
 
 
 def test_login_oauth2_success(client: TestClient):
@@ -51,8 +51,9 @@ def test_login_oauth2_success(client: TestClient):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+    assert data["code"] == 0
+    assert "access_token" in data["data"]
+    assert data["data"]["token_type"] == "bearer"
 
 
 def test_login_oauth2_failure(client: TestClient):
@@ -72,15 +73,16 @@ def test_get_current_user_success(client: TestClient, auth_token: str):
     )
     assert response.status_code == 200
     data = response.json()
-    assert "username" in data
-    assert "user_id" in data
-    assert data["username"] == "admin"
+    assert data["code"] == 0
+    assert "username" in data["data"]
+    assert "user_id" in data["data"]
+    assert data["data"]["username"] == "admin"
 
 
 def test_get_current_user_no_token(client: TestClient):
     """测试获取当前用户信息 - 无令牌"""
     response = client.get("/api/auth/me")
-    assert response.status_code == 401  # FastAPI OAuth2 返回 401
+    assert response.status_code == 401
 
 
 def test_get_current_user_invalid_token(client: TestClient):

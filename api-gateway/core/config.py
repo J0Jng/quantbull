@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +18,16 @@ class Settings(BaseSettings):
     data_service_url: str = "http://data-service:8001"  # /data/* 转发到这里
     quant_engine_url: str = "http://quant-engine:8003"  # /quant/* 转发到这里
     daily_report_url: str = "http://daily-report:8004"  # /report/* 转发到这里
+    user_service_url: str = Field(
+        default="http://user-service:8005",
+        validation_alias=AliasChoices(
+            "USER_SERVICE_BASE_URL",
+            "USER_SERVICE_URL",
+            "user_service_url",
+        ),
+        description="User service base URL (Docker: http://user-service:8005)",
+    )
+    user_service_timeout: float = 5.0
     task_service_url: str = "http://task-service:9000"
     
     # 路由映射配置
@@ -25,6 +36,7 @@ class Settings(BaseSettings):
         "/data": "data_service_url",
         "/quant": "quant_engine_url",
         "/report": "daily_report_url",
+        "/auth": "user_service_url",
     }
     
     # 鉴权配置
@@ -37,7 +49,7 @@ class Settings(BaseSettings):
     rate_limit_per_hour: int = 1000
     
     # 代理配置
-    proxy_timeout: float = 30.0  # 下游请求超时时间（秒）
+    proxy_timeout: float = 200.0  # 下游请求超时时间（秒）
     proxy_max_retries: int = 2  # 最大重试次数
     
     model_config = SettingsConfigDict(

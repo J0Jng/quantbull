@@ -15,13 +15,11 @@ router = APIRouter()
 
 class ProxyService:
     """代理服务 - 统一转发到下游微服务"""
-    
-    # 路由前缀到服务地址的映射
+
+    # 路由前缀到服务地址的映射（从配置动态生成，支持 /news 等前缀）
     ROUTE_MAPPING = {
-        "news": settings.ai_hub_url,          # /api/news/* -> ai-hub
-        "data": settings.data_service_url,    # /api/data/* -> data-service
-        "quant": settings.quant_engine_url,   # /api/quant/* -> quant-engine
-        "report": settings.daily_report_url,  # /api/report/* -> daily-report
+        prefix.lstrip("/"): settings.get_service_url(prefix)
+        for prefix in settings.route_mapping.keys()
     }
     
     @classmethod
@@ -79,6 +77,11 @@ class ProxyService:
         headers.pop("host", None)
         headers.pop("connection", None)
         headers.pop("content-length", None)
+
+        user = getattr(request.state, "user", None)
+        if user and getattr(user, "user_id", None) is not None:
+            headers["X-User-Id"] = str(user.user_id)
+            headers["X-Username"] = getattr(user, "username", "")
         
         # 获取请求体
         body = None

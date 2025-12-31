@@ -71,6 +71,7 @@ services:
       TASK_SERVICE_URL: "http://task-service:9000"
       DAILY_REPORT_URL: "http://daily-report:8004"
       AI_HUB_URL: "http://ai-hub:8002"
+      USER_SERVICE_URL: "http://user-service:8005"
     depends_on:
       - postgres
       - redis
@@ -79,6 +80,23 @@ services:
       - ai-hub
       - quant-engine
       - daily-report
+      - user-service
+    networks:
+      - quantbull-net
+
+  # User Service：统一用户认证中心
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    restart: always
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://quantbull:change_me@postgres:5432/quantbull_db"
+      JWT_SECRET: "change-me-in-prod"
+      SERVICE_PORT: "8005"
+    depends_on:
+      - postgres
     networks:
       - quantbull-net
 

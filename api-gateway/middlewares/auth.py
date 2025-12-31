@@ -21,7 +21,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/",
         "/api/auth/login",
         "/api/auth/login/json",
-        "/api/auth/me",
+        "/api/auth/register",
     ]
     
     # 白名单路径正则
@@ -29,12 +29,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/docs",
         r"^/openapi",
         r"^/redoc",
-        r"^/api/auth",
     ]
     
     def __init__(self, app):
         super().__init__(app)
         self.whitelist_patterns = [re.compile(pattern) for pattern in self.WHITELIST_PATTERNS]
+        self.protected_prefixes = tuple(
+            f"/api{prefix if prefix.startswith('/') else '/' + prefix}".rstrip("/")
+            for prefix in settings.route_mapping.keys()
+        )
     
     def is_whitelisted(self, path: str) -> bool:
         """检查路径是否在白名单中"""
@@ -46,6 +49,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return True
         
         return False
+
+    def requires_auth(self, path: str) -> bool:
+        """检查路径是否需要鉴权（基于服务前缀）"""
+        return any(path.startswith(prefix) for prefix in self.protected_prefixes)
     
     def extract_token(self, authorization: Optional[str]) -> Optional[str]:
         """从 Authorization 头中提取 token"""
@@ -67,6 +74,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 检查是否在白名单中
         if self.is_whitelisted(request.url.path):
             return await call_next(request)
+
+        # 仅保护指定的业务前缀
+        if not self.requires_auth(request.url.path):
+            return await call_next(request)
         
         # 提取 token
         authorization = request.headers.get("Authorization")
@@ -81,7 +92,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
         
         # 验证 token
-        token_data = AuthService.verify_token(token)
+        token_data = await AuthService.verify_token(token)
         if token_data is None:
             return Response(
                 content='{"detail": "无效或过期的令牌"}',

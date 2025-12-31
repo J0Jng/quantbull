@@ -6,11 +6,15 @@ from core.logger import configure_logging
 from routers import api_router
 from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler, envelope_middleware
 from core.response import success
+from services.llm.llm_factory import LLMFactory
 
 
 def create_app() -> FastAPI:
     """创建 FastAPI 应用"""
     configure_logging(settings)
+
+    # 如果所有模型都不可用，启动直接失败，避免“假在线”
+    LLMFactory.ensure_any_available()
     
     app = FastAPI(
         title="AI Hub",

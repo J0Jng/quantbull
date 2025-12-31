@@ -45,6 +45,8 @@ async def envelope_middleware(request: Request, call_next):
     response = await call_next(request)
     content_type = response.headers.get("content-type", "")
     if "application/json" in content_type:
+        response_headers = dict(response.headers)
+        response_headers.pop("content-length", None)  # 重封装后长度变了，必须移除旧的
         try:
             body = b""
             async for chunk in response.body_iterator:
@@ -55,10 +57,10 @@ async def envelope_middleware(request: Request, call_next):
             return response
 
         if isinstance(data, dict) and {"code", "message", "data"}.issubset(set(data.keys())):
-            return JSONResponse(content=data, status_code=response.status_code, headers=dict(response.headers))
+            return JSONResponse(content=data, status_code=response.status_code, headers=response_headers)
         enveloped = ApiResponse(code=0 if 200 <= response.status_code < 400 else response.status_code,
                                 message="ok" if 200 <= response.status_code < 400 else "error",
                                 data=data).model_dump()
-        return JSONResponse(content=enveloped, status_code=response.status_code, headers=dict(response.headers))
+        return JSONResponse(content=enveloped, status_code=response.status_code, headers=response_headers)
 
     return response

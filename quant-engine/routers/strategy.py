@@ -29,6 +29,9 @@ async def create_strategy(request: StrategyCreateRequest) -> StrategyResponse:
     """
     try:
         return await strategy_service.create_strategy(request)
+    except ValueError as e:
+        logger.error(f"创建策略参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"创建策略失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建策略失败: {str(e)}")
@@ -64,6 +67,9 @@ async def update_strategy(
         if not strategy:
             raise HTTPException(status_code=404, detail="策略不存在")
         return strategy
+    except ValueError as e:
+        logger.error(f"更新策略参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -100,13 +106,13 @@ async def list_strategies(
     支持按状态过滤和分页
     """
     try:
-        strategies = await strategy_service.list_strategies(
+        strategies, total = await strategy_service.list_strategies(
             status=status,
             limit=limit,
             offset=offset
         )
         return StrategyListResponse(
-            total=len(strategies),
+            total=total,
             strategies=strategies
         )
     except Exception as e:

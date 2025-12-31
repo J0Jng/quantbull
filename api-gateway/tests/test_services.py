@@ -1,57 +1,84 @@
 import pytest
+from fastapi import HTTPException
+
+from services import auth_service
 from services.auth_service import AuthService
 from services.proxy_service import ProxyService
-from schemas.auth import TokenData
+
+
+class MockResponse:
+    def __init__(self, status_code: int = 200, payload: dict | None = None, text: str = ""):
+        self.status_code = status_code
+        self._payload = payload or {}
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+class MockAsyncClient:
+    def __init__(self, post_response: MockResponse | None = None, get_response: MockResponse | None = None):
+        self.post_response = post_response or MockResponse()
+        self.get_response = get_response or MockResponse()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):  # pragma: no cover - required by context manager
+        return False
+
+    async def post(self, *args, **kwargs):
+        return self.post_response
+
+    async def get(self, *args, **kwargs):
+        return self.get_response
 
 
 class TestAuthService:
-    """认证服务测试"""
-    
-    def test_create_access_token(self):
-        """测试创建访问令牌"""
-        token = AuthService.create_access_token(data={"sub": "test_user", "user_id": 1})
-        assert isinstance(token, str)
-        assert len(token) > 0
-    
-    def test_verify_token_success(self):
-        """测试验证令牌成功"""
-        token = AuthService.create_access_token(data={"sub": "test_user", "user_id": 1})
-        token_data = AuthService.verify_token(token)
+    @pytest.mark.asyncio
+    async def test_login_with_form_success(self, monkeypatch):
+        payload = {"code": 0, "message": "ok", "data": {"access_token": "token", "token_type": "bearer", "expires_in": 3600, "user_id": 1}}
+        monkeypatch.setattr(auth_service.httpx, "AsyncClient", lambda **kwargs: MockAsyncClient(post_response=MockResponse(payload=payload)))
+
+        result = await AuthService.login_with_form("admin", "admin123")
+        assert result["data"]["access_token"] == "token"
+
+    @pytest.mark.asyncio
+    async def test_login_with_form_failure(self, monkeypatch):
+        payload = {"message": "invalid"}
+        monkeypatch.setattr(auth_service.httpx, "AsyncClient", lambda **kwargs: MockAsyncClient(post_response=MockResponse(status_code=401, payload=payload)))
+
+        with pytest.raises(HTTPException):
+            await AuthService.login_with_form("admin", "bad")
+
+    @pytest.mark.asyncio
+    async def test_verify_token_success(self, monkeypatch):
+        payload = {"code": 0, "message": "ok", "data": {"user_id": 9, "username": "alice"}}
+        monkeypatch.setattr(auth_service.httpx, "AsyncClient", lambda **kwargs: MockAsyncClient(get_response=MockResponse(payload=payload)))
+
+        token_data = await AuthService.verify_token("token")
         assert token_data is not None
-        assert isinstance(token_data, TokenData)
-        assert token_data.username == "test_user"
-        assert token_data.user_id == 1
-    
-    def test_verify_token_invalid(self):
-        """测试验证无效令牌"""
-        token_data = AuthService.verify_token("invalid_token")
+        assert token_data.username == "alice"
+        assert token_data.user_id == 9
+
+    @pytest.mark.asyncio
+    async def test_verify_token_failure(self, monkeypatch):
+        monkeypatch.setattr(auth_service.httpx, "AsyncClient", lambda **kwargs: MockAsyncClient(get_response=MockResponse(status_code=401, payload={"message": "invalid"})))
+
+        token_data = await AuthService.verify_token("bad")
         assert token_data is None
-    
-    def test_authenticate_user_success(self):
-        """测试用户认证成功"""
-        result = AuthService.authenticate_user("admin", "admin123")
-        assert result is True
-    
-    def test_authenticate_user_failure(self):
-        """测试用户认证失败"""
-        result = AuthService.authenticate_user("admin", "wrong_password")
-        assert result is False
 
 
 class TestProxyService:
-    """代理服务测试"""
-    
     def test_service_urls_configured(self):
-        """测试服务 URL 配置"""
         assert "data-service" in ProxyService.SERVICE_URLS
         assert "ai-hub" in ProxyService.SERVICE_URLS
         assert "quant-engine" in ProxyService.SERVICE_URLS
         assert "daily-report" in ProxyService.SERVICE_URLS
         assert "user-service" in ProxyService.SERVICE_URLS
-    
+
     @pytest.mark.asyncio
     async def test_check_service_health(self):
-        """测试服务健康检查"""
         health = await ProxyService.check_service_health("data-service")
         assert health.service_name == "data-service"
         assert health.status in ["healthy", "unhealthy", "unknown"]

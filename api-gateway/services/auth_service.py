@@ -1,57 +1,107 @@
-from datetime import datetime, timedelta
 from typing import Optional
 
-from jose import JWTError, jwt
+import httpx
+from fastapi import HTTPException, status
+
 from core.config import settings
+from core.logger import get_logger
 from schemas.auth import TokenData
+
+logger = get_logger(__name__)
 
 
 class AuthService:
-    """认证服务"""
-    
+    """认证服务：委托 user-service 处理登录和鉴权"""
+
     @staticmethod
-    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-        """创建访问令牌"""
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(minutes=settings.token_expire_minutes)
-        
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.jwt_secret,
-            algorithm=settings.jwt_algorithm
-        )
-        return encoded_jwt
-    
+    async def login_with_form(username: str, password: str) -> dict:
+        url = f"{settings.user_service_url.rstrip('/')}/api/auth/login"
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.post(url, data={"username": username, "password": password})
+        return AuthService._handle_login_response(response)
+
     @staticmethod
-    def verify_token(token: str) -> Optional[TokenData]:
-        """验证令牌"""
+    async def login_with_json(username: str, password: str) -> dict:
+        url = f"{settings.user_service_url.rstrip('/')}/api/auth/login/json"
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.post(url, json={"username": username, "password": password})
+        return AuthService._handle_login_response(response)
+
+    @staticmethod
+    async def verify_token(token: str) -> Optional[TokenData]:
+        url = f"{settings.user_service_url.rstrip('/')}/api/auth/verify"
+        headers = {"Authorization": f"Bearer {token}"}
         try:
-            payload = jwt.decode(
-                token,
-                settings.jwt_secret,
-                algorithms=[settings.jwt_algorithm]
-            )
-            username = payload.get("sub")
-            user_id = payload.get("user_id")
-            if not isinstance(username, str):
-                return None
-            if user_id is None:
-                return None
-            try:
-                user_id_int = int(user_id)
-            except (TypeError, ValueError):
-                return None
-            return TokenData(username=username, user_id=user_id_int)
-        except JWTError:
+            async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+                response = await client.get(url, headers=headers)
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.error(f"verify token failed: {exc}")
             return None
-    
+
+        if response.status_code != 200:
+            logger.warning(f"verify token failed with status {response.status_code}: {response.text}")
+            return None
+
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return None
+
+        data = payload.get("data") or {}
+        user_id = data.get("user_id")
+        username = data.get("username")
+        if payload.get("code") != 0 or user_id is None or not isinstance(username, str):
+            return None
+
+        try:
+            return TokenData(username=username, user_id=int(user_id))
+        except (TypeError, ValueError):
+            return None
+
     @staticmethod
-    def authenticate_user(username: str, password: str) -> bool:
-        """验证用户（示例实现，实际应连接 user-service:用户认证、权限管理)"""
-        # TODO: 实际应调用 user-service 进行验证
-        # 这里仅作为示例
-        return username == "admin" and password == "admin123"
+    async def verify_raw(token: str) -> dict:
+        """直接透传 user-service 的 verify 响应，保持错误码与结构一致。"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/auth/verify"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.get(url, headers=headers)
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    async def register(username: str, password: str) -> dict:
+        """用户注册，透传 user-service 响应。"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/auth/register"
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.post(url, json={"username": username, "password": password})
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    def _handle_login_response(response: httpx.Response) -> dict:
+        try:
+            payload = response.json()
+        except Exception:
+            payload = {"message": response.text}
+
+        if response.status_code != 200:
+            message = payload.get("message") if isinstance(payload, dict) else response.text
+            raise HTTPException(status_code=response.status_code, detail=message or "login failed")
+
+        if not isinstance(payload, dict) or payload.get("code") != 0:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=(payload.get("message") if isinstance(payload, dict) else "authentication failed"),
+            )
+
+        return payload
+
+    @staticmethod
+    def _handle_passthrough_response(response: httpx.Response) -> dict:
+        try:
+            payload = response.json()
+        except Exception:
+            payload = {"message": response.text}
+
+        if response.status_code >= 400:
+            message = payload.get("message") if isinstance(payload, dict) else response.text
+            raise HTTPException(status_code=response.status_code, detail=message or "request failed")
+
+        return payload
