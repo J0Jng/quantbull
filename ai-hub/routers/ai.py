@@ -25,6 +25,7 @@ from services.report_service import ReportService
 from services.digital_human_service import DigitalHumanService
 
 from core.logger import get_logger
+from core.response import success
 from schemas.ai import TaskType, ModelType
 
 logger = get_logger(__name__)
@@ -52,6 +53,8 @@ async def generate_news(request: NewsGenerationRequest) -> NewsGenerationRespons
     """
     try:
         return await news_service.generate_news(request)
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"新闻生成错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"新闻生成失败: {str(e)}")
@@ -68,6 +71,8 @@ async def generate_summary(request: SummaryGenerationRequest) -> SummaryGenerati
     """
     try:
         return await summary_service.generate_summary(request)
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"摘要生成错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"摘要生成失败: {str(e)}")
@@ -84,6 +89,8 @@ async def generate_strategy(request: StrategyGenerationRequest) -> StrategyGener
     """
     try:
         return await strategy_service.generate_strategy(request)
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"策略生成错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"策略生成失败: {str(e)}")
@@ -105,6 +112,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             user_message=request.message,
             system_prompt=request.system_prompt,
             model=model,
+            task_type=TaskType.GENERAL,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )
@@ -112,9 +120,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
         return ChatResponse(
             content=response.content,
             model=response.model,
-            tokens_used=response.tokens_used,
+            tokens_used=response.total_tokens,
             finish_reason=response.finish_reason,
         )
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"聊天接口错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"AI 服务错误: {str(e)}")
@@ -129,23 +139,20 @@ async def generate_report(request: ReportGenerationRequest) -> ReportGenerationR
     """
     try:
         return await report_service.generate_report(request)
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"报告生成错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"报告生成失败: {str(e)}")
 
 
-@router.post("/digital-human/generate", response_model=DigitalHumanResponse, summary="生成数字人视频")
-async def generate_digital_human(request: DigitalHumanRequest) -> DigitalHumanResponse:
+@router.post("/digital-human/generate", summary="生成数字人视频（占位）")
+async def generate_digital_human(request: DigitalHumanRequest) -> dict:
     """
-    生成数字人视频
-    
-    将文本转换为数字人口播视频（需要配置第三方服务）
+    数字人服务占位，暂未实现
     """
-    try:
-        return await digital_human_service.generate_video(request)
-    except Exception as e:
-        logger.error(f"数字人视频生成错误: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"数字人视频生成失败: {str(e)}")
+    logger.info("数字人服务占位调用，返回未实现提示")
+    return success(data=None, message="digital human service not implemented yet")
 
 
 @router.post("/model/route", response_model=ModelRouteResponse, summary="模型路由推荐")
@@ -161,6 +168,8 @@ async def route_model(request: ModelRouteRequest) -> ModelRouteResponse:
             recommended_model=model,
             reason=reason,
         )
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"模型路由错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"模型路由失败: {str(e)}")

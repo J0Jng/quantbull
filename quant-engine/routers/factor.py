@@ -32,6 +32,9 @@ async def create_factor(request: FactorCreateRequest) -> FactorResponse:
     """
     try:
         return await factor_service.create_factor(request)
+    except ValueError as e:
+        logger.error(f"创建因子参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"创建因子失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建因子失败: {str(e)}")
@@ -67,6 +70,9 @@ async def update_factor(
         if not factor:
             raise HTTPException(status_code=404, detail="因子不存在")
         return factor
+    except ValueError as e:
+        logger.error(f"更新因子参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -103,13 +109,13 @@ async def list_factors(
     支持按类别过滤和分页
     """
     try:
-        factors = await factor_service.list_factors(
+        factors, total = await factor_service.list_factors(
             category=category,
             limit=limit,
             offset=offset
         )
         return FactorListResponse(
-            total=len(factors),
+            total=total,
             factors=factors
         )
     except Exception as e:

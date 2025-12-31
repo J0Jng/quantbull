@@ -17,6 +17,7 @@ class ProxyService:
         "ai-hub": settings.ai_hub_url,
         "quant-engine": settings.quant_engine_url,
         "daily-report": settings.daily_report_url,
+        "user-service": settings.user_service_url,
     }
     
     @classmethod

@@ -52,6 +52,7 @@ class NewsService:
             user_message=user_message,
             system_prompt=system_prompt,
             model=model,
+            task_type=TaskType.NEWS,
             temperature=0.7,
             max_tokens=request.target_length * 2,  # 预留足够token
         )
@@ -65,5 +66,5 @@ class NewsService:
             news_content=news_content,
             model=response.model,
             word_count=word_count,
-            tokens_used=response.tokens_used,
+            tokens_used=response.total_tokens,
         )

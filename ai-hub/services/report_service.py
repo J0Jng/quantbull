@@ -3,8 +3,12 @@ from services.llm_service import LLMService
 from services.model_router import ModelRouter
 
 from core.logger import get_logger
+from core.config import settings
 
 logger = get_logger(__name__)
+
+# 控制生成报告的最大字数，避免过长响应
+MAX_REPORT_CHARS = min(settings.max_tokens, 2000)
 
 
 class ReportService:
@@ -49,11 +53,13 @@ class ReportService:
             user_message=user_message,
             system_prompt=system_prompt,
             model=model,
+            task_type=TaskType.SUMMARY,
             temperature=0.6,  # 报告生成使用较低温度，更客观
-            max_tokens=2000,
+            max_tokens=min(settings.max_tokens, 6000)
         )
         
-        report_content = response.content
+        # 截断过长的输出，控制字数
+        report_content = response.content[:MAX_REPORT_CHARS]
         
         # 简单提取章节（实际可以更智能）
         sections = []

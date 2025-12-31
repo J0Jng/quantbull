@@ -3,40 +3,61 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+ALLOWED_DATA_SOURCES = ["price", "fundamental", "tdengine"]
+
+
 class FactorCreateRequest(BaseModel):
     """创建因子请求"""
+
     name: str = Field(..., description="因子名称", min_length=1, max_length=100)
     description: str = Field(default="", description="因子描述", max_length=1000)
-    category: str = Field(default="technical", description="因子类别：technical/fundamental/macro")
-    formula: Optional[str] = Field(default=None, description="因子公式")
+    expression: str = Field(..., description="因子表达式/公式", min_length=1)
+    data_source: str = Field(default="price", description="数据来源：price/fundamental/tdengine")
+    category: Optional[str] = Field(default=None, description="因子类别（兼容旧字段）")
+    formula: Optional[str] = Field(default=None, description="兼容旧字段：因子公式")
     parameters: dict = Field(default_factory=dict, description="因子参数")
-    
-    @field_validator("category")
+
+    @field_validator("data_source")
     @classmethod
-    def validate_category(cls, v: str) -> str:
-        """验证因子类别"""
-        allowed = ["technical", "fundamental", "macro"]
+    def validate_data_source(cls, v: str) -> str:
+        allowed = ALLOWED_DATA_SOURCES
         if v not in allowed:
-            raise ValueError(f"因子类别必须是: {', '.join(allowed)}")
+            raise ValueError(f"data_source 必须是: {', '.join(allowed)}")
         return v
 
 
 class FactorUpdateRequest(BaseModel):
     """更新因子请求"""
+
     name: Optional[str] = Field(default=None, description="因子名称", min_length=1, max_length=100)
     description: Optional[str] = Field(default=None, description="因子描述", max_length=1000)
+    expression: Optional[str] = Field(default=None, description="因子表达式/公式")
+    data_source: Optional[str] = Field(default=None, description="数据来源")
     category: Optional[str] = Field(default=None, description="因子类别")
-    formula: Optional[str] = Field(default=None, description="因子公式")
+    formula: Optional[str] = Field(default=None, description="因子公式（兼容旧字段）")
     parameters: Optional[dict] = Field(default=None, description="因子参数")
+
+    @field_validator("data_source")
+    @classmethod
+    def validate_data_source(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        allowed = ALLOWED_DATA_SOURCES
+        if v not in allowed:
+            raise ValueError(f"data_source 必须是: {', '.join(allowed)}")
+        return v
 
 
 class FactorResponse(BaseModel):
     """因子响应"""
+
     id: str = Field(..., description="因子ID")
     name: str = Field(..., description="因子名称")
     description: str = Field(..., description="因子描述")
-    category: str = Field(..., description="因子类别")
-    formula: Optional[str] = Field(default=None, description="因子公式")
+    expression: str = Field(..., description="因子表达式/公式")
+    data_source: str = Field(..., description="数据来源")
+    category: Optional[str] = Field(default=None, description="因子类别")
+    formula: Optional[str] = Field(default=None, description="因子公式（兼容旧字段）")
     parameters: dict = Field(..., description="因子参数")
     created_at: str = Field(..., description="创建时间")
 

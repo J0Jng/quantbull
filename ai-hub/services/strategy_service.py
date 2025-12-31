@@ -46,6 +46,7 @@ class StrategyService:
             user_message=user_message,
             system_prompt=system_prompt,
             model=model,
+            task_type=TaskType.STRATEGY,
             temperature=0.3,  # 代码生成使用较低温度，更准确
             max_tokens=4000,
         )
@@ -70,5 +71,5 @@ class StrategyService:
             model=response.model,
             explanation=explanation,
             parameters=parameters,
-            tokens_used=response.tokens_used,
+            tokens_used=response.total_tokens,
         )
