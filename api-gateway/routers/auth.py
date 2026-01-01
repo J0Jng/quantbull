@@ -10,8 +10,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 @router.post("/login", openapi_extra={"security": []})
 async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
-    """用户登录（OAuth2 标准格式）- 委托 user-service"""
-    return await AuthService.login_with_form(form_data.username, form_data.password)
+    """用户登录（OAuth2 标准格式）- 委托 user-service
+    
+    返回格式符合 OAuth2 标准，供 Swagger UI 使用
+    """
+    result = await AuthService.login_with_form(form_data.username, form_data.password)
+    # 将 Envelope 格式转换为 OAuth2 标准格式
+    if result.get("code") == 0 and result.get("data"):
+        return result["data"]  # 直接返回 {access_token, token_type, expires_in, user_id}
+    return result
 
 
 @router.post("/login/json", openapi_extra={"security": []})

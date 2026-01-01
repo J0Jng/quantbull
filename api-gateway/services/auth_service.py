@@ -101,7 +101,59 @@ class AuthService:
             payload = {"message": response.text}
 
         if response.status_code >= 400:
-            message = payload.get("message") if isinstance(payload, dict) else response.text
-            raise HTTPException(status_code=response.status_code, detail=message or "request failed")
+            message = (payload.get("message") or payload.get("detail") or response.text or "request failed")
+            raise HTTPException(status_code=response.status_code, detail=message)
 
         return payload
+
+    # ==================== 管理员接口 ====================
+
+    @staticmethod
+    async def admin_list_users(token: str, limit: int = 100, offset: int = 0) -> dict:
+        """管理员获取用户列表"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/admin/users?limit={limit}&offset={offset}"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.get(url, headers=headers)
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    async def admin_get_user(token: str, user_id: int) -> dict:
+        """管理员获取单个用户详情"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/admin/users/{user_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.get(url, headers=headers)
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    async def admin_create_user(token: str, username: str, password: str, role: str = "user") -> dict:
+        """管理员创建新用户"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/admin/users"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.post(url, headers=headers, json={"username": username, "password": password, "role": role})
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    async def admin_update_user(token: str, user_id: int, password: Optional[str] = None, role: Optional[str] = None) -> dict:
+        """管理员更新用户信息"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/admin/users/{user_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+        body = {}
+        if password is not None:
+            body["password"] = password
+        if role is not None:
+            body["role"] = role
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.patch(url, headers=headers, json=body)
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    async def admin_delete_user(token: str, user_id: int) -> dict:
+        """管理员删除用户"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/admin/users/{user_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.delete(url, headers=headers)
+        return AuthService._handle_passthrough_response(response)

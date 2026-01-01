@@ -1,26 +1,38 @@
 [
   {
+    "name": "ai-hub",
+    "url": "http://ai-hub:8002/openapi.json",
+    "path_prefix": "/api",
+    "enabled": true
+  },
+  {
     "name": "data-service",
     "url": "http://data-service:8001/openapi.json",
-    "path_prefix": "/api/data",
+    "path_prefix": "/api",
     "enabled": true
   },
   {
     "name": "quant-engine",
     "url": "http://quant-engine:8003/openapi.json",
-    "path_prefix": "/api/quant",
-    "enabled": true
-  },
-  {
-    "name": "ai-hub",
-    "url": "http://ai-hub:8002/openapi.json",
-    "path_prefix": "/api/ai",
+    "path_prefix": "/api",
     "enabled": true
   },
   {
     "name": "daily-report",
     "url": "http://daily-report:8004/openapi.json",
-    "path_prefix": "/api/report",
+    "path_prefix": "/api",
+    "enabled": true
+  },
+  {
+    "name": "task-service",
+    "url": "http://task-service:9000/openapi.json",
+    "path_prefix": "/api",
+    "enabled": true
+  },
+  {
+    "name": "user-service",
+    "url": "http://user-service:8005/openapi.json",
+    "path_prefix": "/api",
     "enabled": true
   }
 ]

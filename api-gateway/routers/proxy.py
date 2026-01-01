@@ -45,10 +45,10 @@ class ProxyService:
         # 查找匹配的路由前缀
         for prefix, base_url in cls.ROUTE_MAPPING.items():
             if path.startswith(prefix):
-                # 移除前缀，获取剩余路径
-                remaining_path = path[len(prefix):].lstrip("/")
-                target_url = f"{base_url}/{remaining_path}" if remaining_path else base_url
-                return target_url, remaining_path
+                # 构建目标路径：/api/{path}
+                target_path = f"/api/{path}"
+                target_url = base_url.rstrip("/") + target_path
+                return target_url, target_path
         
         raise ValueError(f"无法匹配路由: {path}")
     

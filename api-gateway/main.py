@@ -11,7 +11,7 @@ from core.logger import configure_logging
 from core.openapi_aggregator import OpenAPIAggregator, load_service_configs
 from core.response import success
 from middlewares import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
-from routers import auth, gateway, proxy
+from routers import auth, gateway, proxy, admin
 import uvicorn
 
 
@@ -35,6 +35,10 @@ def create_app() -> FastAPI:
             {
                 "name": "auth",
                 "description": "认证相关接口"
+            },
+            {
+                "name": "admin",
+                "description": "管理员相关接口（用户管理）"
             },
             {
                 "name": "quant",
@@ -128,7 +132,10 @@ app.include_router(gateway.router, prefix="/api/gateway", tags=["网关管理"])
 # 2. 认证路由
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
 
-# 3. 代理路由（最后注册，最低优先级）
+# 3. 管理员路由
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+
+# 4. 代理路由（最后注册，最低优先级）
 app.include_router(proxy.router, prefix="/api", tags=["代理"])
 
 

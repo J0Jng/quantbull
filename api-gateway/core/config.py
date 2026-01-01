@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     
     # 微服务地址配置（Docker 环境使用服务名，本地使用 localhost）
-    ai_hub_url: str = "http://ai-hub:8002"  # /news/* 转发到这里
+    ai_hub_url: str = "http://ai-hub:8002"  # /ai/* 转发到这里
     data_service_url: str = "http://data-service:8001"  # /data/* 转发到这里
     quant_engine_url: str = "http://quant-engine:8003"  # /quant/* 转发到这里
     daily_report_url: str = "http://daily-report:8004"  # /report/* 转发到这里
@@ -30,13 +30,35 @@ class Settings(BaseSettings):
     user_service_timeout: float = 5.0
     task_service_url: str = "http://task-service:9000"
     
-    # 路由映射配置
+    # 路由映射配置（键为网关暴露的一级路径，值为目标服务 URL 配置名）
+    # 注意：使用下游真实的首段路径，避免重复前缀导致 404。
     route_mapping: dict = {
-        "/news": "ai_hub_url",
+        # ai-hub
+        "/ai": "ai_hub_url",
+
+        # data-service（包含所有首段）
         "/data": "data_service_url",
-        "/quant": "quant_engine_url",
+        "/quotes": "data_service_url",
+        "/tushare": "data_service_url",
+        "/market": "data_service_url",
+        "/etf": "data_service_url",
+        "/stock": "data_service_url",
+
+        # quant-engine（下游首段：backtest/strategy/factor）
+        "/backtest": "quant_engine_url",
+        "/strategy": "quant_engine_url",
+        "/factor": "quant_engine_url",
+
+        # daily-report
         "/report": "daily_report_url",
+        "/daily-report": "daily_report_url",
+
+        # task-service
+        "/tasks": "task_service_url",
+
+        # user-service
         "/auth": "user_service_url",
+        "/admin": "user_service_url",
     }
     
     # 鉴权配置
