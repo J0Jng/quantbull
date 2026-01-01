@@ -26,6 +26,7 @@ async def check_all_services() -> List[ServiceHealth]:
         "ai-hub",
         "quant-engine",
         "daily-report",
+        "task-service",
         "user-service"
     ]
     

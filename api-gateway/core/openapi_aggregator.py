@@ -150,12 +150,7 @@ class OpenAPIAggregator:
             "OAuth2PasswordBearer",
             {
                 "type": "oauth2",
-                "flows": {
-                    "password": {
-                        "tokenUrl": "/api/auth/login",
-                        "scopes": {},
-                    }
-                },
+                "flows": {"password": {"tokenUrl": "/api/auth/login", "scopes": {}}},
             },
         )
         spec.setdefault("security", [{"OAuth2PasswordBearer": []}])

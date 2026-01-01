@@ -12,30 +12,33 @@ logger = get_logger(__name__)
 class ProxyService:
     """代理服务 - 转发请求到各个微服务"""
     
-    SERVICE_URLS = {
-        "data-service": settings.data_service_url,
-        "ai-hub": settings.ai_hub_url,
-        "quant-engine": settings.quant_engine_url,
-        "daily-report": settings.daily_report_url,
-        "user-service": settings.user_service_url,
+    SERVICE_ENDPOINTS = {
+        "data-service": {"url": settings.data_service_url, "health_path": "/health"},
+        "ai-hub": {"url": settings.ai_hub_url, "health_path": "/health"},
+        "quant-engine": {"url": settings.quant_engine_url, "health_path": "/health"},
+        "daily-report": {"url": settings.daily_report_url, "health_path": "/health"},
+        "user-service": {"url": settings.user_service_url, "health_path": "/health"},
+        "task-service": {"url": settings.task_service_url, "health_path": "/healthz"},
     }
     
     @classmethod
     async def check_service_health(cls, service_name: str) -> ServiceHealth:
         """检查服务健康状态"""
-        url = cls.SERVICE_URLS.get(service_name)
-        if not url:
+        config = cls.SERVICE_ENDPOINTS.get(service_name)
+        if not config:
             return ServiceHealth(
                 service_name=service_name,
                 status="unknown",
                 url="",
                 error=f"Service {service_name} not configured"
             )
+        url = config["url"].rstrip("/")
+        health_path = config.get("health_path", "/health")
         
         start_time = time.time()
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{url}/health")
+                response = await client.get(f"{url}{health_path}")
                 response_time = (time.time() - start_time) * 1000
                 
                 if response.status_code == 200:

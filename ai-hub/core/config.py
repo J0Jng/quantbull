@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     digital_human_api_url: str = ""
     digital_human_api_key: str = ""
     
+    # Data Service 配置
+    data_service_url: str = "http://data-service:8001"
+    
     # 模型路由配置
     default_model: str = "deepseek"  # deepseek, qwen
     max_tokens: int = 4096
