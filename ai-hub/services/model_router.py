@@ -45,7 +45,7 @@ class ModelRouter:
         Returns:
             tuple: (推荐的模型, 推荐理由)
         """
-        recommended_model = explicit_model or self.routing_rules.get(task_type, ModelType.DEEPSEEK)
+        recommended_model = explicit_model or self.routing_rules.get(task_type, ModelType)
 
         reason_map = {
             TaskType.NEWS: "新闻/长文本生成任务，推荐使用 DeepSeek（文本生成能力强）",

@@ -13,14 +13,15 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     
     # DeepSeek R1 API 配置（偏文本生成、新闻、逻辑推理）
-    deepseek_api_key: str = ""
-    deepseek_base_url: str = "https://api.deepseek.com"
+    # 默认使用阿里云 DashScope 的 OpenAI 兼容接口
+    deepseek_api_key: str = "sk-d0a22a6a95534cb4b168e2e8e020d1fd"
+    deepseek_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     deepseek_model: str = "deepseek-chat"  # 或 "deepseek-r1" 根据实际模型名称调整
     deepseek_max_concurrency: int = 5
     deepseek_rpm: int = 60
     
     # 通义千问 Qwen2.5 API 配置（偏结构化输出、代码生成、投研摘要）
-    qwen_api_key: str = ""
+    qwen_api_key: str = "sk-d0a22a6a95534cb4b168e2e8e020d1fd"
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     qwen_model: str = "qwen-turbo"  # 或 "qwen2.5-7b-chat" 根据实际模型名称调整
     qwen_max_concurrency: int = 3
@@ -51,8 +52,8 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 30
     rate_limit_per_hour: int = 500
     
-    # 超时配置
-    request_timeout: int = 60
+    # 超时配置（秒）- AI 生成需要较长时间
+    request_timeout: int = 180
     
     model_config = SettingsConfigDict(
         env_file=".env",

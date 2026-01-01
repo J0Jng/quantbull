@@ -101,16 +101,12 @@ async def list_reports(
     支持按类型、状态、日期过滤和分页
     """
     try:
-        reports = await report_service.list_reports(
+        return await report_service.list_reports(
             report_type=report_type,
             status=status,
             report_date=report_date,
             limit=limit,
             offset=offset
-        )
-        return ReportListResponse(
-            total=len(reports),
-            reports=reports
         )
     except Exception as e:
         logger.error(f"列出日报失败: {e}", exc_info=True)

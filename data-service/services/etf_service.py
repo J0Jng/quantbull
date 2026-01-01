@@ -1,11 +1,10 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from core.response import success
 from schemas.etf import ETFItem
 from services.tushare_service import TushareService
-from services.eastmoney_spider import EastMoneySpider
 
 logger = logging.getLogger(__name__)
 
@@ -27,82 +26,122 @@ def _set_cache(key: str, data: List[Dict], ttl_minutes: int = 5):
     _cache_expiry[key] = datetime.now() + timedelta(minutes=ttl_minutes)
 
 
+def _find_latest_trade_date(tushare_api, max_days_back: int = 10) -> Optional[str]:
+    """
+    查找最近的交易日（返回 YYYYMMDD 格式）
+    """
+    for days_back in range(max_days_back):
+        check_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y%m%d")
+        try:
+            df = tushare_api.index_daily(ts_code="000001.SH", trade_date=check_date)
+            if df is not None and not df.empty:
+                logger.info(f"找到最近交易日: {check_date}")
+                return check_date
+        except Exception as e:
+            logger.debug(f"检查日期 {check_date} 失败: {e}")
+            continue
+    return None
+
+
 class ETFService:
     """ETF 数据服务"""
 
     def __init__(self):
         self.tushare_service = TushareService()
-        self.spider = EastMoneySpider()
 
-    def get_etf_list(self, limit: int = 50) -> Dict:
-        """获取 ETF 候选池"""
-        cache_key = "etf_list"
+    def get_etf_list(self, date: Optional[str] = None, limit: int = 50) -> Dict:
+        """
+        获取 ETF 候选池（使用 tushare fund_daily 获取日行情）
+        
+        Args:
+            date: 交易日期 YYYY-MM-DD，不传则使用最近交易日
+            limit: 返回数量限制
+        """
+        cache_key = f"etf_list_{date}_{limit}" if date else f"etf_list_latest_{limit}"
 
         # 检查缓存
         if _is_cache_valid(cache_key):
-            logger.info("使用缓存的 ETF 列表")
+            logger.info(f"使用缓存的 ETF 列表: {cache_key}")
             return success(_cache[cache_key])
 
         try:
+            # 确定查询日期
+            if date:
+                query_date = date.replace("-", "")
+            else:
+                query_date = datetime.now().strftime("%Y%m%d")
+
             # 获取 ETF 基础信息
             logger.info("开始获取 ETF 基础信息")
             fund_basic_df = self.tushare_service.api.fund_basic(market='E')  # E 为场内 ETF
-            logger.info(f"获取到 ETF 基础数据: {len(fund_basic_df)} 条")
-
-            if fund_basic_df.empty:
+            
+            if fund_basic_df is None or fund_basic_df.empty:
                 logger.warning("未获取到 ETF 基础数据")
                 return success([])
+            
+            logger.info(f"获取到 ETF 基础数据: {len(fund_basic_df)} 条")
 
-            # 过滤宽基 ETF（名称包含 '300' 或 '500' 或 '沪深' 等）
-            etf_codes = []
+            # 构建名称和类型字典
+            name_dict = {}
+            fund_type_dict = {}
             for _, row in fund_basic_df.iterrows():
-                name = str(row['name'])
                 ts_code = str(row['ts_code'])
-                logger.debug(f"检查 ETF: {ts_code} - {name}")
-                if '300' in name or '500' in name or '沪深' in name or '上证' in name or '创业板' in name:
-                    etf_codes.append(ts_code)
-                    logger.debug(f"添加 ETF: {ts_code}")
-                    if len(etf_codes) >= limit * 2:  # 多取一些
-                        break
+                name_dict[ts_code] = str(row.get('name', ''))
+                fund_type_dict[ts_code] = str(row.get('fund_type', ''))
 
-            logger.info(f"过滤后 ETF 代码数量: {len(etf_codes)}")
-            if not etf_codes:
-                logger.warning("无符合条件的 ETF")
+            # 使用 fund_daily 获取 ETF 日行情（按交易日期拉取全市场 ETF）
+            logger.info(f"开始获取 {query_date} 的 ETF 日行情")
+            fund_daily_df = self.tushare_service.api.fund_daily(trade_date=query_date)
+            
+            # 如果无数据，尝试查找最近交易日
+            if fund_daily_df is None or fund_daily_df.empty:
+                logger.info(f"日期 {query_date} 无 ETF 数据，尝试查找最近交易日")
+                latest_trade_date = _find_latest_trade_date(self.tushare_service.api)
+                if latest_trade_date:
+                    fund_daily_df = self.tushare_service.api.fund_daily(trade_date=latest_trade_date)
+                    query_date = latest_trade_date
+                    logger.info(f"使用最近交易日 {query_date} 的 ETF 数据")
+
+            if fund_daily_df is None or fund_daily_df.empty:
+                logger.warning("未获取到 ETF 日行情数据")
                 return success([])
 
-            # 使用东方财富获取实时行情
-            logger.info(f"获取 ETF 实时行情，代码: {etf_codes[:limit]}")
-            # 转换为纯数字代码
-            pure_codes = [code.split('.')[0] for code in etf_codes[:limit]]
-            success_items, failed_codes = self.spider.fetch_quotes(pure_codes)
-            logger.info(f"获取到 ETF 实时数据: {len(success_items)} 条")
+            logger.info(f"获取到 {len(fund_daily_df)} 条 ETF 日行情数据")
 
-            # 合并名称
-            name_dict = {row['ts_code']: row['name'] for _, row in fund_basic_df.iterrows() if row['ts_code'] in etf_codes}
+            # 按成交额排序，筛选宽基/行业 ETF
+            fund_daily_df = fund_daily_df.sort_values('amount', ascending=False)
 
             etf_items = []
-            for item in success_items:
-                ts_code = item.code + ('.SZ' if item.code.startswith(('0', '1', '3')) else '.SH')
-                name = name_dict.get(ts_code, "未知")
-                # 类别简化
-                if '300' in name:
+            for _, row in fund_daily_df.iterrows():
+                if len(etf_items) >= limit:
+                    break
+                    
+                ts_code = str(row['ts_code'])
+                name = name_dict.get(ts_code, "")
+                
+                # 过滤：只保留名称包含常见 ETF 关键词的
+                if not name:
+                    continue
+                
+                # 确定类别
+                if any(kw in name for kw in ['300', '500', '沪深', '上证', '创业板', '科创', 'A50']):
                     category = "宽基"
-                elif '500' in name:
-                    category = "宽基"
-                else:
+                elif any(kw in name for kw in ['银行', '证券', '保险', '医药', '消费', '科技', '新能源', '芯片', '半导体', '军工', '医疗', '食品']):
                     category = "行业"
+                else:
+                    category = "其他"
 
                 etf_item = ETFItem(
-                    symbol=item.code,
+                    symbol=ts_code.split('.')[0],
                     name=name,
                     category=category,
-                    latest_price=item.price,
-                    pct_change=item.pct_change,
-                    volume=item.turnover  # 使用成交额作为成交量近似 # type: ignore
+                    latest_price=float(row['close']) if 'close' in row else 0.0,
+                    pct_change=float(row['pct_chg']) if 'pct_chg' in row else 0.0,
+                    volume=int(float(row['vol'])) if 'vol' in row else 0
                 )
                 etf_items.append(etf_item)
 
-            logger.info(f"生成 ETF 项数量: {len(etf_items)}")
+            logger.info(f"生成 {len(etf_items)} 条 ETF 数据")
 
             # 缓存
             _set_cache(cache_key, [item.model_dump() for item in etf_items])
@@ -110,7 +149,7 @@ class ETFService:
             return success(etf_items)
 
         except Exception as e:
-            logger.error(f"获取 ETF 列表失败: {e}")
+            logger.error(f"获取 ETF 列表失败: {e}", exc_info=True)
             # 降级：返回缓存或空列表
             if cache_key in _cache:
                 logger.info("使用过期缓存的 ETF 列表")

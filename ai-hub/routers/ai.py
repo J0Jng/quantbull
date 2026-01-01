@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from typing import cast
 
 from schemas.ai import (
     ChatRequest,
@@ -25,7 +26,7 @@ from services.report_service import ReportService
 from services.digital_human_service import DigitalHumanService
 
 from core.logger import get_logger
-from core.response import success
+from core.response import success, ApiResponse
 from schemas.ai import TaskType, ModelType
 
 logger = get_logger(__name__)
@@ -60,8 +61,12 @@ async def generate_news(request: NewsGenerationRequest) -> NewsGenerationRespons
         raise HTTPException(status_code=500, detail=f"新闻生成失败: {str(e)}")
 
 
-@router.post("/generate/summary", response_model=SummaryGenerationResponse, summary="生成投研摘要")
-async def generate_summary(request: SummaryGenerationRequest) -> SummaryGenerationResponse:
+@router.post(
+    "/generate/summary",
+    response_model=ApiResponse[SummaryGenerationResponse],
+    summary="生成投研摘要",
+)
+async def generate_summary(request: SummaryGenerationRequest) -> ApiResponse[SummaryGenerationResponse]:
     """
     生成投研摘要（偏结构化、要点式输出）
     
@@ -70,7 +75,8 @@ async def generate_summary(request: SummaryGenerationRequest) -> SummaryGenerati
     - 支持多种摘要类型：structured/bullet/paragraph
     """
     try:
-        return await summary_service.generate_summary(request)
+        result = await summary_service.generate_summary(request)
+        return cast(ApiResponse[SummaryGenerationResponse], success(data=result))
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:

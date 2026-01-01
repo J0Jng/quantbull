@@ -39,7 +39,7 @@ async def validation_exception_handler(request: Request, exc: Exception):
 
 async def envelope_middleware(request: Request, call_next):
     # 跳过 OpenAPI 相关路径，避免破坏流式响应
-    if request.url.path in ["/openapi.json", "/docs", "/redoc"]:
+    if request.url.path in ["/openapi.json", "/docs", "/redoc", "/health"]:
         return await call_next(request)
         
     response = await call_next(request)
@@ -55,10 +55,11 @@ async def envelope_middleware(request: Request, call_next):
             return response
 
         if isinstance(data, dict) and {"code", "message", "data"}.issubset(set(data.keys())):
-            return JSONResponse(content=data, status_code=response.status_code, headers=dict(response.headers))
+            # 已经是封装格式，不要重复封装，但要返回新的 JSONResponse
+            return JSONResponse(content=data, status_code=response.status_code)
         enveloped = ApiResponse(code=0 if 200 <= response.status_code < 400 else response.status_code,
                                 message="ok" if 200 <= response.status_code < 400 else "error",
                                 data=data).model_dump()
-        return JSONResponse(content=enveloped, status_code=response.status_code, headers=dict(response.headers))
+        return JSONResponse(content=enveloped, status_code=response.status_code)
 
     return response
