@@ -1,4 +1,5 @@
 """Data Service 客户端（调用 data-service 获取行情数据）"""
+import os
 import httpx
 from typing import Optional
 from datetime import datetime
@@ -15,9 +16,20 @@ class DataServiceClient:
     
     def __init__(self):
         """初始化客户端"""
-        # 假设 data-service 运行在 8001 端口
-        self.base_url = f"http://localhost:8001/api"
-        self.timeout = 30.0
+        # 优先读取环境变量 DATA_SERVICE_URL（docker-compose 提供）
+        data_service_url = os.getenv('DATA_SERVICE_URL', '') or getattr(settings, 'data_service_url', '')
+        
+        if data_service_url:
+            # 使用完整 URL，确保拼上 /api
+            self.base_url = data_service_url.rstrip('/') + '/api'
+        else:
+            # fallback 到 host/port 配置
+            data_service_host = getattr(settings, 'data_service_host', 'data-service')
+            data_service_port = getattr(settings, 'data_service_port', 8001)
+            self.base_url = f"http://{data_service_host}:{data_service_port}/api"
+        
+        self.timeout = 60.0  # 增加超时时间，因为 tushare 请求可能较慢
+        logger.info(f"Data Service 客户端初始化: {self.base_url}")
     
     async def get_market_overview(self, date: str) -> MarketOverview:
         """
@@ -31,34 +43,40 @@ class DataServiceClient:
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # 假设 data-service 提供此接口
                 response = await client.get(
                     f"{self.base_url}/market/overview",
                     params={"date": date}
                 )
                 response.raise_for_status()
-                data = response.json()
+                result = response.json()
+                
+                # 处理统一响应格式 {"code": 0, "message": "ok", "data": {...}}
+                if isinstance(result, dict) and "data" in result:
+                    data = result["data"]
+                else:
+                    data = result
+                
+                # 构建市场概览数据
+                # data-service 返回: {"trade_date", "market_status", "indices": [...], "total_turnover"}
+                indices_data = {}
+                if "indices" in data and isinstance(data["indices"], list):
+                    for idx in data["indices"]:
+                        # data-service 使用 symbol/close/pct_change
+                        symbol = idx.get("symbol", idx.get("code", "unknown"))
+                        close = idx.get("close", idx.get("latest_price", 0.0))
+                        indices_data[symbol] = close
                 
                 return MarketOverview(
-                    indices=data.get("indices", {}),
+                    indices=indices_data,
                     total_turnover=data.get("total_turnover", 0.0),
+                    # data-service 可能不提供这些字段，默认为 0
                     rising_count=data.get("rising_count", 0),
                     falling_count=data.get("falling_count", 0),
                     flat_count=data.get("flat_count", 0),
                 )
         except httpx.HTTPError as e:
             logger.error(f"获取市场概览失败: {e}")
-            # 返回模拟数据（开发环境）
-            if settings.env == "local":
-                logger.warning("使用模拟市场概览数据")
-                return MarketOverview(
-                    indices={"sh_index": 3000.0, "sz_index": 10000.0},
-                    total_turnover=500000000000.0,
-                    rising_count=2000,
-                    falling_count=1500,
-                    flat_count=500,
-                )
-            raise
+            raise Exception(f"无法获取市场数据：{str(e)}。请确保 data-service 服务正常运行，且当天有交易数据。")
     
     async def get_etf_list(self, date: str, limit: int = 100) -> list[ETFData]:
         """
@@ -73,49 +91,44 @@ class DataServiceClient:
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # 假设 data-service 提供此接口
                 response = await client.get(
                     f"{self.base_url}/etf/list",
                     params={"date": date, "limit": limit}
                 )
                 response.raise_for_status()
-                data = response.json()
+                result = response.json()
+                
+                # 处理统一响应格式
+                if isinstance(result, dict) and "data" in result:
+                    data = result["data"]
+                else:
+                    data = result
+                
+                # 兼容 data 为 list 的情况（data-service 直接返回 List[ETFItem]）
+                if isinstance(data, list):
+                    etf_list = data
+                else:
+                    etf_list = data.get("etf_list", data.get("etfs", []))
+                    if not isinstance(etf_list, list):
+                        etf_list = []
                 
                 return [
                     ETFData(
-                        code=item["code"],
-                        name=item["name"],
-                        change_pct=item.get("change_pct", 0.0),
-                        turnover=item.get("turnover", 0.0),
-                        volume=item.get("volume", 0.0),
-                        category=item.get("category"),
+                        # data-service 使用 symbol，daily-report 使用 code
+                        code=item.get("code", item.get("symbol", item.get("ts_code", ""))),
+                        name=item.get("name", ""),
+                        # data-service 使用 pct_change，daily-report 使用 change_pct
+                        change_pct=float(item.get("change_pct", item.get("pct_change", item.get("pct_chg", 0.0)))),
+                        # data-service 可能没有 turnover，使用 volume 或默认值
+                        turnover=float(item.get("turnover", item.get("amount", item.get("volume", 0.0)))),
+                        volume=float(item.get("volume", item.get("vol", 0.0))),
+                        category=item.get("category", item.get("fund_type")),
                     )
-                    for item in data.get("etf_list", [])
+                    for item in etf_list
                 ]
         except httpx.HTTPError as e:
             logger.error(f"获取 ETF 列表失败: {e}")
-            # 返回模拟数据（开发环境）
-            if settings.env == "local":
-                logger.warning("使用模拟 ETF 数据")
-                return [
-                    ETFData(
-                        code="510300",
-                        name="沪深300ETF",
-                        change_pct=1.5,
-                        turnover=1000000000.0,
-                        volume=50000000.0,
-                        category="宽基",
-                    ),
-                    ETFData(
-                        code="159919",
-                        name="300ETF",
-                        change_pct=1.2,
-                        turnover=800000000.0,
-                        volume=40000000.0,
-                        category="宽基",
-                    ),
-                ]
-            raise
+            raise Exception(f"无法获取 ETF 数据：{str(e)}。请确保 data-service 服务正常运行，且当天有交易数据。")
     
     async def get_stock_list(
         self, 
@@ -136,7 +149,6 @@ class DataServiceClient:
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # 假设 data-service 提供此接口
                 response = await client.get(
                     f"{self.base_url}/stock/list",
                     params={
@@ -146,43 +158,39 @@ class DataServiceClient:
                     }
                 )
                 response.raise_for_status()
-                data = response.json()
+                result = response.json()
+                
+                # 处理统一响应格式
+                if isinstance(result, dict) and "data" in result:
+                    data = result["data"]
+                else:
+                    data = result
+                
+                # 兼容 data 为 list 的情况（data-service 直接返回 List[StockItem]）
+                if isinstance(data, list):
+                    stock_list = data
+                else:
+                    stock_list = data.get("stock_list", data.get("stocks", []))
+                    if not isinstance(stock_list, list):
+                        stock_list = []
                 
                 return [
                     StockData(
-                        code=item["code"],
-                        name=item["name"],
-                        change_pct=item.get("change_pct", 0.0),
-                        turnover=item.get("turnover", 0.0),
-                        turnover_rate=item.get("turnover_rate", 0.0),
-                        industry=item.get("industry"),
+                        # data-service 使用 symbol，daily-report 使用 code
+                        code=item.get("code", item.get("symbol", item.get("ts_code", ""))),
+                        name=item.get("name", ""),
+                        # data-service 使用 pct_change，daily-report 使用 change_pct
+                        change_pct=float(item.get("change_pct", item.get("pct_change", item.get("pct_chg", 0.0)))),
+                        # data-service 可能没有 turnover/amount
+                        turnover=float(item.get("turnover", item.get("amount", 0.0))),
+                        turnover_rate=float(item.get("turnover_rate", item.get("turnover_rate_f", 0.0))),
+                        industry=item.get("industry", item.get("industry_name")),
                     )
-                    for item in data.get("stock_list", [])
+                    for item in stock_list
                 ]
         except httpx.HTTPError as e:
             logger.error(f"获取股票列表失败: {e}")
-            # 返回模拟数据（开发环境）
-            if settings.env == "local":
-                logger.warning("使用模拟股票数据")
-                return [
-                    StockData(
-                        code="000001",
-                        name="平安银行",
-                        change_pct=2.5,
-                        turnover=500000000.0,
-                        turnover_rate=1.2,
-                        industry="银行",
-                    ),
-                    StockData(
-                        code="000002",
-                        name="万科A",
-                        change_pct=-1.2,
-                        turnover=300000000.0,
-                        turnover_rate=0.8,
-                        industry="房地产",
-                    ),
-                ]
-            raise
+            raise Exception(f"无法获取股票数据：{str(e)}。请确保 data-service 服务正常运行，且当天有交易数据。")
     
     async def fetch_market_data(self, date: str) -> MarketDataInput:
         """

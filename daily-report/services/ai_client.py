@@ -21,9 +21,12 @@ class AIHubClient:
     
     def __init__(self):
         """初始化客户端"""
-        # 假设 ai-hub 运行在 8002 端口
-        self.base_url = f"http://localhost:8002/api"
-        self.timeout = 120.0  # AI 生成可能需要较长时间
+        # 从配置读取服务地址，默认使用 Docker 网络内的服务名
+        ai_hub_host = getattr(settings, 'ai_hub_host', 'ai-hub')
+        ai_hub_port = getattr(settings, 'ai_hub_port', 8002)
+        self.base_url = f"http://{ai_hub_host}:{ai_hub_port}/api"
+        self.timeout = 240.0  # AI 生成需要较长时间（增加到 240 秒）
+        logger.info(f"AI Hub 客户端初始化: {self.base_url}")
     
     def _build_prompt(self, market_data: MarketDataInput) -> str:
         """
@@ -35,66 +38,40 @@ class AIHubClient:
         Returns:
             str: 完整的 Prompt
         """
-        prompt = f"""你是投资组合经理。
-基于今日全市场数据与新闻，输出每日投资方案。
+        # 精简数据：只取 top 5 ETF 和 top 10 股票
+        prompt = f"""你是投资组合经理。基于今日全市场数据，输出每日投资方案。
 
 要求：
-1. 不得涉及承诺收益或投资建议
-2. 所有分析必须基于提供的数据，不能捏造
+1. 不得承诺收益或提供投资建议
+2. 分析必须基于提供数据
 3. 必须包含风险提示
 
 输入数据：
 - 报告日期：{market_data.report_date}
 - 市场概览：
-  * 总成交额：{market_data.market_overview.total_turnover:,.0f} 元
-  * 上涨：{market_data.market_overview.rising_count} 只
-  * 下跌：{market_data.market_overview.falling_count} 只
-  * 平盘：{market_data.market_overview.flat_count} 只
-  * 指数数据：{market_data.market_overview.indices}
+  总成交额 {market_data.market_overview.total_turnover/1e8:.2f}亿元
+  上涨 {market_data.market_overview.rising_count} / 下跌 {market_data.market_overview.falling_count}
+  指数：{', '.join([f'{k}({v:.2f})' for k, v in market_data.market_overview.indices.items()])}
 
-- ETF 数据（前10只）：
-{self._format_etf_data(market_data.etf_list[:10])}
+- ETF 数据（前20只）：
+{self._format_etf_data(market_data.etf_list[:20])}
 
-- 股票数据（前50只）：
-{self._format_stock_data(market_data.stock_list[:50])}
+- 股票数据（前30只）：
+{self._format_stock_data(market_data.stock_list[:30])}
 
-请生成以下结构化内容（JSON 格式）：
-
-1. ETF 推荐（3个）：
-   - ETF 代码 + 名称
-   - 所属主题/行业
-   - 推荐逻辑（结合市场风格、行业轮动、情绪）
-
-2. 股票推荐（10只）：
-   - 股票代码 + 名称
-   - 多因子评分（动量/成交活跃度/情绪，每个因子0-10分）
-   - 简要 AI 解读（不超过80字/只）
-
-3. 市场情绪总结：
-   - 用1-2段话概括当日市场状态（风险偏好、主线）
-
-4. 风险提示 & 合规免责声明：
-   - 系统性风险
-   - 模型局限性
-   - 明确"非投资建议"
-
-5. 公众号文章结构：
-   - 标题
-   - 小标题大纲（3-5个小标题）
-
-请以 JSON 格式返回，格式如下：
+请以 JSON 格式输出（不要 markdown 代码块）：
 {{
   "etf_recommendations": [
-    {{"code": "...", "name": "...", "category": "...", "reasoning": "..."}}
+    {{"code": "代码", "name": "名称", "category": "类别", "reasoning": "推荐理由"}}
   ],
   "stock_recommendations": [
-    {{"code": "...", "name": "...", "factor_scores": {{"momentum": 8.5, "liquidity": 7.2, "sentiment": 6.8}}, "ai_analysis": "..."}}
+    {{"code": "代码", "name": "名称", "factor_scores": {{"momentum": 8.5, "liquidity": 7.0, "sentiment": 6.5}}, "ai_analysis": "简要分析"}}
   ],
-  "market_sentiment": "...",
-  "risk_warning": "...",
+  "market_sentiment": "市场情绪总结（1-2段话）",
+  "risk_warning": "风险提示 & 免责声明",
   "article_outline": {{
-    "title": "...",
-    "sections": ["...", "..."]
+    "title": "文章标题",
+    "sections": ["小标题1", "小标题2", "小标题3"]
   }}
 }}
 """
@@ -103,25 +80,22 @@ class AIHubClient:
     def _format_etf_data(self, etf_list: list) -> str:
         """格式化 ETF 数据用于 Prompt"""
         lines = []
-        for etf in etf_list[:10]:
+        for etf in etf_list:
             lines.append(
-                f"  - {etf.code} {etf.name}: "
-                f"涨跌幅 {etf.change_pct:.2f}%, "
-                f"成交额 {etf.turnover:,.0f}, "
-                f"分类 {etf.category or '未知'}"
+                f"  {etf.code} {etf.name}: "
+                f"涨 {etf.change_pct:.2f}%, "
+                f"{etf.category or '其他'}"
             )
         return "\n".join(lines)
     
     def _format_stock_data(self, stock_list: list) -> str:
         """格式化股票数据用于 Prompt"""
         lines = []
-        for stock in stock_list[:50]:
+        for stock in stock_list:
             lines.append(
-                f"  - {stock.code} {stock.name}: "
-                f"涨跌幅 {stock.change_pct:.2f}%, "
-                f"成交额 {stock.turnover:,.0f}, "
-                f"换手率 {stock.turnover_rate:.2f}%, "
-                f"行业 {stock.industry or '未知'}"
+                f"  {stock.code} {stock.name}: "
+                f"涨 {stock.change_pct:.2f}%, "
+                f"{stock.industry or '未知'}"
             )
         return "\n".join(lines)
     
@@ -140,29 +114,48 @@ class AIHubClient:
         """
         try:
             prompt = self._build_prompt(market_data)
+            logger.info(f"调用 AI Hub 生成投资方案，Prompt 长度: {len(prompt)}")
             
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # 假设 ai-hub 提供此接口
+                # 调用 ai-hub 的聊天接口（路径为 /api/ai/chat）
                 response = await client.post(
-                    f"{self.base_url}/llm/generate",
+                    f"{self.base_url}/ai/chat",
                     json={
-                        "prompt": prompt,
-                        "model": "deepseek",  # 或 "qwen"
-                        "temperature": 0.7,
-                        "max_tokens": 4000,
-                        "response_format": "json",
+                        "message": prompt,
+                        "model": "deepseek",
+                        "temperature": 0.5,  # 降低温度以获得更稳定输出
+                        "max_tokens": 8000,  # 增加 token 限制
+                        "system_prompt": "你是专业投资分析师。请严格按照 JSON 格式返回结果，不要使用 markdown 代码块。",
                     }
                 )
                 response.raise_for_status()
                 result = response.json()
                 
-                # 解析 AI 返回的 JSON
-                ai_data = result.get("content", {})
-                if isinstance(ai_data, str):
-                    import json
-                    ai_data = json.loads(ai_data)
+                # 处理统一响应格式
+                if isinstance(result, dict) and "data" in result:
+                    ai_response = result["data"]
+                else:
+                    ai_response = result
+                
+                # 解析 AI 返回的内容
+                content = ai_response.get("content", "")
+                logger.info(f"AI 响应长度: {len(content)}")
+                
+                # 尝试从 Markdown 代码块中提取 JSON
+                ai_data = self._extract_json_from_response(content)
                 
                 # 转换为 Pydantic 模型
+                logger.info(f"解析 AI 数据: ETF={len(ai_data.get('etf_recommendations', []))}, 股票={len(ai_data.get('stock_recommendations', []))}")
+                
+                # 数据清洗：截断过长字段
+                for stock in ai_data.get("stock_recommendations", []):
+                    if "ai_analysis" in stock and len(stock["ai_analysis"]) > 80:
+                        stock["ai_analysis"] = stock["ai_analysis"][:77] + "..."
+                
+                for etf in ai_data.get("etf_recommendations", []):
+                    if "reasoning" in etf and len(etf["reasoning"]) > 500:
+                        etf["reasoning"] = etf["reasoning"][:497] + "..."
+                
                 return AIGeneratedContent(
                     etf_recommendations=[
                         ETFRecommendation(**item)
@@ -174,82 +167,43 @@ class AIHubClient:
                     ],
                     market_sentiment=ai_data.get("market_sentiment", ""),
                     risk_warning=ai_data.get("risk_warning", ""),
-                    article_outline=ArticleOutline(**ai_data.get("article_outline", {})),
+                    article_outline=ArticleOutline(**ai_data.get("article_outline", {"title": "投资方案", "sections": []})),
                 )
         except httpx.HTTPError as e:
             logger.error(f"调用 AI Hub 失败: {e}")
-            # 开发环境返回模拟数据
-            if settings.env == "local":
-                logger.warning("使用模拟 AI 生成数据")
-                return self._get_mock_ai_content()
-            raise
+            raise Exception(f"无法生成 AI 投资分析：{str(e)}。请确保 ai-hub 服务正常运行。")
         except Exception as e:
             logger.error(f"解析 AI 响应失败: {e}", exc_info=True)
-            raise
+            raise Exception(f"生成投资报告失败：{str(e)}")
     
-    def _get_mock_ai_content(self) -> AIGeneratedContent:
-        """获取模拟 AI 内容（开发环境）"""
-        return AIGeneratedContent(
-            etf_recommendations=[
-                ETFRecommendation(
-                    code="510300",
-                    name="沪深300ETF",
-                    category="宽基",
-                    reasoning="市场风格偏向大盘蓝筹，沪深300ETF 流动性好，适合稳健配置。",
-                ),
-                ETFRecommendation(
-                    code="159919",
-                    name="300ETF",
-                    category="宽基",
-                    reasoning="创业板表现活跃，300ETF 覆盖成长股，符合当前市场情绪。",
-                ),
-                ETFRecommendation(
-                    code="512880",
-                    name="银行ETF",
-                    category="行业",
-                    reasoning="银行板块估值较低，防御性强，适合当前市场环境。",
-                ),
-            ],
-            stock_recommendations=[
-                StockRecommendation(
-                    code="000001",
-                    name="平安银行",
-                    factor_scores={"momentum": 8.5, "liquidity": 7.2, "sentiment": 6.8},
-                    ai_analysis="银行板块估值修复，平安银行基本面稳健，成交活跃。",
-                ),
-                StockRecommendation(
-                    code="000002",
-                    name="万科A",
-                    factor_scores={"momentum": 6.2, "liquidity": 5.8, "sentiment": 5.5},
-                    ai_analysis="房地产政策边际改善，万科A 作为龙头有望受益。",
-                ),
-            ] + [
-                StockRecommendation(
-                    code=f"60000{i}",
-                    name=f"模拟股票{i}",
-                    factor_scores={"momentum": 7.0, "liquidity": 6.5, "sentiment": 6.0},
-                    ai_analysis=f"模拟股票 {i} 的分析内容，仅供参考。",
-                )
-                for i in range(3, 11)
-            ],
-            market_sentiment=(
-                "今日市场整体呈现震荡上行态势，主要指数小幅收涨。"
-                "市场情绪较为乐观，成交额较前日有所放大。"
-                "板块轮动明显，科技、消费板块表现活跃。"
-            ),
-            risk_warning=(
-                "风险提示：本报告仅供参考，不构成投资建议。"
-                "投资有风险，入市需谨慎。"
-                "市场存在系统性风险，模型分析存在局限性，"
-                "投资者应根据自身情况做出独立判断。"
-            ),
-            article_outline=ArticleOutline(
-                title=f"{datetime.now().strftime('%Y年%m月%d日')} 投资方案",
-                sections=[
-                    "市场概览",
-                    "ETF 推荐",
-                    "股票推荐",
-                    "风险提示",
-                ],
-            ),
-        )
+    def _extract_json_from_response(self, content: str) -> dict:
+        """从 AI 响应中提取 JSON 数据"""
+        import json
+        import re
+        
+        # 尝试直接解析
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+        
+        # 尝试从 Markdown 代码块中提取
+        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                pass
+        
+        # 尝试查找第一个 JSON 对象
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                pass
+        
+        logger.warning(f"无法从响应中提取 JSON，原始内容: {content[:200]}...")
+        return {}
+    
+

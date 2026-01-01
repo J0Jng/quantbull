@@ -90,7 +90,7 @@ async def get_report_by_date(report_date: str) -> DailyReportResponse:
 async def get_report(report_id: str) -> DailyReportResponse:
     """根据ID获取投资方案详情"""
     try:
-        report = await report_service.get_report(report_id)
+        report = await report_service.get_daily_report(report_id)
         if not report:
             raise HTTPException(status_code=404, detail="投资方案不存在")
         return report
@@ -118,7 +118,7 @@ async def list_reports(
     - 支持按状态过滤（status: draft/published/archived）
     """
     try:
-        return await report_service.list_reports(
+        return await report_service.list_daily_reports(
             limit=limit,
             offset=offset,
             status=status,

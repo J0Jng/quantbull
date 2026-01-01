@@ -79,11 +79,11 @@ class ArticleOutline(BaseModel):
 
 class AIGeneratedContent(BaseModel):
     """AI 生成的结构化内容"""
-    etf_recommendations: List[ETFRecommendation] = Field(..., description="ETF 推荐（3个）", min_length=3, max_length=3)
-    stock_recommendations: List[StockRecommendation] = Field(..., description="股票推荐（10只）", min_length=10, max_length=10)
-    market_sentiment: str = Field(..., description="市场情绪总结（1-2段话）", min_length=50)
-    risk_warning: str = Field(..., description="风险提示与合规免责声明")
-    article_outline: ArticleOutline = Field(..., description="公众号文章结构")
+    etf_recommendations: List[ETFRecommendation] = Field(default_factory=list, description="ETF 推荐（建议3个）")
+    stock_recommendations: List[StockRecommendation] = Field(default_factory=list, description="股票推荐（建议10只）")
+    market_sentiment: str = Field(default="", description="市场情绪总结（1-2段话）")
+    risk_warning: str = Field(default="", description="风险提示与合规免责声明")
+    article_outline: ArticleOutline = Field(default_factory=lambda: ArticleOutline(title="投资方案", sections=[]), description="公众号文章结构")
 
 
 # ==================== API 响应 Schema ====================

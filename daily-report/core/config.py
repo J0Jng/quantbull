@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     port: int = 8004
     host: str = "0.0.0.0"
     
+    # 外部服务地址（Docker 网络中使用服务名）
+    # 优先使用 DATA_SERVICE_URL 完整地址（docker-compose 提供）
+    data_service_url: str = ""  # 例如: http://data-service:8001
+    data_service_host: str = "data-service"
+    data_service_port: int = 8001  # 修正：与 docker-compose 一致
+    ai_hub_host: str = "ai-hub"
+    ai_hub_port: int = 8002
+    
     # 数据库配置
     db_type: str = "sqlite"  # postgresql / sqlite / memory
     postgres_host: str = "localhost"
