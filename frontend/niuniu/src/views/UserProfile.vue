@@ -186,12 +186,16 @@
         </div>
       </div>
     </div>
+
+    <!-- 统一页脚 -->
+    <FooterComponent />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import FooterComponent from '@/components/FooterComponent.vue'
 
 const router = useRouter()
 const isQualifiedInvestor = ref(false)

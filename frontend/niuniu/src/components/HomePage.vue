@@ -477,17 +477,14 @@
     </main>
 
     <!-- 页脚 -->
-    <footer class="page-footer">
-      <div class="container">
-        <p>以上内容仅供参考，不构成投资建议 请遵循国家法律法规投资</p>
-      </div>
-    </footer>
+    <FooterComponent />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import FooterComponent from './FooterComponent.vue'
 
 const search = ref('')
 const dragonTab = ref('dragon-today')
