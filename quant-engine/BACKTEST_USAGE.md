@@ -160,6 +160,83 @@ curl -X POST "http://localhost:8003/api/backtest/run" \
 - RSI < 30 时买入（超卖）
 - RSI > 70 时卖出（超买）
 
+### legacy_turtle_trade - 海龟交易策略
+
+参数：
+- `threshold`: 回看周期（默认：60）
+- `hold_bars`: 持仓周期（默认：10）
+- `stop_loss`: 止损比例（可选）
+- `take_profit`: 止盈比例（可选）
+
+策略逻辑：
+- 当日收盘价 >= 最近 N 日最高收盘价时买入
+- 持有 hold_bars 根 K 线后卖出
+
+### legacy_enter - 放量上涨策略
+
+参数：
+- `threshold`: 回看周期（默认：60）
+- `hold_bars`: 持仓周期（默认：10）
+
+策略逻辑：
+- 当日涨幅 > 2% 且收盘价 > 开盘价
+- 成交量 >= 5日均量的 2 倍
+- 成交额 >= 2 亿
+
+### legacy_keep_increasing - 持续上涨策略
+
+参数：
+- `threshold`: 回看周期（默认：30）
+- `hold_bars`: 持仓周期（默认：10）
+
+策略逻辑：
+- 30日均线持续向上
+- 当日 MA30 / 30日前 MA30 > 1.2
+
+### legacy_backtrace_ma250 - 回踩年线策略
+
+参数：
+- `threshold`: 回看周期（默认：60）
+- `hold_bars`: 持仓周期（默认：20）
+- `stop_loss`: 止损比例（默认：0.08）
+- `take_profit`: 止盈比例（默认：0.2）
+
+策略逻辑：
+- 前段由年线(250日)以下向上突破
+- 后段在年线以上回踩，伴随缩量
+- 需要至少 250+60 日历史数据
+
+### legacy_low_atr - 低ATR成长策略
+
+参数：
+- `threshold`: 回看周期（默认：10）
+- `hold_bars`: 持仓周期（默认：15）
+
+策略逻辑：
+- 最近 N 日的最高收盘价比最低收盘价高 1.1 倍
+- ATR（平均波动率）< 10%
+
+### legacy_low_backtrace - 低回撤上涨策略
+
+参数：
+- `threshold`: 回看周期（默认：60）
+- `hold_bars`: 持仓周期（默认：15）
+
+策略逻辑：
+- 期间涨幅 > 50%
+- 无单日跌幅超过 7%
+
+### legacy_climax_limitdown - 地量跌停策略
+
+参数：
+- `threshold`: 回看周期（默认：60）
+- `hold_bars`: 持仓周期（默认：5）
+
+策略逻辑：
+- 当日跌停（跌幅 >= 9.5%）
+- 成交量萎缩（地量）
+- 风险提示：逆势策略，风险较高
+
 ## 自定义策略要求
 
 自定义策略代码必须：
@@ -227,4 +304,107 @@ class MyStrategy(bt.Strategy):
 
 ```bash
 ls strategies/*.py
+```
+
+---
+
+## 内设因子
+
+quant-engine 启动时会自动初始化一批内设因子，可直接用于因子计算。
+
+### 内设因子清单
+
+| 因子名称 | expression | 说明 | 类别 |
+|---------|-----------|------|------|
+| rsi | rsi | 相对强弱指数 (14日) | momentum |
+| rsi_6 | rsi_6 | 相对强弱指数 (6日) | momentum |
+| rsi_12 | rsi_12 | 相对强弱指数 (12日) | momentum |
+| rsi_24 | rsi_24 | 相对强弱指数 (24日) | momentum |
+| macd | macd | MACD 线 | trend |
+| macds | macds | MACD 信号线 | trend |
+| macdh | macdh | MACD 柱状图 | trend |
+| atr | atr | 平均真实波幅 (14日) | volatility |
+| boll | boll | 布林带中轨 | volatility |
+| boll_ub | boll_ub | 布林带上轨 | volatility |
+| boll_lb | boll_lb | 布林带下轨 | volatility |
+| kdjk | kdjk | KDJ K值 | momentum |
+| kdjd | kdjd | KDJ D值 | momentum |
+| kdjj | kdjj | KDJ J值 | momentum |
+| wr_14 | wr_14 | 威廉指标 (14日) | momentum |
+| cci | cci | 商品通道指数 (14日) | momentum |
+| adx | adx | 平均趋向指数 | trend |
+| vr | vr | 成交量变异率 | volume |
+| obv | obv | 能量潮指标 | volume |
+| roc | roc | 变动率指标 (12日) | momentum |
+| psy | psy | 心理线指标 (12日) | sentiment |
+| supertrend | supertrend | 超级趋势指标 | trend |
+
+### 因子计算示例
+
+```bash
+# 计算 RSI_6 因子
+curl -X POST "http://localhost:8003/api/factors/calculate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "factor_id": "builtin_rsi_6",
+    "symbol": "000001",
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31"
+  }'
+```
+
+### 自定义表达式
+
+因子的 `expression` 支持简单的算术运算：
+
+```json
+{
+  "name": "rsi_diff",
+  "expression": "rsi_6 - rsi_12",
+  "description": "RSI_6 与 RSI_12 的差值"
+}
+```
+
+支持的运算符：`+`, `-`, `*`, `/`, `(`, `)`
+
+---
+
+## TA-Lib 安装说明
+
+内设因子和 legacy 策略依赖 TA-Lib 库。
+
+### Docker 构建（推荐）
+
+Dockerfile 已包含 TA-Lib 安装，直接使用即可：
+
+```bash
+cd quant-engine
+docker build -t quant-engine .
+docker run -p 8003:8003 quant-engine
+```
+
+### Windows 本地安装
+
+1. 下载预编译 wheel：
+   - 访问 https://github.com/cgohlke/talib-build/releases
+   - 下载对应 Python 版本的 wheel（如 `TA_Lib-0.4.28-cp312-cp312-win_amd64.whl`）
+
+2. 安装：
+   ```bash
+   pip install TA_Lib-0.4.28-cp312-cp312-win_amd64.whl
+   ```
+
+### Linux 本地安装
+
+```bash
+# 下载并安装 TA-Lib C 库
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+tar -xzf ta-lib-0.4.0-src.tar.gz
+cd ta-lib/
+./configure --prefix=/usr
+make
+sudo make install
+
+# 安装 Python 包
+pip install ta-lib
 ```

@@ -11,7 +11,7 @@ backtrader==1.9.78.123
 pandas==2.2.2
 numpy==1.26.4
 tushare==1.2.89  # Tushare 数据接口（可选，用于直接调用 Tushare API）
-# ta-lib==0.4.28  # 技术指标库（需要单独安装 C 库，可选）
+# ta-lib 在 Dockerfile 中单独安装，因为需要特殊处理 numpy 版本兼容性
 sqlmodel==0.0.16
 SQLAlchemy>=2.0.0,<2.1.0
 psycopg==3.1.18

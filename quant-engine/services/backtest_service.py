@@ -51,11 +51,19 @@ class BacktestService:
                     BacktestRepository.link_task(backtest_id, task_id)
             BacktestRepository.mark_running(backtest_id)
             
-            # 1. 加载行情数据
-            logger.info(f"加载行情数据: {request.data_source}")
+            # 1. 加载行情数据（向前扩展预热期）
+            # 从策略参数中获取 data_buffer，默认 300 个交易日
+            data_buffer = request.parameters.get("data_buffer", 300) if request.parameters else 300
+            # 向前扩展日期（按 1.5 倍日历天估算交易日）
+            from datetime import timedelta
+            start_dt = datetime.strptime(request.start_date, "%Y-%m-%d")
+            warmup_days = int(data_buffer * 1.5)  # 交易日转日历天
+            extended_start = (start_dt - timedelta(days=warmup_days)).strftime("%Y-%m-%d")
+            
+            logger.info(f"加载行情数据: {request.data_source}, 预热扩展: {extended_start} -> {request.start_date}")
             df = load_market_data(
                 stock_code=request.stock_code,
-                start_date=request.start_date,
+                start_date=extended_start,
                 end_date=request.end_date,
                 source=request.data_source
             )
