@@ -20,14 +20,14 @@ class Settings(BaseSettings):
     postgres_db: str = "quantbull_db"
     
     # TDengine 配置（时间序列数据库）
-    tdengine_host: str = "localhost"
+    tdengine_host: str = "tdengine"
     tdengine_port: int = 6030
     tdengine_user: str = "root"
     tdengine_password: str = "taosdata"
     tdengine_database: str = "quantbull"
     
     # Redis 配置
-    redis_host: str = "localhost"
+    redis_host: str = "redis"
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: str = ""
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     max_strategy_execution_time: int = 300  # 最大策略执行时间（秒）
     
     # 数据服务配置
-    data_service_url: str = "http://localhost:8001"  # data-service 服务地址
+    data_service_url: str = "http://data-service:8001"  # data-service 服务地址
     
     # Tushare 配置（可选，用于直接调用 Tushare API）
     tushare_token: str = ""
