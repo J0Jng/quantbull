@@ -3,9 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
+from core.config import settings
 from core.database import get_session
 from schemas.quote import RealtimeQuoteRequest, RealtimeQuoteResponse, QuoteItem
-from services.eastmoney_spider import EastMoneySpider
+from services.eastmoney_spider import TushareQuoteService
 from models.realtime_quote import RealtimeQuote
 
 router = APIRouter()
@@ -16,15 +17,19 @@ async def get_realtime_quotes(
     request: RealtimeQuoteRequest,
     session: Annotated[Session, Depends(get_session)],
 ) -> RealtimeQuoteResponse:
-    """获取实时行情数据
+    """获取实时行情数据（使用 Tushare API）
     
     支持沪深 A 股（000/002/300/600/601/603 等）
-    自动根据股票代码判断市场（深圳/上海）
+    自动根据股票代码判断交易所（深圳/上海）并转换为 Tushare 格式
+    
+    注意：需要配置环境变量 TUSHARE_TOKEN
     """
-    spider = EastMoneySpider()
+    # 验证并初始化 Tushare 服务
+    settings.validate_tushare_token()
+    service = TushareQuoteService(token=settings.tushare_token)
     
     # 获取行情数据
-    success_items, failed_codes = spider.fetch_quotes(request.codes)
+    success_items, failed_codes = service.fetch_quotes(request.codes)
     
     # 保存到数据库
     for item in success_items:
