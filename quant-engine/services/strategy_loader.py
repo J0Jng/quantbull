@@ -143,13 +143,8 @@ def _load_builtin_strategy(
         if not strategy_class:
             raise ValueError(f"策略模块 '{strategy_name}' 中未找到 Strategy 类")
         
-        # 如果提供了参数，创建参数化的策略类
-        if parameters:
-            class ParameterizedStrategy(strategy_class):
-                params = tuple(parameters.items())
-            
-            ParameterizedStrategy.__name__ = strategy_class.__name__
-            strategy_class = ParameterizedStrategy
+        # 参数由 cerebro.addstrategy 传递，这里不再创建子类
+        # Backtrader 会在运行时自动合并 params
         
         logger.info(f"成功加载内置策略: {strategy_name}")
         return strategy_class

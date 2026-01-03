@@ -117,6 +117,7 @@ services:
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8001"
+      TUSHARE_TOKEN: "${TUSHARE_TOKEN}"
       QUANT_ENGINE_URL: "http://quant-engine:8003"
       AI_HUB_URL: "http://ai-hub:8002"
       TASK_SERVICE_URL: "http://task-service:9000"
@@ -159,12 +160,16 @@ services:
       dockerfile: Dockerfile
     container_name: quant-engine
     restart: always
+    volumes:
+      # 挂载 indicator 模块供内设因子计算使用
+      - ./indicator:/app/indicator:ro
     environment:
       DATABASE_URL: "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
       SERVICE_PORT: "8003"
+      TUSHARE_TOKEN: "${TUSHARE_TOKEN}"
       DATA_SERVICE_URL: "http://data-service:8001"
       TASK_SERVICE_URL: "http://task-service:9000"
       DAILY_REPORT_URL: "http://daily-report:8004"

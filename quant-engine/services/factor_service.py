@@ -104,21 +104,28 @@ class FactorService:
             return [self._to_response(f) for f in factors], len(total)
 
     async def calculate_factor(self, request: FactorCalculateRequest) -> FactorCalculateResponse:
-        """计算因子值（示例，仍为模拟实现）"""
+        """计算因子值（真实实现，基于 indicator_engine）"""
         with get_session() as session:
             factor = session.get(Factor, request.factor_id)
             if not factor:
                 raise ValueError(f"因子不存在: {request.factor_id}")
 
         logger.info(
-            "计算因子: %s, 标的: %s, %s - %s",
+            "计算因子: %s (expression=%s), 标的: %s, %s - %s",
             factor.name,
+            factor.expression,
             request.symbol,
             request.start_date,
             request.end_date,
         )
 
-        values = await self._simulate_factor_calculation(request)
+        values = await self._real_factor_calculation(
+            expression=factor.expression,
+            symbol=request.symbol,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            parameters=request.parameters or factor.parameters,
+        )
 
         return FactorCalculateResponse(
             factor_id=request.factor_id,
@@ -129,23 +136,69 @@ class FactorService:
             total_points=len(values),
         )
 
-    async def _simulate_factor_calculation(self, request: FactorCalculateRequest) -> list[dict]:
-        """模拟因子计算（示例实现）"""
-        import random
+    async def _real_factor_calculation(
+        self,
+        expression: str,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        parameters: dict = None,
+    ) -> list[dict]:
+        """真实因子计算（基于 indicator_engine）"""
+        from services.data_loader import load_market_data
+        from services.indicator_engine import calculate_indicators, get_indicator_value
 
-        start = date.fromisoformat(request.start_date)
-        end = date.fromisoformat(request.end_date)
+        # 1. 加载行情数据（多拉一段历史用于指标预热）
+        from datetime import datetime, timedelta
+        
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        # 多拉 300 个交易日用于指标计算预热
+        warmup_start = (start_dt - timedelta(days=450)).strftime("%Y-%m-%d")
+        
+        try:
+            df = load_market_data(
+                stock_code=symbol,
+                start_date=warmup_start,
+                end_date=end_date,
+                source="tushare"
+            )
+        except Exception as e:
+            logger.error(f"加载行情数据失败: {e}")
+            raise ValueError(f"加载行情数据失败: {e}")
 
+        if df.empty:
+            raise ValueError(f"未获取到行情数据: {symbol}")
+
+        logger.info(f"加载行情数据成功: {len(df)} 条记录")
+
+        # 2. 计算技术指标
+        try:
+            indicator_df = calculate_indicators(df, end_date=end_date, threshold=300)
+        except Exception as e:
+            logger.error(f"计算技术指标失败: {e}")
+            raise ValueError(f"计算技术指标失败: {e}")
+
+        # 3. 根据表达式获取因子值
+        try:
+            factor_series = get_indicator_value(
+                indicator_df,
+                expression=expression,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        except Exception as e:
+            logger.error(f"获取因子值失败: {e}")
+            raise ValueError(f"获取因子值失败: {e}")
+
+        # 4. 转换为返回格式
         values = []
-        current_date = start
+        for date_str, value in factor_series.items():
+            values.append({
+                "date": str(date_str),
+                "value": round(float(value), 6) if not (value != value) else 0.0  # NaN check
+            })
 
-        base_value = random.uniform(0, 100)
-        while current_date <= end:
-            change = random.uniform(-2.0, 2.0)
-            base_value = max(0, min(100, base_value + change))
-            values.append({"date": current_date.isoformat(), "value": round(base_value, 4)})
-            current_date += timedelta(days=1)
-
+        logger.info(f"因子计算完成: {len(values)} 个数据点")
         return values
 
     @staticmethod

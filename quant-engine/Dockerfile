@@ -6,16 +6,47 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# 安装系统依赖（包括 TA-Lib 编译依赖）
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev tzdata && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        g++ \
+        make \
+        libpq-dev \
+        tzdata \
+        wget && \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
-    pip install --upgrade pip setuptools wheel && \
+    # 安装 TA-Lib C 库
+    wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib/ && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz && \
+    # 清理
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# 安装 Python 依赖
+RUN pip install --upgrade pip setuptools wheel
+
 COPY requirements.txt /app/requirements.txt
+
+# 先安装 numpy 1.x 版本（ta-lib 编译需要）
+RUN pip install "numpy<2"
+
+# 安装 ta-lib（需要 numpy 1.x 编译）
+RUN pip install --no-cache-dir ta-lib==0.4.32
+
+# 安装其他依赖（会升级 numpy 到 requirements.txt 指定版本）
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app
+
+# 复制 indicator 模块（内设因子依赖）- 需要在 docker-compose 中通过 volumes 挂载
+# 或者在构建时通过 context 包含
+
 RUN useradd --create-home appuser && chown -R appuser:appuser /app
 USER appuser
 

@@ -75,14 +75,35 @@ def _load_from_tushare(
                 }
             )
             response.raise_for_status()
-            data = response.json()
             
-            if not data.get("data"):
+            # 解析响应
+            try:
+                data = response.json()
+            except Exception as json_err:
+                logger.error(f"解析响应 JSON 失败: {json_err}, 响应内容: {response.text[:500]}")
+                raise ValueError(f"data-service 返回无效响应: {json_err}")
+            
+            # 检查响应格式
+            if not isinstance(data, dict):
+                logger.error(f"响应格式错误，期望字典，实际: {type(data)}, 内容: {str(data)[:200]}")
+                raise ValueError(f"data-service 返回格式错误: 期望字典，实际 {type(data).__name__}")
+            
+            # data-service 使用统一响应格式: {code, message, data}
+            # 实际数据在 data.data 中
+            if "data" in data and isinstance(data["data"], dict):
+                result_data = data["data"]
+            else:
+                result_data = data
+            
+            if not result_data.get("data"):
+                failed = result_data.get("failed_codes", [])
+                if failed:
+                    raise ValueError(f"未获取到数据: {stock_code}，失败代码: {failed}")
                 raise ValueError(f"未获取到数据: {stock_code}")
             
             # 转换为 DataFrame
             records = []
-            for item in data["data"]:
+            for item in result_data["data"]:
                 trade_date = datetime.strptime(item["trade_date"], "%Y%m%d").date()
                 records.append({
                     "date": trade_date,
