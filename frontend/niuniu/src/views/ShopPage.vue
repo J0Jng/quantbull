@@ -193,13 +193,6 @@
 
       <!-- 其余分类省略为简洁（可按需扩展） -->
     </div>
-
-    <!-- 底部 -->
-    <div class="footer">
-      <p>量化牛牛商店 © 2025 版权所有</p>
-      <p>风险提示：量化投资存在市场风险，过往业绩不代表未来收益</p>
-      <p>基金专区仅对合格投资者开放，详情请联系客服</p>
-    </div>
   </div>
 </template>
 
@@ -207,6 +200,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart.js'
+import FooterComponent from '@/components/FooterComponent.vue'
 
 const username = ref('')
 const password = ref('')

@@ -190,17 +190,15 @@
       </section>
     </div>
 
-    <!-- 页脚 -->
-    <footer class="page-footer">
-      <p>本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。</p>
-      <p>量化牛牛投研团队出品</p>
-    </footer>
+    <!-- 统一页脚 -->
+    <FooterComponent />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import FooterComponent from '@/components/FooterComponent.vue'
 
 const router = useRouter()
 

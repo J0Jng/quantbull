@@ -56,16 +56,14 @@
     </div>
 
     <!-- 底部 -->
-    <div class="footer">
-      <p>量化牛牛研报中心 © 2025 版权所有</p>
-      <p>风险提示：研报内容仅供参考，不构成投资建议，请遵循国家法律法规投资</p>
-    </div>
+    <FooterComponent />
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import FooterComponent from '@/components/FooterComponent.vue'
 
 const router = useRouter()
 

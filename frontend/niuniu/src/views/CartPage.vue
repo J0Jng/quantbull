@@ -171,6 +171,9 @@
         </div>
       </div>
     </div>
+    
+    <!-- 使用统一页脚 -->
+    <FooterComponent />
   </div>
 </template>
 
@@ -178,6 +181,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart.js'
+import FooterComponent from '@/components/FooterComponent.vue'
 
 const router = useRouter()
 const cartStore = useCartStore()
