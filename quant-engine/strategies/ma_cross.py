@@ -1,4 +1,20 @@
-"""双均线交叉策略（Moving Average Crossover）"""
+"""双均线交叉策略（Moving Average Crossover）
+
+使用方式：
+    POST /api/backtest/run
+    {
+      "stock_code": "000001",
+      "start_date": "2023-01-01",
+      "end_date": "2023-12-31",
+      "strategy_mode": "builtin",
+      "strategy_name": "ma_cross",
+      "initial_cash": 1000000,
+      "parameters": {
+        "fast_period": 5,
+        "slow_period": 20
+      }
+    }
+"""
 import backtrader as bt
 from backtrader.indicators import CrossOver, SMA
 

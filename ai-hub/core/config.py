@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Data Service 配置
     data_service_url: str = "http://data-service:8001"
     
+    # User Service 配置（用于 AI Token 扣减）
+    user_service_url: str = "http://user-service:8005"
+    
     # 模型路由配置
     default_model: str = "deepseek"  # deepseek, qwen
     max_tokens: int = 4096

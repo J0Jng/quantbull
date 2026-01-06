@@ -74,4 +74,5 @@ class ReportService:
             report_content=report_content,
             model=response.model,
             sections=sections if sections else ["报告正文"],
+            tokens_used=response.total_tokens,
         )

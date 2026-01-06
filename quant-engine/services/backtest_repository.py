@@ -13,10 +13,20 @@ class BacktestRepository:
     @staticmethod
     def create_stub(request: BacktestRequest, backtest_id: Optional[str] = None, task_id: Optional[str] = None) -> BacktestRecord:
         record_id = backtest_id or f"backtest_{uuid.uuid4().hex[:8]}"
+        
+        # 多标的回测：用逗号连接 symbols 或使用 "MULTI"
+        stock_code = request.stock_code
+        if not stock_code and request.symbols:
+            stock_code = ",".join(request.symbols[:5])  # 最多显示前5个
+            if len(request.symbols) > 5:
+                stock_code += f",... (共{len(request.symbols)}只)"
+        elif not stock_code:
+            stock_code = "PORTFOLIO"  # 股票池模式
+        
         record = BacktestRecord(
             id=record_id,
             task_id=task_id,
-            stock_code=request.stock_code,
+            stock_code=stock_code,
             start_date=request.start_date,
             end_date=request.end_date,
             data_source=request.data_source,

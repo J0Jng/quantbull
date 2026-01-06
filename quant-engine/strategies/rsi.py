@@ -1,4 +1,21 @@
-"""RSI 策略（Relative Strength Index）"""
+"""RSI 策略（Relative Strength Index）
+
+使用方式：
+    POST /api/backtest/run
+    {
+      "stock_code": "000001",
+      "start_date": "2023-01-01",
+      "end_date": "2023-12-31",
+      "strategy_mode": "builtin",
+      "strategy_name": "rsi",
+      "initial_cash": 1000000,
+      "parameters": {
+        "rsi_period": 14,
+        "rsi_low": 30,
+        "rsi_high": 70
+      }
+    }
+"""
 from typing import Any
 
 import backtrader as bt

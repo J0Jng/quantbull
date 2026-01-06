@@ -90,6 +90,7 @@ class ReportGenerationResponse(BaseModel):
     report_content: str = Field(..., description="生成的报告内容")
     model: str = Field(..., description="使用的模型")
     sections: list[str] = Field(default_factory=list, description="报告章节列表")
+    tokens_used: Optional[int] = Field(default=None, description="使用的token数")
 
 
 # ==================== 摘要生成 ====================

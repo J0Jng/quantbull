@@ -27,12 +27,14 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     password: Optional[str] = None
     role: Optional[str] = None
+    ai_tokens: Optional[int] = None
 
 
 class UserResponse(BaseModel):
     id: int
     username: str
     role: str
+    ai_tokens: int
     created_at: str
 
     @classmethod
@@ -43,6 +45,7 @@ class UserResponse(BaseModel):
             id=user.id,
             username=user.username,
             role=user.role,
+            ai_tokens=user.ai_tokens,
             created_at=user.created_at.isoformat(),
         )
 
@@ -126,6 +129,11 @@ async def update_user(
     
     if payload.role is not None:
         user.role = payload.role
+    
+    if payload.ai_tokens is not None:
+        if payload.ai_tokens < 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ai_tokens cannot be negative")
+        user.ai_tokens = payload.ai_tokens
     
     session.add(user)
     session.commit()
