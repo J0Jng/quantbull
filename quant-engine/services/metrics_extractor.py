@@ -41,7 +41,9 @@ class MetricsExtractor:
             strategy_instance = results[0][0] if isinstance(results[0], list) else results[0]
             
             # 获取初始和最终资产
-            initial_cash = self.cerebro.broker.getcash()
+            # ⚠️ 修复：getcash() 在回测结束后返回剩余现金，不是初始资金
+            # 需要从净值曲线第一个点获取初始资产
+            initial_cash = self.cerebro.broker.startingcash
             final_value = self.cerebro.broker.getvalue()
             
             # 计算总收益率
@@ -53,7 +55,14 @@ class MetricsExtractor:
             # 计算年化收益率
             trading_days = len(equity_curve)
             years = trading_days / 252.0  # 假设一年252个交易日
-            annual_return = ((final_value / initial_cash) ** (1 / years) - 1) * 100 if years > 0 and initial_cash > 0 else None
+            
+            # 当交易日过少（< 30天）或收益率接近0时，年化收益率不可靠
+            if trading_days < 30 or abs(total_return) < 0.01:
+                annual_return = None
+            elif years > 0 and initial_cash > 0:
+                annual_return = ((final_value / initial_cash) ** (1 / years) - 1) * 100
+            else:
+                annual_return = None
             
             # 计算夏普比率
             sharpe_ratio = self._calculate_sharpe_ratio(equity_curve)

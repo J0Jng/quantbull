@@ -1,14 +1,30 @@
 from datetime import date
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+def _normalize_code(code: str) -> str:
+    """标准化股票代码为6位数字字符串"""
+    code = code.strip().upper()
+    if code.endswith(".SZ") or code.endswith(".SH"):
+        code = code[:-3]
+    return code.zfill(6)
+
+
 class BacktestRequest(BaseModel):
     """回测请求"""
-    stock_code: str = Field(..., description="股票代码（如：000001）", min_length=1)
+    stock_code: Optional[str] = Field(default=None, description="股票代码（如：000001），单标的时必填")
     start_date: str = Field(..., description="开始日期（YYYY-MM-DD）")
     end_date: str = Field(..., description="结束日期（YYYY-MM-DD）")
+    
+    # 多标的/组合回测字段
+    symbols: Optional[List[str]] = Field(default=None, description="多标的列表（如：['000001','600000']）")
+    rebalance_frequency: Literal["D", "W", "M"] = Field(default="M", description="再平衡频率：D/W/M")
+    allocation: Literal["equal_weight", "inverse_vol"] = Field(default="equal_weight", description="权重分配方式")
+    allow_short: bool = Field(default=False, description="是否允许做空")
+    universe_mode: Literal["manual", "stock_pool"] = Field(default="manual", description="股票池模式")
+    universe_params: dict = Field(default_factory=dict, description="股票池参数（如 limit, min_turnover）")
     
     strategy_mode: Literal["custom", "builtin"] = Field(
         default="custom",
@@ -40,6 +56,22 @@ class BacktestRequest(BaseModel):
     slippage: float = Field(default=0.0, ge=0.0, le=0.01, description="滑点")
     parameters: dict = Field(default_factory=dict, description="策略参数")
     
+    @field_validator("symbols", mode="before")
+    @classmethod
+    def normalize_symbols(cls, v):
+        """标准化多标的代码"""
+        if v is None:
+            return None
+        return [_normalize_code(code) for code in v]
+    
+    @field_validator("stock_code", mode="before")
+    @classmethod
+    def normalize_stock_code(cls, v):
+        """标准化单标的代码"""
+        if v is None:
+            return None
+        return _normalize_code(v)
+    
     @field_validator("start_date", "end_date")
     @classmethod
     def validate_date(cls, v: str) -> str:
@@ -69,6 +101,23 @@ class BacktestRequest(BaseModel):
         if self.strategy_mode == "builtin" and not self.strategy_name:
             raise ValueError("strategy_mode=builtin 时，strategy_name 必填")
         return self
+    
+    @model_validator(mode="after")
+    def validate_symbols_or_stock_code(self):
+        """验证 symbols 或 stock_code 至少有一个"""
+        if not self.symbols and not self.stock_code:
+            raise ValueError("symbols 或 stock_code 至少需要提供一个")
+        return self
+    
+    def is_multi_symbol(self) -> bool:
+        """判断是否为多标的回测"""
+        return self.symbols is not None and len(self.symbols) > 0
+    
+    def get_effective_symbols(self) -> List[str]:
+        """获取有效的标的列表"""
+        if self.symbols:
+            return self.symbols
+        return [_normalize_code(self.stock_code)] if self.stock_code else []
 
 
 class AIReviewData(BaseModel):

@@ -1,27 +1,28 @@
 import re
 
-from fastapi import Request
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """网关仅透传 Authorization，不在此处做 JWT 校验。"""
+    """网关鉴权中间件：对受保护路由强制校验 Bearer Token（委托 user-service）。"""
     
-    # 白名单路径（不需要鉴权）
+    # 白名单路径（不需要鉴权）精确匹配的白名单
     WHITELIST_PATHS = [
         "/health",
-        "/docs",
-        "/openapi.json",
-        "/redoc",
+        ##"/docs",
+        ##"/openapi.json",
+        ##"/redoc",
         "/",
         "/api/auth/login",
         "/api/auth/login/json",
         "/api/auth/register",
     ]
     
-    # 白名单路径正则
+    # 白名单路径正则 这里用的是 ^，表示“从字符串开头匹配”，所以它等价于“放行某个前缀
     WHITELIST_PATTERNS = [
         r"^/docs",
         r"^/openapi",
@@ -65,5 +66,33 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not self.requires_auth(request.url.path):
             return await call_next(request)
 
-        # 网关层只透传 Authorization 头，鉴权由下游服务负责
+        authorization = request.headers.get("authorization")
+        if not authorization:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"code": status.HTTP_401_UNAUTHORIZED, "message": "缺少 Authorization 请求头", "data": None},
+            )
+
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token.strip():
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={
+                    "code": status.HTTP_401_UNAUTHORIZED,
+                    "message": "无效的 Authorization 格式，需使用 'Bearer <token>'",
+                    "data": None,
+                },
+            )
+
+        # 网关层统一校验 token（委托 user-service），并注入 request.state.user
+        from services.auth_service import AuthService
+
+        token_data = await AuthService.verify_token(token.strip())
+        if token_data is None:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"code": status.HTTP_401_UNAUTHORIZED, "message": "无效或已过期的令牌", "data": None},
+            )
+
+        request.state.user = token_data
         return await call_next(request)

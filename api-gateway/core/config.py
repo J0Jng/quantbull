@@ -59,6 +59,7 @@ class Settings(BaseSettings):
         # user-service
         "/auth": "user_service_url",
         "/admin": "user_service_url",
+        "/tokens": "user_service_url",
     }
     
     # 鉴权配置

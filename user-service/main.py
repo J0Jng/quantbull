@@ -10,14 +10,16 @@ from models import auth_engine, init_db, seed_admin_user
 from auth.jwt import hash_password
 from routers.auth import router as auth_router
 from routers.admin import router as admin_router
+from routers.ai_tokens import router as ai_tokens_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_db()
     # 迁移：确保 role 列存在
-    from models import migrate_add_role_column
+    from models import migrate_add_role_column, migrate_add_ai_tokens_column
     migrate_add_role_column()
+    migrate_add_ai_tokens_column()
     
     with Session(auth_engine) as session:
         seed_admin_user(
@@ -45,6 +47,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(admin_router)
+    app.include_router(ai_tokens_router)
 
     return app
 
