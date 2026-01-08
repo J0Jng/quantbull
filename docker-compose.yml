@@ -171,6 +171,9 @@ services:
       SERVICE_PORT: "8003"
       TUSHARE_TOKEN: "${TUSHARE_TOKEN}"
       DATA_SERVICE_URL: "http://data-service:8001"
+      # data-service 侧会调用 Tushare，拉取股票池/批量行情可能较慢；这里调高默认超时并降低每次批量 codes 数
+      DATA_SERVICE_TIMEOUT: "180"
+      DATA_SERVICE_BATCH_SIZE: "20"
       TASK_SERVICE_URL: "http://task-service:9000"
       DAILY_REPORT_URL: "http://daily-report:8004"
       API_GATEWAY_URL: "http://api-gateway:8000"

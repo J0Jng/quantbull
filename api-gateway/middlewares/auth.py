@@ -19,7 +19,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/",
         "/api/auth/login",
         "/api/auth/login/json",
-        "/api/auth/register",
+        "/api/auth/register"
     ]
     
     # 白名单路径正则 这里用的是 ^，表示“从字符串开头匹配”，所以它等价于“放行某个前缀

@@ -1,8 +1,13 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional
 
+from sqlalchemy.dialects.postgresql import insert
+from sqlmodel import Session, select
+
+from core.database import SessionLocal
 from core.response import success
+from models.etf_basic import ETFBasic
 from schemas.etf import ETFItem
 from services.tushare_service import TushareService
 
@@ -41,6 +46,72 @@ def _find_latest_trade_date(tushare_api, max_days_back: int = 10) -> Optional[st
             logger.debug(f"检查日期 {check_date} 失败: {e}")
             continue
     return None
+
+
+def _save_etfs_to_db(etf_items: List[ETFItem], trade_date: date) -> None:
+    """将 ETF 列表保存到数据库（upsert）"""
+    try:
+        with SessionLocal() as session:
+            for item in etf_items:
+                stmt = insert(ETFBasic).values(
+                    symbol=item.symbol,
+                    name=item.name,
+                    category=item.category,
+                    trade_date=trade_date,
+                    latest_price=item.latest_price,
+                    pct_change=item.pct_change,
+                    volume=item.volume,
+                    amount=0.0,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    constraint="uq_etf_symbol_trade_date",
+                    set_=dict(
+                        name=stmt.excluded.name,
+                        category=stmt.excluded.category,
+                        latest_price=stmt.excluded.latest_price,
+                        pct_change=stmt.excluded.pct_change,
+                        volume=stmt.excluded.volume,
+                    ),
+                )
+                session.execute(stmt)
+            session.commit()
+            logger.info(f"成功保存 {len(etf_items)} 条 ETF 数据到数据库")
+    except Exception as e:
+        logger.error(f"保存 ETF 数据到数据库失败: {e}")
+
+
+def _load_etfs_from_db(limit: int = 50) -> List[Dict]:
+    """从数据库加载最新的 ETF 列表（fallback）"""
+    try:
+        with SessionLocal() as session:
+            # 查找最近的交易日数据
+            stmt = (
+                select(ETFBasic)
+                .order_by(ETFBasic.trade_date.desc(), ETFBasic.volume.desc())
+                .limit(limit)
+            )
+            results = session.exec(stmt).all()
+            
+            if not results:
+                return []
+            
+            # 转换为字典列表
+            etf_list = []
+            for etf in results:
+                etf_list.append({
+                    "symbol": etf.symbol,
+                    "name": etf.name,
+                    "category": etf.category,
+                    "latest_price": etf.latest_price,
+                    "pct_change": etf.pct_change,
+                    "volume": etf.volume,
+                })
+            
+            logger.info(f"从数据库加载 {len(etf_list)} 条 ETF 数据（交易日: {results[0].trade_date}）")
+            return etf_list
+    except Exception as e:
+        logger.error(f"从数据库加载 ETF 数据失败: {e}")
+        return []
 
 
 class ETFService:
@@ -143,6 +214,10 @@ class ETFService:
 
             logger.info(f"生成 {len(etf_items)} 条 ETF 数据")
 
+            # 保存到数据库
+            trade_date_obj = datetime.strptime(query_date, "%Y%m%d").date()
+            _save_etfs_to_db(etf_items, trade_date_obj)
+
             # 缓存
             _set_cache(cache_key, [item.model_dump() for item in etf_items])
 
@@ -150,9 +225,16 @@ class ETFService:
 
         except Exception as e:
             logger.error(f"获取 ETF 列表失败: {e}", exc_info=True)
-            # 降级：返回缓存或空列表
+            # 降级策略：1. 内存缓存 -> 2. 数据库 -> 3. 空列表
             if cache_key in _cache:
                 logger.info("使用过期缓存的 ETF 列表")
                 return success(_cache[cache_key])
-            else:
-                return success([])
+            
+            # 尝试从数据库加载
+            db_etfs = _load_etfs_from_db(limit)
+            if db_etfs:
+                logger.info(f"从数据库降级加载 {len(db_etfs)} 条 ETF 数据")
+                _set_cache(cache_key, db_etfs, ttl_minutes=60)  # 延长缓存时间
+                return success(db_etfs)
+            
+            return success([])
