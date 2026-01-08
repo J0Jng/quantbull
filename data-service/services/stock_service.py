@@ -1,8 +1,13 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional
 
+from sqlalchemy.dialects.postgresql import insert
+from sqlmodel import Session, select
+
+from core.database import SessionLocal
 from core.response import success
+from models.stock_basic import StockBasic
 from schemas.stock import StockItem
 from services.tushare_service import TushareService
 
@@ -41,6 +46,72 @@ def _find_latest_trade_date(tushare_api, max_days_back: int = 10) -> Optional[st
             logger.debug(f"检查日期 {check_date} 失败: {e}")
             continue
     return None
+
+
+def _save_stocks_to_db(stock_items: List[StockItem], trade_date: date) -> None:
+    """将股票列表保存到数据库（upsert）"""
+    try:
+        with SessionLocal() as session:
+            for item in stock_items:
+                stmt = insert(StockBasic).values(
+                    symbol=item.symbol,
+                    name=item.name,
+                    industry=item.industry,
+                    trade_date=trade_date,
+                    latest_price=item.latest_price,
+                    pct_change=item.pct_change,
+                    turnover_rate=item.turnover_rate,
+                    amount=0.0,  # 可选字段
+                )
+                stmt = stmt.on_conflict_do_update(
+                    constraint="uq_stock_symbol_trade_date",
+                    set_=dict(
+                        name=stmt.excluded.name,
+                        industry=stmt.excluded.industry,
+                        latest_price=stmt.excluded.latest_price,
+                        pct_change=stmt.excluded.pct_change,
+                        turnover_rate=stmt.excluded.turnover_rate,
+                    ),
+                )
+                session.execute(stmt)
+            session.commit()
+            logger.info(f"成功保存 {len(stock_items)} 条股票数据到数据库")
+    except Exception as e:
+        logger.error(f"保存股票数据到数据库失败: {e}")
+
+
+def _load_stocks_from_db(limit: int = 100) -> List[Dict]:
+    """从数据库加载最新的股票列表（fallback）"""
+    try:
+        with SessionLocal() as session:
+            # 查找最近的交易日数据
+            stmt = (
+                select(StockBasic)
+                .order_by(StockBasic.trade_date.desc(), StockBasic.amount.desc())
+                .limit(limit)
+            )
+            results = session.exec(stmt).all()
+            
+            if not results:
+                return []
+            
+            # 转换为字典列表
+            stock_list = []
+            for stock in results:
+                stock_list.append({
+                    "symbol": stock.symbol,
+                    "name": stock.name,
+                    "industry": stock.industry,
+                    "latest_price": stock.latest_price,
+                    "pct_change": stock.pct_change,
+                    "turnover_rate": stock.turnover_rate,
+                })
+            
+            logger.info(f"从数据库加载 {len(stock_list)} 条股票数据（交易日: {results[0].trade_date}）")
+            return stock_list
+    except Exception as e:
+        logger.error(f"从数据库加载股票数据失败: {e}")
+        return []
 
 
 class StockService:
@@ -134,6 +205,10 @@ class StockService:
 
             logger.info(f"生成 {len(stock_items)} 条股票数据")
 
+            # 保存到数据库（异步，不阻塞响应）
+            trade_date_obj = datetime.strptime(query_date, "%Y%m%d").date()
+            _save_stocks_to_db(stock_items, trade_date_obj)
+
             # 缓存
             _set_cache(cache_key, [item.model_dump() for item in stock_items])
 
@@ -141,9 +216,16 @@ class StockService:
 
         except Exception as e:
             logger.error(f"获取股票列表失败: {e}", exc_info=True)
-            # 降级：返回缓存或空列表
+            # 降级策略：1. 内存缓存 -> 2. 数据库 -> 3. 空列表
             if cache_key in _cache:
                 logger.info("使用过期缓存的股票列表")
                 return success(_cache[cache_key])
-            else:
-                return success([])
+            
+            # 尝试从数据库加载
+            db_stocks = _load_stocks_from_db(limit)
+            if db_stocks:
+                logger.info(f"从数据库降级加载 {len(db_stocks)} 条股票数据")
+                _set_cache(cache_key, db_stocks, ttl_minutes=60)  # 延长缓存时间
+                return success(db_stocks)
+            
+            return success([])

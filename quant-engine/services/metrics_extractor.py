@@ -28,21 +28,17 @@ class MetricsExtractor:
         """
         提取基础回测指标
         
+        注意：此方法不再调用 cerebro.run()，而是直接使用已完成回测的策略实例
+        避免了二次 cerebro.run() 导致的重复回测问题
+        
         Returns:
             包含基础指标的字典
         """
         try:
-            # 获取回测结果
-            results = self.cerebro.run()
-            if not results:
-                raise ValueError("回测未产生结果")
-            
-            # 获取策略实例（可能有多个，取第一个）
-            strategy_instance = results[0][0] if isinstance(results[0], list) else results[0]
+            # 直接使用传入的 strategy 实例，不再调用 cerebro.run()
+            strategy_instance = self.strategy
             
             # 获取初始和最终资产
-            # ⚠️ 修复：getcash() 在回测结束后返回剩余现金，不是初始资金
-            # 需要从净值曲线第一个点获取初始资产
             initial_cash = self.cerebro.broker.startingcash
             final_value = self.cerebro.broker.getvalue()
             
@@ -88,12 +84,14 @@ class MetricsExtractor:
         """
         提取 AI 评价所需的结构化数据
         
+        注意：此方法不再调用 cerebro.run()，而是直接使用已完成回测的策略实例
+        
         Returns:
             AIReviewData 对象
         """
         try:
-            results = self.cerebro.run()
-            strategy_instance = results[0][0] if isinstance(results[0], list) else results[0]
+            # 直接使用传入的 strategy 实例，不再调用 cerebro.run()
+            strategy_instance = self.strategy
             
             # 获取交易记录
             trades = self._get_trades(strategy_instance)
@@ -147,15 +145,18 @@ class MetricsExtractor:
             raise
     
     def _get_equity_curve(self, strategy: bt.Strategy) -> list[float]:
-        """获取净值曲线"""
-        # 注意：Backtrader 不直接提供历史净值曲线
-        # 这里返回一个简化的净值曲线（基于最终结果）
-        # 实际应用中，需要在策略中记录每日净值
+        """获取净值曲线
+        
+        优先使用策略内部记录的每日净值（daily_values），如果没有则返回简化版本
+        """
+        # 优先使用策略内部记录的每日净值
+        if hasattr(strategy, 'daily_values') and strategy.daily_values:
+            return list(strategy.daily_values)
+        
+        # 退化：返回初始和最终值
         initial_cash = self.cerebro.broker.startingcash
         final_value = self.cerebro.broker.getvalue()
         
-        # 返回初始和最终值（简化实现）
-        # 实际应该从策略的观察者（Observer）中获取
         return [initial_cash, final_value]
     
     def _calculate_sharpe_ratio(self, equity_curve: list[float]) -> Optional[float]:

@@ -12,6 +12,7 @@ from services.data_loader import load_market_data, load_market_data_multi, resol
 from services.strategy_loader import load_strategy
 from services.metrics_extractor import MetricsExtractor
 from services.backtest_repository import BacktestRepository
+from services.universe_features_service import UniverseFeaturesService
 
 logger = get_logger(__name__)
 
@@ -99,6 +100,13 @@ class BacktestService:
             strategy_name=request.strategy_name,
             parameters=request.parameters
         )
+        
+        # 验证数据长度
+        min_data_points = 70  # 最少需要70个数据点
+        if len(df) < min_data_points:
+            raise ValueError(f"数据不足: {len(df)} 个数据点 < {min_data_points}（回测需要足够的预热期）")
+        
+        logger.info(f"数据验证通过: {len(df)} 个数据点")
         
         # 3. 创建 Backtrader Cerebro 引擎
         cerebro = bt.Cerebro()
@@ -203,7 +211,7 @@ class BacktestService:
         BacktestRepository.mark_running(backtest_id)
         
         # 1. 解析股票池
-        universe_symbols = resolve_universe(
+        universe_symbols, symbol_type_map = resolve_universe(
             universe_mode=request.universe_mode,
             universe_params=request.universe_params,
             symbols=request.symbols
@@ -212,7 +220,7 @@ class BacktestService:
         if not universe_symbols:
             raise ValueError("未获取到有效的标的列表")
         
-        logger.info(f"股票池: {len(universe_symbols)} 只标的")
+        logger.info(f"股票池: {len(universe_symbols)} 只标的, 类型分布: stocks={len([s for s,t in symbol_type_map.items() if t=='stock'])}, etfs={len([s for s,t in symbol_type_map.items() if t=='etf'])}")
         
         # 2. 加载行情数据（向前扩展预热期）
         data_buffer = request.parameters.get("data_buffer", 300) if request.parameters else 300
@@ -225,7 +233,8 @@ class BacktestService:
             symbols=universe_symbols,
             start_date=extended_start,
             end_date=request.end_date,
-            source=request.data_source
+            source=request.data_source,
+            symbol_type_map=symbol_type_map,
         )
         
         if not dfs:
@@ -244,22 +253,70 @@ class BacktestService:
             parameters=request.parameters
         )
         
+        # 3.5 拉取横截面特征（如果是 kronos 策略或参数中要求）
+        features_data = {}
+        if request.strategy_name == "kronos_multidim_rotation" or request.parameters.get("fetch_features", False):
+            try:
+                logger.info("开始拉取横截面特征数据...")
+                features_service = UniverseFeaturesService()
+                features_data = features_service.fetch_all_features(
+                    symbols=loaded_symbols,
+                    asof_date=request.start_date,
+                    symbol_type_map=symbol_type_map
+                )
+                logger.info(f"横截面特征拉取完成: fundamentals={len(features_data.get('fundamentals_by_symbol', {}))}")
+            except Exception as e:
+                logger.warning(f"拉取横截面特征失败，策略将使用降级模式: {e}")
+                features_data = {
+                    "fundamentals_by_symbol": {},
+                    "industry_scores_by_symbol": {},
+                    "sentiment_by_symbol": {},
+                    "hot_by_symbol": {},
+                    "symbol_type_map": symbol_type_map
+                }
+        
         # 4. 创建 Backtrader Cerebro 引擎
         cerebro = bt.Cerebro()
         
-        # 5. 添加多个数据源
+        # 5. 添加多个数据源（过滤掉数据不足的标的）
+        min_data_points = 70  # 最少需要70个数据点（MA60需要60，留10个余量）
+        valid_count = 0
+        skipped_count = 0
+        
         for symbol, df in dfs.items():
+            if len(df) < min_data_points:
+                logger.warning(f"跳过 {symbol}: 数据点不足 {len(df)} < {min_data_points}")
+                skipped_count += 1
+                continue
+            
             data = self._create_backtrader_data(df)
             cerebro.adddata(data, name=symbol)
+            valid_count += 1
+        
+        if valid_count == 0:
+            raise ValueError(f"没有符合数据长度要求的标的（需要至少{min_data_points}个数据点）")
+        
+        logger.info(f"添加数据源: {valid_count} 只有效, {skipped_count} 只数据不足被跳过")
         
         # 6. 添加观察者
         cerebro.addobserver(bt.observers.Value)
         
-        # 7. 添加策略（传递组合相关参数）
+        # 7. 添加策略（传递组合相关参数 + 横截面特征）
         strategy_params = {**request.parameters}
         strategy_params["rebalance_frequency"] = request.rebalance_frequency
         strategy_params["allocation"] = request.allocation
         strategy_params["allow_short"] = request.allow_short
+        
+        # 注入横截面特征数据
+        if features_data:
+            strategy_params["fundamentals_by_symbol"] = features_data.get("fundamentals_by_symbol", {})
+            strategy_params["industry_scores_by_symbol"] = features_data.get("industry_scores_by_symbol", {})
+            strategy_params["sentiment_by_symbol"] = features_data.get("sentiment_by_symbol", {})
+            strategy_params["hot_by_symbol"] = features_data.get("hot_by_symbol", {})
+            strategy_params["symbol_type_map"] = features_data.get("symbol_type_map", symbol_type_map)
+        else:
+            strategy_params["symbol_type_map"] = symbol_type_map
+        
         cerebro.addstrategy(strategy_class, **strategy_params)
         
         # 8. 设置初始资金
@@ -408,12 +465,25 @@ class BacktestService:
         """
         提取每日净值曲线
         
-        注意：Backtrader 不直接提供每日净值历史
-        这里使用简化方法：基于价格变化和持仓情况估算净值
-        实际应用中，建议在策略中使用 Observer 记录每日净值
+        优先使用策略内部记录的每日净值（daily_values + daily_dates），
+        如果没有则使用简化方法估算。
         """
         # 获取初始资金
         initial_cash = cerebro.broker.startingcash
+        
+        # 优先使用策略内部记录的净值
+        if hasattr(strategy, 'daily_values') and hasattr(strategy, 'daily_dates'):
+            if strategy.daily_values and strategy.daily_dates:
+                daily_nav = []
+                for i, (date_str, value) in enumerate(zip(strategy.daily_dates, strategy.daily_values)):
+                    nav = value / initial_cash if initial_cash > 0 else 1.0
+                    daily_nav.append({
+                        "date": date_str,
+                        "nav": round(nav, 6)
+                    })
+                return daily_nav
+        
+        # 退化方案：基于价格变化估算
         final_value = cerebro.broker.getvalue()
         
         # 获取价格数据
@@ -426,8 +496,7 @@ class BacktestService:
         # 计算价格变化率
         price_returns = pd.Series(closes).pct_change().fillna(0)
         
-        # 简化：假设策略跟随价格变化（实际应该考虑持仓情况）
-        # 这里使用价格变化作为净值变化的近似
+        # 简化：假设策略跟随价格变化
         daily_nav = []
         current_nav = 1.0
         

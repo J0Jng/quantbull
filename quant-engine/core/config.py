@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     tdengine_password: str = "taosdata"
     tdengine_database: str = "quantbull"
     
+    # TDengine REST 接口配置
+    tdengine_rest_port: int = 6041
+    tdengine_rest_path: str = "/rest/sql"
+    tdengine_rest_scheme: str = "http"
+    tdengine_rest_timeout: float = 10.0
+    
     # Redis 配置
     redis_host: str = "redis"
     redis_port: int = 6379

@@ -23,8 +23,8 @@ class BacktestRequest(BaseModel):
     rebalance_frequency: Literal["D", "W", "M"] = Field(default="M", description="再平衡频率：D/W/M")
     allocation: Literal["equal_weight", "inverse_vol"] = Field(default="equal_weight", description="权重分配方式")
     allow_short: bool = Field(default=False, description="是否允许做空")
-    universe_mode: Literal["manual", "stock_pool"] = Field(default="manual", description="股票池模式")
-    universe_params: dict = Field(default_factory=dict, description="股票池参数（如 limit, min_turnover）")
+    universe_mode: Literal["manual", "stock_pool", "stock_etf_pool"] = Field(default="manual", description="股票池模式: manual/stock_pool/stock_etf_pool")
+    universe_params: dict = Field(default_factory=dict, description="股票池参数（如 limit, min_turnover, stock_limit, etf_limit）")
     
     strategy_mode: Literal["custom", "builtin"] = Field(
         default="custom",
@@ -104,13 +104,22 @@ class BacktestRequest(BaseModel):
     
     @model_validator(mode="after")
     def validate_symbols_or_stock_code(self):
-        """验证 symbols 或 stock_code 至少有一个"""
-        if not self.symbols and not self.stock_code:
-            raise ValueError("symbols 或 stock_code 至少需要提供一个")
+        """验证 symbols/stock_code/universe_mode 至少满足一种输入方式
+
+        - universe_mode=manual: 需要显式提供 symbols 或 stock_code
+        - universe_mode!=manual: 允许不提供 symbols/stock_code（由股票池模式生成标的）
+        """
+        if self.universe_mode == "manual" and not self.symbols and not self.stock_code:
+            raise ValueError("universe_mode=manual 时，symbols 或 stock_code 至少需要提供一个")
         return self
     
     def is_multi_symbol(self) -> bool:
         """判断是否为多标的回测"""
+        # 组合回测的两种输入方式：
+        # 1) 显式 symbols 列表（哪怕只有 1 只，也按组合逻辑走，便于统一再平衡/权重分配）
+        # 2) universe_mode != manual，由系统股票池生成标的列表
+        if self.universe_mode != "manual":
+            return True
         return self.symbols is not None and len(self.symbols) > 0
     
     def get_effective_symbols(self) -> List[str]:

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
         "/market": "data_service_url",
         "/etf": "data_service_url",
         "/stock": "data_service_url",
+        "/fundamentals": "data_service_url",
 
         # quant-engine（下游首段：backtest/strategy/factor）
         "/backtest": "quant_engine_url",

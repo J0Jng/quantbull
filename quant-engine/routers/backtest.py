@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+import asyncio
+
+from fastapi import APIRouter, HTTPException
 import uuid
 
 from core.logger import get_logger
@@ -15,16 +17,16 @@ router = APIRouter()
 backtest_service = BacktestService()
 
 
-@router.post("/run", summary="异步执行回测（后台任务）")
-async def run_backtest(request: BacktestRequest, background_tasks: BackgroundTasks):
+@router.post("/run", summary="异步执行回测（后台任务)")
+async def run_backtest(request: BacktestRequest):
     """提交回测任务到后台执行，立即返回 backtest_id，客户端轮询状态。"""
     try:
         # 创建 backtest 记录，状态 pending
         backtest_id = f"backtest_{uuid.uuid4().hex[:8]}"
         BacktestRepository.create_stub(request, backtest_id=backtest_id)
-        
-        # 添加后台任务
-        background_tasks.add_task(execute_backtest_async, request, backtest_id)
+
+        # 创建独立后台任务，避免阻塞当前请求生命周期
+        asyncio.create_task(execute_backtest_async(request, backtest_id))
         
         return success({"backtest_id": backtest_id, "status": "pending"})
     except Exception as e:
@@ -75,8 +77,8 @@ async def list_backtests(limit: int = 10, offset: int = 0):
 
 # 兼容旧接口，仍提供异步入口（复用 /run）
 @router.post("/run_async", summary="兼容：异步提交回测（后台执行）")
-async def run_backtest_async(request: BacktestRequest, background_tasks: BackgroundTasks):
-    return await run_backtest(request, background_tasks)
+async def run_backtest_async(request: BacktestRequest):
+    return await run_backtest(request)
 
 
 # 兼容 task-service worker 的同步执行入口，仍由 quant-engine 真正执行

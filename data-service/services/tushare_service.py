@@ -255,3 +255,190 @@ class TushareService:
             logger.error(f"获取财务指标 {code} 失败: {e}")
             return []
 
+    # ==================== 概念板块相关 ====================
+    
+    def fetch_concept_list(self) -> List[dict]:
+        """获取概念板块列表
+        
+        Returns:
+            概念列表，包含 code(概念代码), name(概念名称)
+        """
+        try:
+            df = self.api.concept()
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.error(f"获取概念列表失败: {e}")
+            return []
+    
+    def fetch_concept_detail(self, concept_id: str) -> List[dict]:
+        """获取概念板块成分股
+        
+        Args:
+            concept_id: 概念代码（如 TS0）
+            
+        Returns:
+            成分股列表，包含 ts_code, name 等
+        """
+        try:
+            df = self.api.concept_detail(id=concept_id)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.error(f"获取概念成分股 {concept_id} 失败: {e}")
+            return []
+    
+    def fetch_stock_concepts(self, code: str) -> List[dict]:
+        """获取个股所属概念板块
+        
+        通过遍历概念板块查找（Tushare无直接接口）
+        注意：此方法较慢，建议使用缓存
+        """
+        try:
+            normalized_code = normalize_code(code)
+            ts_code = normalized_code + get_market_suffix(normalized_code)
+            
+            # 使用 ths_member 接口（同花顺概念成分）
+            df = self.api.ths_member(ts_code=ts_code)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.warning(f"获取个股概念 {code} 失败: {e}")
+            return []
+    
+    def fetch_ths_index_daily(self, ts_code: str, trade_date: str) -> Optional[dict]:
+        """获取同花顺概念/行业指数日行情
+        
+        Args:
+            ts_code: 同花顺指数代码
+            trade_date: 交易日期 YYYYMMDD
+        """
+        try:
+            df = self.api.ths_daily(ts_code=ts_code, trade_date=trade_date)
+            if df is None or df.empty:
+                return None
+            return df.iloc[0].to_dict()
+        except Exception as e:
+            logger.warning(f"获取同花顺指数 {ts_code} 日行情失败: {e}")
+            return None
+
+    # ==================== 龙虎榜相关 ====================
+    
+    def fetch_top_list(self, trade_date: str) -> List[dict]:
+        """获取龙虎榜数据
+        
+        Args:
+            trade_date: 交易日期 YYYYMMDD
+            
+        Returns:
+            龙虎榜列表，包含 ts_code, name, reason, buy/sell 等
+        """
+        try:
+            df = self.api.top_list(trade_date=trade_date)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.error(f"获取龙虎榜 {trade_date} 失败: {e}")
+            return []
+    
+    def fetch_top_inst(self, trade_date: str) -> List[dict]:
+        """获取龙虎榜机构交易明细
+        
+        Args:
+            trade_date: 交易日期 YYYYMMDD
+            
+        Returns:
+            机构买卖明细
+        """
+        try:
+            df = self.api.top_inst(trade_date=trade_date)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.error(f"获取龙虎榜机构明细 {trade_date} 失败: {e}")
+            return []
+    
+    def fetch_limit_list(self, trade_date: str) -> List[dict]:
+        """获取涨跌停股票列表
+        
+        Args:
+            trade_date: 交易日期 YYYYMMDD
+            
+        Returns:
+            涨跌停列表，包含 ts_code, name, limit(U涨停/D跌停), up_stat(连板天数)等
+        """
+        try:
+            df = self.api.limit_list_d(trade_date=trade_date)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.warning(f"获取涨跌停列表 {trade_date} 失败: {e}")
+            return []
+    
+    def fetch_moneyflow(self, trade_date: str) -> List[dict]:
+        """获取个股资金流向
+        
+        Args:
+            trade_date: 交易日期 YYYYMMDD
+            
+        Returns:
+            资金流向数据，包含 buy_sm_amount(小单买入), sell_lg_amount(大单卖出) 等
+        """
+        try:
+            df = self.api.moneyflow(trade_date=trade_date)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.warning(f"获取资金流向 {trade_date} 失败: {e}")
+            return []
+    
+    def fetch_moneyflow_hsgt(self, start_date: str, end_date: str) -> List[dict]:
+        """获取北向资金流向
+        
+        Args:
+            start_date: 开始日期 YYYYMMDD
+            end_date: 结束日期 YYYYMMDD
+            
+        Returns:
+            北向资金数据
+        """
+        try:
+            df = self.api.moneyflow_hsgt(start_date=start_date, end_date=end_date)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.warning(f"获取北向资金失败: {e}")
+            return []
+    
+    # ==================== 同花顺热度 ====================
+    
+    def fetch_ths_hot(self, trade_date: Optional[str] = None) -> List[dict]:
+        """获取同花顺热度排名（人气榜）
+        
+        Args:
+            trade_date: 交易日期，不传则为最新
+            
+        Returns:
+            热度排名数据
+        """
+        try:
+            params = {}
+            if trade_date:
+                params["trade_date"] = trade_date
+            df = self.api.ths_hot(**params)
+            if df is None or df.empty:
+                return []
+            return df.to_dict("records")
+        except Exception as e:
+            logger.warning(f"获取同花顺热度失败: {e}")
+            return []
+
+
