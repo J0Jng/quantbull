@@ -13,23 +13,23 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     
     # 数据库配置
-    postgres_host: str = "postgres"
+    postgres_host: str = ""
     postgres_port: int = 5432
-    postgres_user: str = "quantbull"
-    postgres_password: str = "change_me"
-    postgres_db: str = "quantbull_db"
+    postgres_user: str = ""
+    postgres_password: str = ""
+    postgres_db: str = ""
     
     # TDengine 配置（时间序列数据库）
-    tdengine_host: str = "tdengine"
+    tdengine_host: str = ""
     tdengine_port: int = 6030
-    tdengine_user: str = "root"
-    tdengine_password: str = "taosdata"
-    tdengine_database: str = "quantbull"
+    tdengine_user: str = ""
+    tdengine_password: str = ""
+    tdengine_database: str = ""
     
     # TDengine REST 接口配置
     tdengine_rest_port: int = 6041
-    tdengine_rest_path: str = "/rest/sql"
-    tdengine_rest_scheme: str = "http"
+    tdengine_rest_path: str = ""
+    tdengine_rest_scheme: str = ""
     tdengine_rest_timeout: float = 10.0
     
     # Redis 配置
