@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     
     # 数据库配置
-    database_url: str = "postgresql+asyncpg://quantbull:change_me@postgres:5432/quantbull_db"
-    sync_database_url: str = "postgresql+psycopg2://quantbull:change_me@postgres:5432/quantbull_db"
+    database_url: str = ""
+    sync_database_url: str = ""
     
     # Tushare 配置 - 优先读取环境变量 TUSHARE_TOKEN
     tushare_token: str = ""  # 通过环境变量设置，不应在代码中硬编码
