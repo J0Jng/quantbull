@@ -130,9 +130,13 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useOrderStore } from '@/stores/order.js'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
 const orderStore = useOrderStore()
+
+// 使用全局认证
+const { logged, openLoginModal } = useAuth()
 
 // 筛选条件
 const filterStatus = ref('')
@@ -202,16 +206,14 @@ const viewOrderDetail = (orderId) => {
 }
 
 // 检查登录状态
-const isLoggedIn = computed(() => {
-  return localStorage.getItem('quantLogin') === '123'
-})
+const isLoggedIn = computed(() => logged.value)
 
 const goBack = () => {
   router.back()
 }
 
 const goToLogin = () => {
-  router.push('/profile')
+  openLoginModal()
 }
 </script>
 

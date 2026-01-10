@@ -72,10 +72,50 @@
           <div v-if="backtestForm.strategy_mode === 'builtin'" class="form-group">
             <label for="strategy-name">内置策略:</label>
             <select id="strategy-name" v-model="backtestForm.strategy_name" class="form-control">
-              <option value="ma_cross">均线交叉策略</option>
-              <option value="rsi">RSI策略</option>
-              <option value="bollinger_bands">布林带策略</option>
+              <option v-for="item in builtinStrategies" :key="item.name" :value="item.name">
+                {{ (item.display_name || item.name) + (item.description ? ' - ' + item.description : '') }}
+              </option>
             </select>
+            <div v-if="loadingBuiltin" class="loading-indicator">加载内置策略...</div>
+          </div>
+
+          <div v-if="backtestForm.strategy_mode === 'builtin'" class="form-group">
+            <label>策略参数（可自定义）:</label>
+            <div v-if="currentParamSchema.length" class="param-grid">
+              <div v-for="field in currentParamSchema" :key="field.key" class="param-field">
+                <span class="param-label">{{ field.label }}</span>
+                <template v-if="field.type === 'number'">
+                  <input 
+                    type="number"
+                    class="form-control"
+                    v-model.number="builtinParameters[field.key]"
+                    :min="field.min"
+                    :max="field.max"
+                    :step="field.step || 1"
+                  />
+                </template>
+                <template v-else-if="field.type === 'boolean'">
+                  <label class="checkbox-inline">
+                    <input type="checkbox" v-model="builtinParameters[field.key]" />
+                    <span>开启</span>
+                  </label>
+                </template>
+                <template v-else>
+                  <input type="text" class="form-control" v-model="builtinParameters[field.key]" />
+                </template>
+              </div>
+            </div>
+            <div v-else class="param-tip">该策略暂未配置参数表，请填写下方 JSON 来自定义参数（与策略代码示例一致）。</div>
+
+            <div v-if="!currentParamSchema.length" class="param-json-wrapper">
+              <label class="param-label">参数 JSON（会直接传给后端 parameters 字段）</label>
+              <textarea
+                class="form-control param-json"
+                rows="4"
+                v-model="builtinParamsJson"
+                placeholder='{"fast_period":5,"slow_period":20}'
+              ></textarea>
+            </div>
           </div>
           
           <div v-if="generatedStrategy || backtestForm.strategy_code" class="form-group">
@@ -321,7 +361,12 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { getBuiltinStrategies, generateStrategyCode } from '@/services/strategyService'
+import { runBacktest as runBacktestService, runBacktestAsync as runBacktestAsyncService, getBacktestResult, getBacktestList } from '@/services/backtestService'
+
+const router = useRouter()
 
 // 表单数据
 const backtestForm = reactive({
@@ -346,9 +391,105 @@ const error = ref('')
 const backtestMode = ref('sync') // sync 或 async
 const pendingTaskId = ref(null) // 异步任务ID
 const taskStatus = ref(null) // 异步任务状态
+const builtinStrategies = ref([])
+const loadingBuiltin = ref(false)
+const builtinParameters = reactive({})
+const builtinParamsJson = ref('{}')
 
-// 获取API基础URL
-const API_BASE_URL = '/api'
+const builtinParamSchemas = {
+  ma_cross: [
+    { key: 'fast_period', label: '短期均线周期', type: 'number', default: 5, min: 1, step: 1 },
+    { key: 'slow_period', label: '长期均线周期', type: 'number', default: 20, min: 1, step: 1 }
+  ],
+  rsi: [
+    { key: 'rsi_period', label: 'RSI周期', type: 'number', default: 14, min: 1, step: 1 },
+    { key: 'rsi_low', label: '超卖阈值', type: 'number', default: 30, min: 1, step: 1 },
+    { key: 'rsi_high', label: '超买阈值', type: 'number', default: 70, min: 1, step: 1 }
+  ],
+  mean_reversion_rsi: [
+    { key: 'rsi_period', label: 'RSI周期', type: 'number', default: 14, min: 1, step: 1 },
+    { key: 'oversold', label: '超卖阈值', type: 'number', default: 30, min: 1, step: 1 },
+    { key: 'overbought', label: '超买阈值', type: 'number', default: 70, min: 1, step: 1 },
+    { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
+  ],
+  trend_ma: [
+    { key: 'fast_period', label: '快线周期', type: 'number', default: 20, min: 1, step: 1 },
+    { key: 'slow_period', label: '慢线周期', type: 'number', default: 60, min: 1, step: 1 },
+    { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
+  ],
+  rotation_momentum_top1: [
+    { key: 'lookback', label: '动量回看期', type: 'number', default: 60, min: 5, step: 5 },
+    { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
+  ],
+  risk_parity_inverse_vol: [
+    { key: 'lookback', label: '波动率回看期', type: 'number', default: 60, min: 5, step: 5 },
+    { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
+  ],
+  multifactor_topk: [
+    { key: 'lookback', label: '因子回看期', type: 'number', default: 60, min: 5, step: 5 },
+    { key: 'top_k', label: '选股数量', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
+  ],
+  pairs_trading_zscore: [
+    { key: 'lookback', label: 'Z分数回看期', type: 'number', default: 60, min: 10, step: 5 },
+    { key: 'entry_z', label: '开仓阈值', type: 'number', default: 2.0, step: 0.1 },
+    { key: 'exit_z', label: '平仓阈值', type: 'number', default: 0.5, step: 0.1 },
+    { key: 'allow_short', label: '允许做空', type: 'boolean', default: true }
+  ],
+  kronos_multidim_rotation: [
+    { key: 'top_stocks', label: '股票持仓数量', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'top_etfs', label: 'ETF持仓数量', type: 'number', default: 5, min: 0, step: 1 },
+    { key: 'lookback', label: '指标回看期', type: 'number', default: 60, min: 10, step: 5 },
+    { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'D' },
+    { key: 'w_tech', label: '技术面权重', type: 'number', default: 0.30, step: 0.01 },
+    { key: 'w_industry', label: '行业景气权重', type: 'number', default: 0.25, step: 0.01 },
+    { key: 'w_hot', label: '热点权重', type: 'number', default: 0.20, step: 0.01 },
+    { key: 'w_fund', label: '基本面权重', type: 'number', default: 0.15, step: 0.01 },
+    { key: 'w_sent', label: '舆情权重', type: 'number', default: 0.10, step: 0.01 },
+    { key: 'risk_capital', label: '风险资本比例', type: 'number', default: 0.95, step: 0.01 },
+    { key: 'max_leverage', label: '最大杠杆', type: 'number', default: 1.0, step: 0.1 },
+    { key: 'force_cash', label: '强制空仓', type: 'boolean', default: false }
+  ],
+}
+
+const currentParamSchema = computed(() => builtinParamSchemas[backtestForm.strategy_name] || [])
+
+const resetBuiltinParams = (strategyName) => {
+  // 清空旧参数
+  Object.keys(builtinParameters).forEach((k) => delete builtinParameters[k])
+  const schema = builtinParamSchemas[strategyName]
+  if (schema && schema.length > 0) {
+    schema.forEach((field) => {
+      builtinParameters[field.key] = field.default
+    })
+    builtinParamsJson.value = JSON.stringify(builtinParameters, null, 2)
+  } else {
+    builtinParamsJson.value = '{}'
+  }
+}
+
+const fetchBuiltinStrategies = async () => {
+  loadingBuiltin.value = true
+  try {
+    const result = await getBuiltinStrategies()
+    if (result.success) {
+      builtinStrategies.value = result.data?.data?.items || result.data?.items || []
+      
+      if (!backtestForm.strategy_name && builtinStrategies.value.length > 0) {
+        backtestForm.strategy_name = builtinStrategies.value[0].name
+      }
+      if (backtestForm.strategy_name) {
+        resetBuiltinParams(backtestForm.strategy_name)
+      }
+    } else {
+      error.value = result.message || '获取内置策略失败'
+    }
+  } catch (err) {
+    error.value = err.message || '获取内置策略失败'
+  } finally {
+    loadingBuiltin.value = false
+  }
+}
 
 // AI生成策略
 const generateStrategy = async () => {
@@ -361,24 +502,17 @@ const generateStrategy = async () => {
   error.value = ''
   
   try {
-    const response = await fetch('/api/ai/api/ai/generate/strategy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        user_description: strategyDescription.value,
-        framework: 'backtrader'
-      })
+    const result = await generateStrategyCode({
+      user_description: strategyDescription.value,
+      framework: 'backtrader'
     })
     
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`)
+    if (result.success) {
+      generatedStrategy.value = result.data?.strategy_code || result.data?.data?.strategy_code
+      backtestForm.strategy_code = generatedStrategy.value
+    } else {
+      error.value = `生成策略失败: ${result.message}`
     }
-    
-    const data = await response.json()
-    generatedStrategy.value = data.strategy_code
-    backtestForm.strategy_code = data.strategy_code
   } catch (err) {
     error.value = `生成策略失败: ${err.message}`
   } finally {
@@ -431,13 +565,23 @@ const runBacktest = async () => {
       backtestPayload.strategy_code = backtestForm.strategy_code
     } else {
       backtestPayload.strategy_name = backtestForm.strategy_name
+      const schema = currentParamSchema.value
+      if (schema.length > 0) {
+        backtestPayload.parameters = { ...builtinParameters }
+      } else {
+        try {
+          backtestPayload.parameters = builtinParamsJson.value ? JSON.parse(builtinParamsJson.value) : {}
+        } catch (parseErr) {
+          throw new Error(`参数格式错误，请检查 JSON: ${parseErr.message}`)
+        }
+      }
     }
     
+    // 无论是 sync 还是 async，都使用 runAsyncBacktest (提交即返回ID)
+    // sync 模式只是前端等待逻辑不同
     if (backtestMode.value === 'sync') {
-      // 同步模式 - 使用轮询
       await runSyncBacktest(backtestPayload)
     } else {
-      // 异步模式 - 提交任务后立即返回
       await runAsyncBacktest(backtestPayload)
     }
   } catch (err) {
@@ -446,48 +590,56 @@ const runBacktest = async () => {
   }
 }
 
-// 同步回测模式
+// 同步回测模式 (实际上是提交任务后前台轮询)
 const runSyncBacktest = async (payload) => {
   try {
-    const response = await fetch('/api/quant/api/backtest/run', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    })
+    const submitResult = await runBacktestService(payload)
     
-    if (!response.ok) {
-      throw new Error(`回测提交失败: ${response.status}`)
+    if (!submitResult.success) {
+      throw new Error(submitResult.message || '回测提交失败')
     }
     
-    const submitResult = await response.json()
-    const backtestId = submitResult.backtest_id
+    // 兼容后端返回结构：data 可能在 submitResult.data.data 或 submitResult.data 中
+    const data = submitResult.data?.data || submitResult.data
+    const backtestId = data?.backtest_id
     
+    if (!backtestId) {
+       throw new Error('未获取到 backtest_id')
+    }
+
     // 使用指数退避策略进行轮询
     let retryCount = 0
-    const maxRetries = 60 // 最多等待60秒
+    const maxRetries = 60 // 最多等待60次
     const baseDelay = 1000 // 基础延迟1秒
     const maxDelay = 10000 // 最大延迟10秒
     
     while (retryCount < maxRetries) {
       await new Promise(resolve => {
         // 指数退避延迟
-        const delay = Math.min(baseDelay * Math.pow(1.5, retryCount), maxDelay)
+        const delay = Math.min(baseDelay * Math.pow(1.1, retryCount), maxDelay)
         setTimeout(resolve, delay)
       })
       
-      const resultResponse = await fetch(`/api/quant/api/backtest/${backtestId}`)
-      if (!resultResponse.ok) {
-        throw new Error(`获取回测结果失败: ${resultResponse.status}`)
+      const resultResponse = await getBacktestResult(backtestId)
+      if (!resultResponse.success) {
+          // 网络错误等，继续重试
+          console.warn('获取状态失败，重试中...')
+          retryCount++
+          continue
       }
       
-      const result = await resultResponse.json()
+      const resData = resultResponse.data?.data || resultResponse.data
+      const status = resData?.status
       
-      if (result.data && result.data.success) {
-        backtestResult.value = result.data
+      if (status === 'success') {
+        backtestResult.value = resData
+        // 刷新历史记录
+        fetchHistoryRecords()
         break
+      } else if (status === 'failed') {
+         throw new Error(resData?.message || '回测失败')
       }
+      // pending 或 running 继续等待
       
       retryCount++
     }
@@ -503,48 +655,94 @@ const runSyncBacktest = async (payload) => {
 // 异步回测模式
 const runAsyncBacktest = async (payload) => {
   try {
-    const response = await fetch('/api/quant/api/backtest/run_async', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    })
+    const submitResult = await runBacktestAsyncService(payload)
     
-    if (!response.ok) {
-      throw new Error(`异步回测提交失败: ${response.status}`)
+    if (!submitResult.success) {
+      throw new Error(submitResult.message || '异步回测提交失败')
     }
     
-    const submitResult = await response.json()
-    pendingTaskId.value = submitResult.task_id
+    const data = submitResult.data?.data || submitResult.data
+    pendingTaskId.value = data?.backtest_id // 后端返回的是 backtest_id
     taskStatus.value = 'submitted'
     
     // 显示成功消息
-    error.value = `异步任务已提交！任务ID: ${submitResult.task_id}。可在历史记录中查看进度。`
+    error.value = `异步任务已提交！任务ID: ${pendingTaskId.value}。可在历史记录中查看进度。`
+
+    // 启动非阻塞轮询
+    startAsyncPolling(pendingTaskId.value);
+
   } finally {
     runningBacktest.value = false
   }
 }
 
-// 检查异步任务状态
+// 异步轮询辅助函数
+const startAsyncPolling = async (backtestId) => {
+    let retryCount = 0;
+    const maxRetries = 60; // 轮询上限
+    
+    const poll = async () => {
+        if (!pendingTaskId.value || pendingTaskId.value !== backtestId) return; // 任务ID变了或被清空则停止
+        if (retryCount >= maxRetries) return;
+
+        try {
+            const result = await checkAsyncTaskStatus(backtestId);
+            const status = result?.status;
+            
+            if (status === 'success' || status === 'failed') {
+                return; // 结束轮询
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        
+        retryCount++;
+        setTimeout(poll, 2000); // 每2秒轮询一次
+    };
+    
+    setTimeout(poll, 1000);
+}
+
+
+// 检查异步任务状态 (此处 taskId 实为 backtestId)
 const checkAsyncTaskStatus = async (taskId) => {
   try {
-    const response = await fetch(`/api/quant/api/backtest/${taskId}`)
-    if (!response.ok) {
-      throw new Error(`检查任务状态失败: ${response.status}`)
+    const resultResponse = await getBacktestResult(taskId)
+    if (!resultResponse.success) {
+      throw new Error(resultResponse.message || '检查任务状态失败')
     }
     
-    const result = await response.json()
-    if (result.data) {
-      taskStatus.value = result.data.success ? 'completed' : 'processing'
+    const result = resultResponse.data?.data || resultResponse.data
+    if (result) {
+      // 映射后端 status 到前端展示用的 taskStatus
+      // 后端: pending, running, success, failed
+      // 前端: submitted, processing, completed, failed
       
-      if (result.data.success) {
-        backtestResult.value = result.data
-        pendingTaskId.value = null
+      const backendStatus = result.status;
+      if (backendStatus === 'success') {
+          taskStatus.value = 'completed';
+          backtestResult.value = result;
+          // 任务完成，清除 pending ID (或者保留让用户手动清除? 需求说成功后清空 pending id, 但为了让用户看到"已完成"状态，可以暂留，或者依靠 backtestResult 显示结果)
+          // 根据需求：成功后自动展示结果并清空 pending id
+          // 但为了显示上面的 "✅ 任务已完成！", 我们需要在 taskStatus 为 completed 时保留一会儿? 
+          // 实际上 UI 逻辑是: v-if="pendingTaskId" 显示状态卡片。 v-if="backtestResult" 显示结果卡片。
+          // 如果清空 pendingTaskId，状态卡片会消失。
+          // 我们保留 pendingTaskId，让用户手动刷新也行，或者就在这里保持。
+          // 需求说 "成功后自动展示结果并清空 pending id"。
+          // 那就清空。
+          pendingTaskId.value = null; 
+          fetchHistoryRecords(); // 刷新历史
+      } else if (backendStatus === 'failed') {
+          taskStatus.value = 'failed';
+          error.value = `任务失败: ${result.message}`
+      } else if (backendStatus === 'running') {
+          taskStatus.value = 'processing';
+      } else {
+          taskStatus.value = 'submitted';
       }
     }
     
-    return result.data
+    return result
   } catch (err) {
     console.error('检查任务状态时出错:', err)
     return null
@@ -587,16 +785,48 @@ const fetchHistoryRecords = async () => {
   error.value = ''
   
   try {
-    const response = await fetch(`/api/quant/api/backtest?limit=${pageSize.value}&offset=${(currentPage.value - 1) * pageSize.value}`)
+    const result = await getBacktestList({
+      limit: pageSize.value,
+      offset: (currentPage.value - 1) * pageSize.value
+    })
     
-    if (!response.ok) {
-      throw new Error(`获取历史记录失败: ${response.status}`)
+    // 兼容后端两层封装: handleRequest返回 {success, data: axiosResponse}
+    // axiosResponse.data 才是 {code, message, data: {total, items}}
+    // 或者直接 data: {total, items} 取决于 backend
+    const payload = result.data?.data || result.data;
+    
+    if (result.success && payload) {
+      const items = payload.items || [];
+      // 映射字段以适配表格
+      historyRecords.value = items.map(item => {
+          const metrics = item.metrics || {};
+          const params = item.params || {};
+          let strategyType = '未知';
+          if (params.strategy_mode === 'builtin') {
+              strategyType = `builtin: ${params.strategy_name || ''}`;
+          } else if (params.strategy_mode === 'custom') {
+              strategyType = 'custom';
+          }
+
+          return {
+              id: item.backtest_id,
+              stock_code: item.stock_code,
+              start_date: item.start_date,
+              end_date: item.end_date,
+              strategy_type: strategyType,
+              annual_return: metrics.annual_return || 0,
+              sharpe_ratio: metrics.sharpe_ratio || 0,
+              max_drawdown: metrics.max_drawdown || 0
+          };
+      });
+      
+    } else {
+      error.value = `获取历史记录失败: ${result.message}`
+      historyRecords.value = [];
     }
-    
-    const data = await response.json()
-    historyRecords.value = data.records || []
   } catch (err) {
     error.value = `获取历史记录失败: ${err.message}`
+    console.error(err)
   } finally {
     loadingHistory.value = false
   }
@@ -610,8 +840,8 @@ const changePage = (page) => {
 
 // 查看详情
 const viewDetail = (backtestId) => {
-  // 这里可以跳转到详情页面或显示模态框
-  console.log(`查看回测详情: ${backtestId}`)
+  // 跳转到详情页面
+  router.push({ name: 'BacktestDetail', params: { id: String(backtestId) } })
 }
 
 // 获取回测按钮文本
@@ -633,8 +863,16 @@ const getTaskStatusText = (status) => {
   return statusMap[status] || '未知'
 }
 
-// 初始化时获取历史记录
-fetchHistoryRecords()
+onMounted(() => {
+  fetchBuiltinStrategies()
+  fetchHistoryRecords()
+})
+
+watch(() => backtestForm.strategy_name, (newVal) => {
+  if (newVal) {
+    resetBuiltinParams(newVal)
+  }
+})
 </script>
 
 <style scoped>
@@ -744,6 +982,51 @@ fetchHistoryRecords()
   overflow-y: auto;
   border: 1px solid #ddd;
   background: #f8f8f8;
+}
+
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.param-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.param-label {
+  font-weight: bold;
+  color: #333;
+}
+
+.param-tip {
+  background: #f5f5f5;
+  border: 1px dashed #ddd;
+  padding: 10px 12px;
+  border-radius: 4px;
+  color: #666;
+  margin-top: 6px;
+}
+
+.param-json-wrapper {
+  margin-top: 10px;
+}
+
+.param-json {
+  font-family: monospace;
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-primary,

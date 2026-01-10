@@ -1,31 +1,19 @@
+import http from './http'
+
 // 数字人视频生成服务
 class DigitalHumanService {
-  constructor() {
-    this.baseURL = '/api/ai'
-  }
-
   // 生成数字人视频
   async generateVideo(text, durationLimit = 40, voiceStyle = 'professional') {
     try {
       console.log('开始生成数字人视频:', { text, durationLimit, voiceStyle })
       
-      const response = await fetch(`${this.baseURL}/api/ai/digital-human/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          duration_limit: durationLimit,
-          voice_style: voiceStyle
-        })
+      const response = await http.post('/ai/digital-human/generate', {
+        text,
+        duration_limit: durationLimit,
+        voice_style: voiceStyle
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = response?.data ?? response
       console.log('数字人视频生成响应:', data)
       
       // 验证响应格式
@@ -53,14 +41,13 @@ class DigitalHumanService {
   // 检查任务状态
   async checkTaskStatus(taskId) {
     try {
-      // 注意：这里需要根据实际API调整，假设有检查状态的接口
-      // 目前使用轮询模拟
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await http.get(`/ai/digital-human/status/${taskId}`)
+      const data = response?.data ?? response
       
       return {
         success: true,
-        status: 'completed',
-        videoUrl: `/api/ai/api/ai/digital-human/video/${taskId}`
+        status: data.status || 'completed',
+        videoUrl: data.video_url || `/api/ai/digital-human/video/${taskId}`
       }
     } catch (error) {
       console.error('Task status check error:', error)

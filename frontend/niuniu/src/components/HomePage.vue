@@ -1,21 +1,6 @@
 <template>
   <div>
-    <!-- 登录弹窗 -->
-    <div class="login-modal" v-show="showLogin">
-      <div class="login-box">
-        <span class="close-login" @click="closeLogin">&times;</span>
-        <div class="login-title">量化牛牛 - 登录</div>
-        <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
-        <form class="login-form" @submit.prevent>
-          <input v-model="username" type="text" placeholder="请输入账号" />
-          <input v-model="password" type="password" placeholder="请输入密码" />
-          <button type="button" class="login-btn" @click="submitLogin">登录</button>
-        </form>
-        <div class="login-tips">演示账号：123 | 演示密码：123</div>
-      </div>
-    </div>
-
-    <!-- 动态风险提示弹窗 -->
+    <!-- 动态风险提示弹窗 (登录弹窗已移至全局 LoginModal 组件) -->
     <div class="risk-modal" v-show="showRiskTip">
       <div class="risk-box">
         <div class="risk-icon">⚠️</div>
@@ -33,6 +18,7 @@
       </div>
     </div>
 
+
     <!-- 顶部栏 -->
     <header class="top-bar">
       <div class="container">
@@ -49,12 +35,12 @@
             <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
             <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
               <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-              <div class="dropdown-item logout" @click="logout">退出登录</div>
+              <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
             </div>
             <!-- 如果未登录，显示登录/注册选项 -->
             <div class="user-dropdown" v-show="showUserMenu && !logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-              <div class="dropdown-item" @click="showLoginModal">登录</div>
-              <div class="dropdown-item" @click="showLoginModal">注册</div>
+              <div class="dropdown-item" @click="openLoginModal">登录</div>
+              <div class="dropdown-item" @click="openLoginModal">注册</div>
             </div>
           </div>
         </div>
@@ -111,87 +97,165 @@
         </section>
 
         <!-- 龙虎榜板块（新增切换内容容器） -->
-        <h2 class="section-title">龙虎榜</h2>
-        <div class="tab-switch dragon-tab-switch">
+        <h2 class="section-title">{{ dragonFailed ? '大盘指数' : '龙虎榜' }}</h2>
+        <div v-if="!dragonFailed" class="tab-switch dragon-tab-switch">
           <a href="javascript:;" :class="{ active: dragonTab==='dragon-today' }" @click.prevent="dragonTab='dragon-today'">今日</a>
           <a href="javascript:;" :class="{ active: dragonTab==='dragon-5day' }" @click.prevent="dragonTab='dragon-5day'">5日</a>
           <a href="javascript:;" :class="{ active: dragonTab==='dragon-20day' }" @click.prevent="dragonTab='dragon-20day'">20日</a>
+          <span v-if="dragonLoading" class="loading-indicator">加载中...</span>
         </div>
         <section class="dragon-board">
-          <div v-show="dragonTab==='dragon-today'" class="tab-content dragon-content" id="dragon-today">
-            <table class="dragon-table">
-              <thead>
-                <tr>
-                  <th>名称</th>
-                  <th>最新价</th>
-                  <th>涨跌幅</th>
-                  <th>涨跌</th>
-                  <th>净买入(亿)</th>
-                  <th>上榜理由</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in dragonToday" :key="idx">
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.price }}</td>
-                  <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
-                  <td>{{ row.delta }}</td>
-                  <td>{{ row.net }}</td>
-                  <td>{{ row.reason }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <!-- 龙虎榜失败时显示大盘指数 -->
+          <template v-if="dragonFailed">
+            <!-- 大盘指数加载中 -->
+            <div v-if="marketIndexLoading" class="loading-state">
+              <div class="loading-spinner"></div>
+              <p>正在加载大盘指数数据...</p>
+            </div>
+            <!-- 大盘指数数据 -->
+            <div v-else-if="marketIndexData.length > 0" class="tab-content dragon-content">
+              <table class="dragon-table">
+                <thead>
+                  <tr>
+                    <th>指数名称</th>
+                    <th>最新价</th>
+                    <th>涨跌幅</th>
+                    <th>成交量</th>
+                    <th>成交额</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, idx) in marketIndexData" :key="idx">
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.price }}</td>
+                    <td><span :class="row.change > 0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
+                    <td>{{ row.volume }}</td>
+                    <td>{{ row.amount }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- 数据丢失 -->
+            <div v-else class="error-state">
+              <p>{{ marketIndexError || '数据丢失' }}</p>
+              <button @click="loadMarketIndex" class="retry-btn">重试</button>
+            </div>
+          </template>
+          
+          <!-- 龙虎榜正常显示 -->
+          <template v-else>
+            <!-- 加载状态 -->
+            <div v-if="dragonLoading && dragonTab==='dragon-today'" class="loading-state">
+              <div class="loading-spinner"></div>
+              <p>正在加载龙虎榜数据...</p>
+            </div>
+            
+            <!-- 错误状态 -->
+            <div v-else-if="dragonError && dragonTab==='dragon-today' && dragonToday.length === 0" class="error-state">
+              <p>{{ dragonError }}</p>
+              <button @click="loadDragonData(1)" class="retry-btn">重试</button>
+            </div>
+            
+            <div v-show="dragonTab==='dragon-today' && !dragonLoading" class="tab-content dragon-content" id="dragon-today">
+              <template v-if="dragonToday.length > 0">
+                <table class="dragon-table">
+                  <thead>
+                    <tr>
+                      <th>名称</th>
+                      <th>最新价</th>
+                      <th>涨跌幅</th>
+                      <th>涨跌</th>
+                      <th>净买入(亿)</th>
+                      <th>上榜理由</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, idx) in dragonToday" :key="idx">
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.price }}</td>
+                      <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
+                      <td>{{ row.delta }}</td>
+                      <td>{{ row.net }}</td>
+                      <td>{{ row.reason }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+              <div v-else class="error-state">
+                <p>数据丢失</p>
+              </div>
+            </div>
 
-          <div v-show="dragonTab==='dragon-5day'" class="tab-content dragon-content" id="dragon-5day">
-            <table class="dragon-table">
-              <thead>
-                <tr>
-                  <th>名称</th>
-                  <th>最新价</th>
-                  <th>涨跌幅</th>
-                  <th>涨跌</th>
-                  <th>净买入(亿)</th>
-                  <th>上榜理由</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in dragon5" :key="idx">
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.price }}</td>
-                  <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
-                  <td>{{ row.delta }}</td>
-                  <td>{{ row.net }}</td>
-                  <td>{{ row.reason }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            <div v-show="dragonTab==='dragon-5day'" class="tab-content dragon-content" id="dragon-5day">
+              <!-- 5日加载状态 -->
+              <div v-if="dragonLoading && dragon5Data.length === 0" class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>正在加载5日龙虎榜数据...</p>
+              </div>
+              <template v-else-if="dragon5.length > 0">
+                <table class="dragon-table">
+                  <thead>
+                    <tr>
+                      <th>名称</th>
+                      <th>最新价</th>
+                      <th>涨跌幅</th>
+                      <th>涨跌</th>
+                      <th>净买入(亿)</th>
+                      <th>上榜理由</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, idx) in dragon5" :key="idx">
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.price }}</td>
+                      <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
+                      <td>{{ row.delta }}</td>
+                      <td>{{ row.net }}</td>
+                      <td>{{ row.reason }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+              <div v-else class="error-state">
+                <p>数据丢失</p>
+              </div>
+            </div>
 
-          <div v-show="dragonTab==='dragon-20day'" class="tab-content dragon-content" id="dragon-20day">
-            <table class="dragon-table">
-              <thead>
-                <tr>
-                  <th>名称</th>
-                  <th>最新价</th>
-                  <th>涨跌幅</th>
-                  <th>涨跌</th>
-                  <th>净买入(亿)</th>
-                  <th>上榜理由</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in dragon20" :key="idx">
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.price }}</td>
-                  <td><span class="green">{{ row.changeText }}</span></td>
-                  <td>{{ row.delta }}</td>
-                  <td>{{ row.net }}</td>
-                  <td>{{ row.reason }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            <div v-show="dragonTab==='dragon-20day'" class="tab-content dragon-content" id="dragon-20day">
+              <!-- 20日加载状态 -->
+              <div v-if="dragonLoading && dragon20Data.length === 0" class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>正在加载20日龙虎榜数据...</p>
+              </div>
+              <template v-else-if="dragon20.length > 0">
+                <table class="dragon-table">
+                  <thead>
+                    <tr>
+                      <th>名称</th>
+                      <th>最新价</th>
+                      <th>涨跌幅</th>
+                      <th>涨跌</th>
+                      <th>净买入(亿)</th>
+                      <th>上榜理由</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, idx) in dragon20" :key="idx">
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.price }}</td>
+                      <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
+                      <td>{{ row.delta }}</td>
+                      <td>{{ row.net }}</td>
+                      <td>{{ row.reason }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+              <div v-else class="error-state">
+                <p>数据丢失</p>
+              </div>
+            </div>
+          </template>
         </section>
 
         <!-- 公司研报板块 -->
@@ -408,7 +472,9 @@
                   <label>
                     股票代码：<input v-model="newsStockCode" placeholder="如：000001" type="text">
                   </label>
-                  <button @click="generateNews" class="ai-submit-btn">生成解读</button>
+                  <button @click="generateNews" class="ai-submit-btn" :disabled="aiLoading">
+                    {{ aiLoading ? '生成中...' : '生成解读' }}
+                  </button>
                 </div>
               </div>
 
@@ -423,7 +489,9 @@
                       <option value="zipline">Zipline</option>
                     </select>
                   </label>
-                  <button @click="generateStrategy" class="ai-submit-btn">生成策略</button>
+                    <button @click="generateStrategy" class="ai-submit-btn" :disabled="aiLoading">
+                      {{ aiLoading ? '生成中...' : '生成策略' }}
+                    </button>
                 </div>
               </div>
 
@@ -439,7 +507,9 @@
                       <option value="paragraph">段落式</option>
                     </select>
                   </label>
-                  <button @click="generateSummary" class="ai-submit-btn">生成摘要</button>
+                    <button @click="generateSummary" class="ai-submit-btn" :disabled="aiLoading">
+                      {{ aiLoading ? '生成中...' : '生成摘要' }}
+                    </button>
                 </div>
               </div>
 
@@ -450,7 +520,9 @@
                   <label>
                     <input type="checkbox" v-model="includeRisks"> 包含风险分析
                   </label>
-                  <button @click="generateReport" class="ai-submit-btn">生成研报</button>
+                  <button @click="generateReport" class="ai-submit-btn" :disabled="aiLoading">
+                    {{ aiLoading ? '生成中...' : '生成研报' }}
+                  </button>
                 </div>
               </div>
 
@@ -482,24 +554,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from './FooterComponent.vue'
+import { getTopListSummary, getMarketOverview, getRealtimeQuotes } from '@/services/marketService'
+import { generateNewsAnalysis, generateStrategy as generateStrategyApi, generateSummary as generateSummaryApi, generateReport as generateReportApi } from '@/services/aiService'
+import { useAuth } from '@/composables/useAuth'
+import chatService from '@/services/chatService'
+
+// 使用全局认证
+const { logged, userText, isQualifiedInvestor, showRiskTip, openLoginModal, logout, confirmRiskTip } = useAuth()
 
 const search = ref('')
 const dragonTab = ref('dragon-today')
 const reportTab = ref('report-latest')
 
+// 龙虎榜数据状态
+const dragonLoading = ref(false)
+const dragonError = ref('')
+const dragonFailed = ref(false) // 龙虎榜加载失败标记
+
+// 大盘指数数据（龙虎榜失败时显示）
+const marketIndexData = ref([])
+const marketIndexLoading = ref(false)
+const marketIndexError = ref('')
+
 // 用户菜单相关状态
 const showUserMenu = ref(false)
-const username = ref('')
-const password = ref('')
-const showLogin = ref(false)
-const errorVisible = ref(false)
-const logged = ref(false)
-const userText = ref('登录/注册')
-const showRiskTip = ref(false)
-const isQualifiedInvestor = ref(false)
 
 const router = useRouter()
 
@@ -535,7 +616,7 @@ const onDropdownLeave = () => {
 
 const toggleUserMenu = () => {
   if (!logged.value) {
-    showLogin.value = true
+    openLoginModal()
     showUserMenu.value = false
   } else {
     clearTimeout(menuTimeout)
@@ -548,43 +629,10 @@ const goToCompanyResearch = () => {
   router.push('/company-research')
 }
 
-const showLoginModal = () => {
+// 退出登录处理
+const handleLogout = () => {
+  logout()
   showUserMenu.value = false
-  showLogin.value = true
-}
-
-const submitLogin = () => {
-  if (username.value.trim() === '123' && password.value.trim() === '123') {
-    // 登录成功，显示动态风险提示
-    showRiskTip.value = true
-    showLogin.value = false
-    errorVisible.value = false
-    // 清空输入框
-    username.value = ''
-    password.value = ''
-  } else {
-    errorVisible.value = true
-    setTimeout(() => (errorVisible.value = false), 3000)
-  }
-}
-
-const closeLogin = () => { showLogin.value = false }
-
-const confirmRiskTip = () => {
-  showRiskTip.value = false
-  logged.value = true
-  userText.value = '已登录（123）'
-  localStorage.setItem('quantLogin', '123')
-  showUserMenu.value = false
-  // 强制检查认证状态
-  isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
-}
-
-const logout = () => {
-  logged.value = false
-  userText.value = '登录/注册'
-  showUserMenu.value = false
-  localStorage.removeItem('quantLogin')
 }
 
 const goToUserProfile = () => {
@@ -597,20 +645,9 @@ const goToNewsDetail = (id) => {
   router.push(`/news-detail/${id}`)
 }
 
-// 页面加载时检查登录状态
+// 页面加载时的初始化（认证状态已在 App.vue 中初始化）
 onMounted(() => {
-  const status = localStorage.getItem('quantLogin')
-  if (status === '123') {
-    logged.value = true
-    userText.value = '已登录（123）'
-    // 强制检查并设置认证状态
-    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
-  } else {
-    // 如果没有登录，确保认证状态为false
-    isQualifiedInvestor.value = false
-  }
-  // 如果未登录，默认显示登录弹窗以与原始静态页面行为一致
-  if (!logged.value) showLogin.value = true
+  // 认证状态已由 useAuth 全局管理，不需要在这里重复初始化
 })
 
 // AI服务相关状态
@@ -618,6 +655,7 @@ const showAiModal = ref(false)
 const activeAiService = ref('')
 const aiResult = ref('')
 const aiModel = ref('')
+const aiLoading = ref(false)
 
 // 输入数据
 const newsInput = ref('')
@@ -631,6 +669,9 @@ const includeRisks = ref(true)
 
 // API状态
 const apiStatus = ref('checking') // checking, online, offline
+
+// 统一提取 AI 返回数据
+const extractPayload = (result) => result?.data?.data || result?.data || {}
 
 // AI服务函数
 const openAiModal = (service) => {
@@ -702,29 +743,32 @@ const generateNews = async () => {
     aiResult.value = '请输入新闻内容'
     return
   }
-  
+
+  if (!logged.value) {
+    openLoginModal()
+    aiResult.value = '请先登录再使用AI服务'
+    return
+  }
+
   try {
-    const response = await fetch('/api/ai/api/ai/generate/news', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        news_flash: newsInput.value,
-        stock_code: newsStockCode.value || undefined
-      })
+    aiLoading.value = true
+    const result = await generateNewsAnalysis({
+      news_flash: newsInput.value,
+      stock_code: newsStockCode.value || undefined
     })
-    
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`)
+
+    if (result.success) {
+      const payload = extractPayload(result)
+      aiResult.value = payload.news_content || payload.content || 'AI未返回内容'
+      aiModel.value = payload.model || '未知'
+    } else {
+      throw new Error(result.message || 'AI服务暂时不可用')
     }
-    
-    const data = await response.json()
-    aiResult.value = data.news_content
-    aiModel.value = data.model
   } catch (error) {
     aiResult.value = `生成新闻解读失败: ${error.message}`
     aiModel.value = '未知'
+  } finally {
+    aiLoading.value = false
   }
 }
 
@@ -733,29 +777,34 @@ const generateStrategy = async () => {
     aiResult.value = '请输入策略描述'
     return
   }
-  
+
+  if (!logged.value) {
+    openLoginModal()
+    aiResult.value = '请先登录再使用AI服务'
+    return
+  }
+
   try {
-    const response = await fetch('/api/ai/api/ai/generate/strategy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        user_description: strategyInput.value,
-        framework: strategyFramework.value
-      })
+    aiLoading.value = true
+    const result = await generateStrategyApi({
+      user_description: strategyInput.value,
+      framework: strategyFramework.value
     })
-    
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`)
+
+    if (result.success) {
+      const payload = extractPayload(result)
+      const explanation = payload.explanation || ''
+      const code = payload.strategy_code || payload.code || ''
+      aiResult.value = code && explanation ? `${explanation}\n\n${code}` : (explanation || code || 'AI未返回内容')
+      aiModel.value = payload.model || '未知'
+    } else {
+      throw new Error(result.message || 'AI服务暂时不可用')
     }
-    
-    const data = await response.json()
-    aiResult.value = `${data.explanation}\n\n${data.strategy_code}`
-    aiModel.value = data.model
   } catch (error) {
     aiResult.value = `生成策略失败: ${error.message}`
     aiModel.value = '未知'
+  } finally {
+    aiLoading.value = false
   }
 }
 
@@ -764,29 +813,32 @@ const generateSummary = async () => {
     aiResult.value = '请输入要摘要的内容'
     return
   }
-  
+
+  if (!logged.value) {
+    openLoginModal()
+    aiResult.value = '请先登录再使用AI服务'
+    return
+  }
+
   try {
-    const response = await fetch('/api/ai/api/ai/generate/summary', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        content: summaryInput.value,
-        summary_type: summaryType.value
-      })
+    aiLoading.value = true
+    const result = await generateSummaryApi({
+      content: summaryInput.value,
+      summary_type: summaryType.value
     })
-    
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`)
+
+    if (result.success) {
+      const payload = extractPayload(result)
+      aiResult.value = payload.summary || payload.content || 'AI未返回内容'
+      aiModel.value = payload.model || '未知'
+    } else {
+      throw new Error(result.message || 'AI服务暂时不可用')
     }
-    
-    const data = await response.json()
-    aiResult.value = data.summary
-    aiModel.value = data.model
   } catch (error) {
     aiResult.value = `生成摘要失败: ${error.message}`
     aiModel.value = '未知'
+  } finally {
+    aiLoading.value = false
   }
 }
 
@@ -795,29 +847,32 @@ const generateReport = async () => {
     aiResult.value = '请输入公司信息'
     return
   }
-  
+
+  if (!logged.value) {
+    openLoginModal()
+    aiResult.value = '请先登录再使用AI服务'
+    return
+  }
+
   try {
-    const response = await fetch('/api/ai/api/ai/report/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        company_info: reportInput.value,
-        include_risks: includeRisks.value
-      })
+    aiLoading.value = true
+    const result = await generateReportApi({
+      company_info: reportInput.value,
+      include_risks: includeRisks.value
     })
-    
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`)
+
+    if (result.success) {
+      const payload = extractPayload(result)
+      aiResult.value = payload.report_content || payload.content || 'AI未返回内容'
+      aiModel.value = payload.model || '未知'
+    } else {
+      throw new Error(result.message || 'AI服务暂时不可用')
     }
-    
-    const data = await response.json()
-    aiResult.value = data.report_content
-    aiModel.value = data.model
   } catch (error) {
     aiResult.value = `生成研报失败: ${error.message}`
     aiModel.value = '未知'
+  } finally {
+    aiLoading.value = false
   }
 }
 
@@ -825,8 +880,8 @@ const generateReport = async () => {
 const checkApiStatus = async () => {
   apiStatus.value = 'checking'
   try {
-    const response = await fetch('/api/ai/health')
-    if (response.ok) {
+    const result = await chatService.checkHealth()
+    if (result.success) {
       apiStatus.value = 'online'
     } else {
       apiStatus.value = 'offline'
@@ -836,34 +891,133 @@ const checkApiStatus = async () => {
   }
 }
 
-// 页面加载时检查API状态
-onMounted(() => {
-  checkApiStatus()
+// 加载龙虎榜数据（根据天数）
+const loadDragonData = async (days = 1) => {
+  dragonLoading.value = true
+  dragonError.value = ''
+  
+  try {
+    const result = await getTopListSummary(days)
+    
+    if (result.success && result.data?.data && result.data.data.length > 0) {
+      // 转换 API 数据为前端格式
+      const formattedData = result.data.data.slice(0, 10).map(item => ({
+        name: item.name || '',
+        price: item.close?.toFixed(2) || '-',
+        change: item.pct_change || 0,
+        changeText: item.pct_change ? `${item.pct_change > 0 ? '+' : ''}${item.pct_change.toFixed(2)}%` : '-',
+        delta: item.pct_change?.toFixed(2) || '-',
+        net: item.net_amount ? (item.net_amount / 100000000).toFixed(2) : '-', // 转换为亿
+        reason: item.reason || '-'
+      }))
+      
+      // 根据天数存储到对应的数据中
+      if (days === 1) {
+        dragonTodayData.value = formattedData
+        dragonFailed.value = false
+      } else if (days === 5) {
+        dragon5Data.value = formattedData
+      } else if (days === 20) {
+        dragon20Data.value = formattedData
+      }
+    } else {
+      dragonError.value = '数据丢失'
+      if (days === 1) {
+        dragonFailed.value = true
+        // 龙虎榜加载失败，尝试加载大盘指数作为替代
+        loadMarketIndex()
+      }
+    }
+  } catch (e) {
+    console.error(`加载${days}日龙虎榜失败:`, e)
+    dragonError.value = '数据丢失'
+    if (days === 1) {
+      dragonFailed.value = true
+      // 龙虎榜加载失败，尝试加载大盘指数作为替代
+      loadMarketIndex()
+    }
+  } finally {
+    dragonLoading.value = false
+  }
+}
+
+// 加载大盘指数数据（龙虎榜失败时替代显示）
+const loadMarketIndex = async () => {
+  marketIndexLoading.value = true
+  marketIndexError.value = ''
+  
+  try {
+    const result = await getMarketOverview()
+    
+    if (result.success && result.data) {
+      // 转换 API 数据为前端格式
+      // data-service 返回: {"trade_date", "market_status", "indices": [...], "total_turnover"}
+      const data = result.data.data || result.data
+      if (data.indices && data.indices.length > 0) {
+        // 指数名称映射
+        const indexNameMap = {
+          '000001.SH': '上证指数',
+          '399001.SZ': '深证成指',
+          '399006.SZ': '创业板指',
+          '000016.SH': '上证50',
+          '000300.SH': '沪深300',
+          '000905.SH': '中证500',
+          '000688.SH': '科创50'
+        }
+        
+        marketIndexData.value = data.indices.map(item => {
+          const symbol = item.symbol || item.code || ''
+          return {
+            name: indexNameMap[symbol] || item.name || symbol,
+            price: item.close?.toFixed(2) || item.latest_price?.toFixed(2) || '-',
+            change: item.pct_change || item.change || 0,
+            changeText: item.pct_change 
+              ? `${item.pct_change > 0 ? '+' : ''}${item.pct_change.toFixed(2)}%` 
+              : '-',
+            volume: item.vol ? (item.vol / 100000000).toFixed(2) + '亿' : '-',
+            amount: item.amount ? (item.amount / 100000000).toFixed(2) + '亿' : '-'
+          }
+        })
+      } else {
+        marketIndexError.value = '数据丢失'
+      }
+    } else {
+      marketIndexError.value = '数据丢失'
+    }
+  } catch (e) {
+    console.error('加载大盘指数失败:', e)
+    marketIndexError.value = '数据丢失'
+  } finally {
+    marketIndexLoading.value = false
+  }
+}
+
+// 龙虎榜数据存储
+const dragonTodayData = ref([])
+const dragon5Data = ref([])
+const dragon20Data = ref([])
+
+// 计算属性：根据 tab 返回对应数据（无数据时返回空数组）
+const dragonToday = computed(() => dragonTodayData.value)
+const dragon5 = computed(() => dragon5Data.value)
+const dragon20 = computed(() => dragon20Data.value)
+
+// 监听 tab 切换，加载对应数据
+watch(dragonTab, (newTab) => {
+  if (newTab === 'dragon-today' && dragonTodayData.value.length === 0 && !dragonFailed.value) {
+    loadDragonData(1)
+  } else if (newTab === 'dragon-5day' && dragon5Data.value.length === 0) {
+    loadDragonData(5)
+  } else if (newTab === 'dragon-20day' && dragon20Data.value.length === 0) {
+    loadDragonData(20)
+  }
 })
 
-const dragonToday = [
-  { name: '宁德时代', price: '545.40', change: 5.23, changeText: '+5.23%', delta: '8.24', net: '8.24', reason: '日涨幅偏离值达7%' },
-  { name: '贵州茅台', price: '1535.00', change: 1.45, changeText: '+1.45%', delta: '6.92', net: '6.92', reason: '连续三个交易日内涨幅20%' },
-  { name: '招商银行', price: '42.16', change: -1.51, changeText: '-1.51%', delta: '-2.95', net: '-2.95', reason: '日换手率达20%' },
-  { name: '隆基绿能', price: '76.25', change: 4.84, changeText: '+4.84%', delta: '5.43', net: '5.43', reason: '日换手率达20%' },
-  { name: '东方财富', price: '23.33', change: -1.18, changeText: '-1.18%', delta: '-1.27', net: '-1.27', reason: '日跌幅偏离值达7%' }
-]
-
-const dragon5 = [
-  { name: '比亚迪', price: '250.60', change: 8.32, changeText: '+8.32%', delta: '19.20', net: '45.60', reason: '5日涨幅偏离值达15%' },
-  { name: '五粮液', price: '185.30', change: 6.15, changeText: '+6.15%', delta: '10.80', net: '32.40', reason: '5日换手率达30%' },
-  { name: '阳光电源', price: '120.50', change: 12.45, changeText: '+12.45%', delta: '13.40', net: '38.90', reason: '5日净流入超30亿' },
-  { name: '迈瑞医疗', price: '305.80', change: 7.23, changeText: '+7.23%', delta: '20.50', net: '28.70', reason: '5日涨幅偏离值达12%' },
-  { name: '爱尔眼科', price: '55.20', change: 9.65, changeText: '+9.65%', delta: '5.10', net: '22.30', reason: '5日成交量翻倍' }
-]
-
-const dragon20 = [
-  { name: '宁德时代', price: '568.80', changeText: '+12.8%', delta: '65.40', net: '128.60', reason: '20日涨幅偏离值达20%' },
-  { name: '贵州茅台', price: '1589.00', changeText: '+8.5%', delta: '124.00', net: '98.50', reason: '20日换手率达15%' },
-  { name: '招商银行', price: '45.20', changeText: '+6.5%', delta: '2.84', net: '45.80', reason: '20日净流入超50亿' },
-  { name: '隆基绿能', price: '82.50', changeText: '+15.6%', delta: '11.05', net: '78.20', reason: '20日涨幅偏离值达18%' },
-  { name: '东方财富', price: '25.80', changeText: '+10.6%', delta: '2.47', net: '65.30', reason: '20日成交量翻倍' }
-]
+// 页面加载时检查API状态并加载龙虎榜
+onMounted(() => {
+  checkApiStatus()
+  loadDragonData(1) // 默认加载今日数据
+})
 
 const reportCards = [
   { name: '键凯科技', tag: '买入', tagClass: 'mai-ru', priceLabel: '当前价', price: '71.25元', profitLabel: '目标价格', profit: '94.00%', tags: ['光伏', '碳中和', '新能源'] },
@@ -904,6 +1058,58 @@ const funds = [
     background-color: transparent;
     transform: scale(1);
   }
+}
+
+/* 龙虎榜加载状态样式 */
+.loading-indicator {
+  margin-left: 15px;
+  color: #ff7f24;
+  font-size: 12px;
+}
+
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: #fff8f0;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #ffe0c0;
+  border-top-color: #ff7f24;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p,
+.error-state p {
+  margin-top: 15px;
+  color: #666;
+}
+
+.retry-btn {
+  margin-top: 10px;
+  padding: 8px 20px;
+  background: #ff7f24;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.retry-btn:hover {
+  background: #ff6a00;
 }
 
 /* 用户菜单样式 */
@@ -1028,16 +1234,61 @@ const funds = [
   background-color: #ff6a00;
 }
 
-.login-tips {
+.login-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.login-btn.register-btn {
+  background-color: #4CAF50;
+}
+
+.login-btn.register-btn:hover {
+  background-color: #45a049;
+}
+
+.login-switch {
   text-align: center;
   font-size: 14px;
   color: #666;
-  margin-top: 10px;
+  margin-top: 15px;
+}
+
+.login-switch a {
+  color: #ff7f24;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.login-switch a:hover {
+  text-decoration: underline;
+}
+
+.login-tips {
+  text-align: center;
+  font-size: 13px;
+  color: #999;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
 }
 
 .error-tips {
   color: #ff4500;
   text-align: center;
+  margin-bottom: 10px;
+  padding: 8px;
+  background-color: #fff0f0;
+  border-radius: 4px;
+}
+
+.success-tips {
+  color: #4CAF50;
+  text-align: center;
+  margin-bottom: 10px;
+  padding: 8px;
+  background-color: #f0fff0;
+  border-radius: 4px;
 }
 
 /* 动态风险提示样式 */

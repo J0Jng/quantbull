@@ -1,73 +1,21 @@
-import { ref } from 'vue'
-import axios from 'axios'
+/**
+ * 策略服务
+ * 对接后端 /api/strategy/* 接口
+ */
+import http, { handleRequest } from './http'
 
-// API基础配置
-const API_BASE_URL = '/api/quant/api'
-const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 请求拦截器 - 添加认证token
-axiosInstance.interceptors.request.use(config => {
-  const token = localStorage.getItem('access_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-}, error => {
-  return Promise.reject(error)
-})
-
-// 响应拦截器 - 统一错误处理
-axiosInstance.interceptors.response.use(response => {
-  return response.data
-}, error => {
-  if (error.response) {
-    const { status, data } = error.response
-    let message = '请求失败'
-    if (data && data.message) {
-      message = data.message
-    } else if (status === 401) {
-      message = '认证失败，请重新登录'
-    } else if (status === 403) {
-      message = '无权限访问该资源'
-    } else if (status === 404) {
-      message = '资源不存在'
-    } else if (status >= 500) {
-      message = '服务器错误'
-    }
-    return Promise.reject({ message, status })
-  } else if (error.request) {
-    return Promise.reject({ message: '网络错误，请检查网络连接' })
-  } else {
-    return Promise.reject({ message: error.message || '请求失败' })
-  }
-})
-
-// 请求工具函数
-const handleRequest = async (request) => {
-  try {
-    const response = await request()
-    return {
-      success: true,
-      data: response
-    }
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message || '请求失败'
-    }
-  }
-}
-
-// 获取策略列表
+/**
+ * 获取策略列表
+ * GET /api/strategy
+ * @param {Object} params - 查询参数
+ * @param {string} params.status - 状态筛选
+ * @param {string} params.search - 搜索关键词
+ * @param {number} params.limit - 每页数量
+ * @param {number} params.offset - 偏移量
+ */
 export const getStrategies = async (params = {}) => {
   return handleRequest(() => 
-    axiosInstance.get('/strategy', {
+    http.get('/strategy', {
       params: {
         status: params.status,
         search: params.search,
@@ -78,64 +26,107 @@ export const getStrategies = async (params = {}) => {
   )
 }
 
-// 获取策略详情
+/**
+ * 获取策略详情
+ * GET /api/strategy/{id}
+ * @param {number} id - 策略 ID
+ */
 export const getStrategy = async (id) => {
-  return handleRequest(() => 
-    axiosInstance.get(`/strategy/${id}`)
-  )
+  return handleRequest(() => http.get(`/strategy/${id}`))
 }
 
-// 创建策略
+/**
+ * 创建策略
+ * POST /api/strategy
+ * @param {Object} strategyData - 策略数据
+ */
 export const createStrategy = async (strategyData) => {
-  return handleRequest(() =>
-    axiosInstance.post('/strategy', strategyData)
-  )
+  return handleRequest(() => http.post('/strategy', strategyData))
 }
 
-// 更新策略
+/**
+ * 更新策略
+ * PUT /api/strategy/{id}
+ * @param {number} id - 策略 ID
+ * @param {Object} updateData - 更新数据
+ */
 export const updateStrategy = async (id, updateData) => {
-  return handleRequest(() =>
-    axiosInstance.put(`/strategy/${id}`, updateData)
-  )
+  return handleRequest(() => http.put(`/strategy/${id}`, updateData))
 }
 
-// 删除策略
+/**
+ * 删除策略
+ * DELETE /api/strategy/{id}
+ * @param {number} id - 策略 ID
+ */
 export const deleteStrategy = async (id) => {
-  return handleRequest(() =>
-    axiosInstance.delete(`/strategy/${id}`)
-  )
+  return handleRequest(() => http.delete(`/strategy/${id}`))
 }
 
-// 验证策略代码
+/**
+ * 验证策略代码
+ * POST /api/strategy/validate
+ * @param {string} code - 策略代码
+ */
 export const validateStrategyCode = async (code) => {
-  return handleRequest(() =>
-    axiosInstance.post('/strategy/validate', { code })
-  )
+  return handleRequest(() => http.post('/strategy/validate', { code }))
 }
 
-// 获取策略回测历史
+/**
+ * 获取策略回测历史
+ * GET /api/backtest
+ * @param {number} strategyId - 策略 ID
+ */
 export const getStrategyBacktests = async (strategyId) => {
-  return handleRequest(() =>
-    axiosInstance.get(`/backtest?strategy_id=${strategyId}`)
+  return handleRequest(() => 
+    http.get('/backtest', { params: { strategy_id: strategyId } })
   )
 }
 
-// 运行策略回测
+/**
+ * 运行策略回测
+ * POST /api/backtest/run
+ * @param {number} strategyId - 策略 ID
+ * @param {Object} backtestParams - 回测参数
+ */
 export const runBacktest = async (strategyId, backtestParams) => {
-  return handleRequest(() =>
-    axiosInstance.post('/backtest/run', {
+  return handleRequest(() => 
+    http.post('/backtest/run', {
       ...backtestParams,
       strategy_id: strategyId
     })
   )
 }
 
-// 生成策略模板
+/**
+ * 生成策略模板（AI 生成）
+ * POST /api/ai/generate/strategy
+ * @param {string} templateType - 模板类型描述
+ */
 export const generateStrategyTemplate = async (templateType) => {
-  return handleRequest(() =>
-    axiosInstance.post('/ai/api/ai/generate/strategy', {
+  return handleRequest(() => 
+    http.post('/ai/generate/strategy', {
       user_description: `Generate a ${templateType} strategy template`,
       framework: 'backtrader'
     })
   )
+}
+
+/**
+ * 获取内置策略列表
+ * GET /api/strategy/builtin
+ */
+export const getBuiltinStrategies = async () => {
+  return handleRequest(() => http.get('/strategy/builtin'))
+}
+
+/**
+ * AI 生成策略代码
+ * POST /api/ai/generate/strategy
+ * @param {Object} data - 请求数据
+ * @param {string} data.user_description - 策略描述
+ * @param {string} data.framework - 框架类型
+ */
+export const generateStrategyCode = async (data) => {
+  return handleRequest(() => http.post('/ai/generate/strategy', data))
 }

@@ -28,6 +28,7 @@ from services.token_service import token_service, TokenConsumeError
 
 from core.logger import get_logger
 from core.response import success, ApiResponse
+from core.config import settings
 from schemas.ai import TaskType, ModelType
 
 logger = get_logger(__name__)
@@ -42,6 +43,16 @@ summary_service = SummaryService()
 strategy_service = StrategyService()
 report_service = ReportService()
 digital_human_service = DigitalHumanService()
+
+
+@router.get("/health", summary="AI Hub 健康检查")
+async def ai_health_check() -> dict:
+    """健康检查（路由前缀为 /api/ai）"""
+    return success({
+        "status": "ok",
+        "service": "ai-hub",
+        "env": settings.env,
+    })
 
 
 @router.post("/generate/news", response_model=NewsGenerationResponse, summary="生成新闻解读")

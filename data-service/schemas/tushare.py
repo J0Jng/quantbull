@@ -47,3 +47,36 @@ class StockBasicResponse(BaseModel):
     """股票基础信息响应"""
     data: List[dict] = Field(default_factory=list, description="股票基础信息列表")
 
+
+class TopListRequest(BaseModel):
+    """龙虎榜请求"""
+    trade_date: str = Field(..., description="交易日期 YYYYMMDD")
+    
+    @field_validator("trade_date")
+    @classmethod
+    def validate_date_format(cls, v: str) -> str:
+        """验证日期格式"""
+        if len(v) != 8 or not v.isdigit():
+            raise ValueError("日期格式必须为 YYYYMMDD")
+        return v
+
+
+class TopListItem(BaseModel):
+    """龙虎榜数据项"""
+    ts_code: str = Field(..., description="股票代码")
+    name: str = Field(..., description="股票名称")
+    close: Optional[float] = Field(None, description="收盘价")
+    pct_change: Optional[float] = Field(None, description="涨跌幅")
+    turnover_rate: Optional[float] = Field(None, description="换手率")
+    amount: Optional[float] = Field(None, description="总成交额")
+    l_sell: Optional[float] = Field(None, description="龙虎榜卖出额")
+    l_buy: Optional[float] = Field(None, description="龙虎榜买入额")
+    net_amount: Optional[float] = Field(None, description="龙虎榜净买入额")
+    reason: Optional[str] = Field(None, description="上榜理由")
+
+
+class TopListResponse(BaseModel):
+    """龙虎榜响应"""
+    data: List[TopListItem] = Field(default_factory=list, description="龙虎榜数据列表")
+    trade_date: str = Field(..., description="交易日期")
+

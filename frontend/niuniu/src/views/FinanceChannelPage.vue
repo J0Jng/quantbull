@@ -1,37 +1,4 @@
 <template>
-  <!-- 登录弹窗 -->
-  <div class="login-modal" v-show="showLogin">
-    <div class="login-box">
-      <span class="close-login" @click="closeLogin">&times;</span>
-      <div class="login-title">量化牛牛财经频道 - 登录</div>
-      <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
-      <form class="login-form" @submit.prevent>
-        <input v-model="username" type="text" placeholder="请输入账号" />
-        <input v-model="password" type="password" placeholder="请输入密码" />
-        <button type="button" class="login-btn" @click="submitLogin">登录</button>
-      </form>
-      <div class="login-tips">演示账号：123 | 演示密码：123</div>
-    </div>
-  </div>
-
-  <!-- 动态风险提示弹窗 -->
-  <div class="risk-modal" v-show="showRiskTip">
-    <div class="risk-box">
-      <div class="risk-icon">⚠️</div>
-      <div class="risk-title">风险提示</div>
-      <div class="risk-content">
-        <p>尊敬的用户，您正在登录量化牛牛财经频道。投资有风险，入市需谨慎。请注意：</p>
-        <ul>
-          <li>金融市场存在波动风险，过往业绩不代表未来表现</li>
-          <li>财经信息仅供参考，不构成投资建议</li>
-          <li>请根据自身风险承受能力合理决策</li>
-          <li>建议您详细了解产品风险收益特征</li>
-        </ul>
-      </div>
-      <button class="risk-confirm-btn" @click="confirmRiskTip">我已阅读并了解风险</button>
-    </div>
-  </div>
-
   <div>
     <!-- 头部 -->
     <div class="header">
@@ -43,7 +10,7 @@
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
             <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="logout">退出登录</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
           </div>
         </div>
       </div>
@@ -158,18 +125,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 
-const username = ref('')
-const password = ref('')
-const showLogin = ref(false)
-const errorVisible = ref(false)
-const logged = ref(false)
-const userText = ref('登录/注册')
+// 使用全局认证
+const { logged, userText, isQualifiedInvestor, openLoginModal, logout } = useAuth()
+
 const showUserMenu = ref(false)
 const searchQuery = ref('')
 const activeCategory = ref('finance-news')
-const showRiskTip = ref(false)
-const isQualifiedInvestor = ref(false)
 
 const router = useRouter()
 
@@ -190,7 +153,7 @@ function go(id) {
 
 function toggleUserMenu() {
   if (!logged.value) {
-    showLogin.value = true 
+    openLoginModal()
     showUserMenu.value = false
   } else {
     showUserMenu.value = !showUserMenu.value
@@ -216,57 +179,10 @@ function onDropdownLeave() {
   showUserMenu.value = false
 }
 
-function submitLogin() {
-  if (username.value.trim() === '123' && password.value.trim() === '123') {
-    // 登录成功，显示动态风险提示
-    showRiskTip.value = true
-    showLogin.value = false
-    errorVisible.value = false
-    // 清空输入框
-    username.value = ''
-    password.value = ''
-  } else {
-    errorVisible.value = true
-    setTimeout(() => (errorVisible.value = false), 3000)
-  }
-}
-
-function closeLogin() { 
-  showLogin.value = false 
-}
-
-function confirmRiskTip() {
-  showRiskTip.value = false
-  logged.value = true
-  userText.value = '已登录（123）'
-  localStorage.setItem('quantLogin', '123')
+function handleLogout() {
+  logout()
   showUserMenu.value = false
-  // 强制检查认证状态
-  isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
 }
-
-function logout() {
-  logged.value = false
-  userText.value = '登录/注册'
-  showUserMenu.value = false
-  localStorage.removeItem('quantLogin')
-}
-
-// 检查本地存储中的登录状态
-onMounted(() => {
-  const status = localStorage.getItem('quantLogin')
-  if (status === '123') {
-    logged.value = true
-    userText.value = '已登录（123）'
-    // 强制检查并设置认证状态
-    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
-  } else {
-    // 如果没有登录，确保认证状态为false
-    isQualifiedInvestor.value = false
-  }
-  // 如果未登录，默认显示登录弹窗以与原始静态页面行为一致
-  if (!logged.value) showLogin.value = true
-})
 
 // 模拟数据
 const newsItems = ref([

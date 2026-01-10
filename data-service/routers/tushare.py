@@ -11,6 +11,9 @@ from schemas.tushare import (
     DailyQuoteResponse,
     DailyQuoteItem,
     StockBasicResponse,
+    TopListRequest,
+    TopListItem,
+    TopListResponse,
 )
 from services.tushare_service import TushareService
 from models.daily_quote import DailyQuote
@@ -86,6 +89,109 @@ async def get_daily_quotes(
         success_codes=success_codes,
         failed_codes=failed_codes,
     )
+
+
+@router.get("/top_list", response_model=TopListResponse)
+async def get_top_list(
+    trade_date: str,
+) -> TopListResponse:
+    """获取龙虎榜数据
+    
+    获取指定日期的龙虎榜股票列表
+    """
+    # 验证日期格式
+    if len(trade_date) != 8 or not trade_date.isdigit():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="日期格式必须为 YYYYMMDD")
+    
+    service = TushareService()
+    raw_data = service.fetch_top_list(trade_date=trade_date)
+    
+    # 转换为响应格式
+    items = []
+    for item in raw_data:
+        items.append(TopListItem(
+            ts_code=item.get("ts_code", ""),
+            name=item.get("name", ""),
+            close=item.get("close"),
+            pct_change=item.get("pct_change"),
+            turnover_rate=item.get("turnover_rate"),
+            amount=item.get("amount"),
+            l_sell=item.get("l_sell"),
+            l_buy=item.get("l_buy"),
+            net_amount=item.get("net_amount"),
+            reason=item.get("reason", ""),
+        ))
+    
+    return TopListResponse(
+        data=items,
+        trade_date=trade_date,
+    )
+
+
+@router.get("/top_inst")
+async def get_top_inst(
+    trade_date: str,
+) -> dict:
+    """获取龙虎榜机构交易明细
+    
+    获取指定日期的龙虎榜机构买卖明细
+    """
+    if len(trade_date) != 8 or not trade_date.isdigit():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="日期格式必须为 YYYYMMDD")
+    
+    service = TushareService()
+    data = service.fetch_top_inst(trade_date=trade_date)
+    
+    return {"data": data, "trade_date": trade_date}
+
+
+@router.get("/top_list_summary")
+async def get_top_list_summary(
+    days: int = 5,
+) -> dict:
+    """获取多日龙虎榜汇总数据
+    
+    获取指定天数内的龙虎榜汇总，按净买入额排序
+    
+    Args:
+        days: 天数（1, 5, 20）
+    """
+    if days not in [1, 5, 20]:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="days 必须为 1, 5 或 20")
+    
+    service = TushareService()
+    
+    if days == 1:
+        # 单日数据使用原有接口
+        from datetime import datetime, timedelta
+        # 获取最近交易日
+        today = datetime.now()
+        trade_date = today
+        while trade_date.weekday() >= 5:  # 跳过周末
+            trade_date -= timedelta(days=1)
+        trade_date_str = trade_date.strftime("%Y%m%d")
+        
+        raw_data = service.fetch_top_list(trade_date=trade_date_str)
+        # 转换格式
+        data = []
+        for item in raw_data[:20]:
+            data.append({
+                "ts_code": item.get("ts_code", ""),
+                "name": item.get("name", ""),
+                "close": item.get("close"),
+                "pct_change": item.get("pct_change"),
+                "net_amount": item.get("net_amount"),
+                "reason": item.get("reason", ""),
+                "appear_count": 1,
+            })
+        return {"data": data, "days": days}
+    else:
+        # 多日汇总
+        data = service.fetch_top_list_multi_days(days=days)
+        return {"data": data, "days": days}
 
 
 @router.get("/stock_basic", response_model=StockBasicResponse)
