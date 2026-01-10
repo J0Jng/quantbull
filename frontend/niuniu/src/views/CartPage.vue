@@ -182,9 +182,13 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart.js'
 import FooterComponent from '@/components/FooterComponent.vue'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
 const cartStore = useCartStore()
+
+// 使用全局认证
+const { logged, isQualifiedInvestor, requireAuth } = useAuth()
 
 // 响应式数据
 const showRemoveConfirm = ref(false)
@@ -194,20 +198,19 @@ const itemToRemove = ref(null)
 
 // 计算属性
 const isCheckoutAllowed = computed(() => {
-  const isLoggedIn = localStorage.getItem('quantLogin') === '123'
-  if (!isLoggedIn) return false
+  if (!logged.value) return false
   if (cartStore.totalItems === 0) return false
   return cartStore.canPurchaseHighRiskProducts()
 })
 
 const checkoutButtonText = computed(() => {
-  if (!localStorage.getItem('quantLogin')) {
+  if (!logged.value) {
     return '请先登录'
   }
   if (cartStore.totalItems === 0) {
     return '购物车为空'
   }
-  if (cartStore.hasHighRiskProducts && !localStorage.getItem('qualifiedInvestor')) {
+  if (cartStore.hasHighRiskProducts && !isQualifiedInvestor.value) {
     return '需合格投资者认证'
   }
   return `立即结算 (${cartStore.formattedTotalAmount})`
@@ -255,14 +258,14 @@ const confirmClear = () => {
 
 const proceedToCheckout = () => {
   // 检查登录状态
-  if (!localStorage.getItem('quantLogin')) {
+  if (!requireAuth()) {
     alert('请先登录后再进行结算')
     return
   }
 
   // 检查高风险产品购买资格
   if (cartStore.hasHighRiskProducts) {
-    if (!localStorage.getItem('qualifiedInvestor')) {
+    if (!isQualifiedInvestor.value) {
       alert('购买高风险产品需要完成合格投资者认证，请先前往个人主页完成认证')
       return
     }

@@ -1,38 +1,5 @@
 <template>
   <div>
-    <!-- 登录弹窗 -->
-    <div class="login-modal" v-show="showLogin">
-      <div class="login-box">
-        <span class="close-login" @click="closeLogin">&times;</span>
-        <div class="login-title">量化牛牛商店 - 登录</div>
-        <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
-        <form class="login-form" @submit.prevent>
-          <input v-model="username" type="text" placeholder="请输入账号" />
-          <input v-model="password" type="password" placeholder="请输入密码" />
-          <button type="button" class="login-btn" @click="submitLogin">登录</button>
-        </form>
-        <div class="login-tips">演示账号：123 | 演示密码：123</div>
-      </div>
-    </div>
-
-    <!-- 动态风险提示弹窗 -->
-    <div class="risk-modal" v-show="showRiskTip">
-      <div class="risk-box">
-        <div class="risk-icon">⚠️</div>
-        <div class="risk-title">风险提示</div>
-        <div class="risk-content">
-          <p>尊敬的用户，您正在登录量化牛牛交易平台。投资有风险，入市需谨慎。请注意：</p>
-          <ul>
-            <li>量化交易可能面临市场风险、流动性风险等</li>
-            <li>过去业绩不代表未来表现</li>
-            <li>请根据自身风险承受能力合理配置资产</li>
-            <li>建议您详细了解产品风险收益特征</li>
-          </ul>
-        </div>
-        <button class="risk-confirm-btn" @click="confirmRiskTip">我已阅读并了解风险</button>
-      </div>
-    </div>
-
     <!-- 头部 -->
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛商店</div>
@@ -47,7 +14,7 @@
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
             <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="logout">退出登录</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
           </div>
         </div>
       </div>
@@ -201,22 +168,18 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart.js'
 import FooterComponent from '@/components/FooterComponent.vue'
+import { useAuth } from '@/composables/useAuth'
 
-const username = ref('')
-const password = ref('')
-const showLogin = ref(false)
-const errorVisible = ref(false)
-const logged = ref(false)
-  const userText = ref('登录/注册')
-  const showFund = ref(false)
-  const showUserMenu = ref(false)
-  const searchQuery = ref('')
-  const activeCategory = ref('factor')
-  const showRiskTip = ref(false)
-  const isQualifiedInvestor = ref(false)
+// 使用全局认证
+const { logged, userText, isQualifiedInvestor, openLoginModal, logout, requireAuth } = useAuth()
+
+const showFund = ref(false)
+const showUserMenu = ref(false)
+const searchQuery = ref('')
+const activeCategory = ref('factor')
   
-  // 购物车徽章显示
-  const cartBadgeCount = computed(() => cartStore.totalItems)
+// 购物车徽章显示
+const cartBadgeCount = computed(() => cartStore.totalItems)
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -225,9 +188,8 @@ function goHome() { router.push('/') }
 
 function goToGoodsDetail(category = 'general', itemIndex) {
   // 首先检查用户是否已登录
-  if (!logged.value) {
+  if (!requireAuth()) {
     alert('请先登录后再查看商品详情和购买。')
-    showLogin.value = true
     return
   }
   
@@ -289,21 +251,10 @@ const talentItems = ref([
   { img: 'https://picsum.photos/400/300?random=26', name: '量化实习推荐 - 公募/私募/券商实习岗位', price: '¥1,999.00/人' }
 ])
 
-function checkInvestorCertification() {
-  // 检查本地存储中的合格投资者认证状态
-  const investorStatus = localStorage.getItem('qualifiedInvestor')
-  if (investorStatus === 'certified') {
-    isQualifiedInvestor.value = true
-  } else {
-    isQualifiedInvestor.value = false
-  }
-}
-
   // 添加商品到购物车
   function addToCart(item, type) {
-    if (!logged.value) {
+    if (!requireAuth()) {
       alert('请先登录后再添加商品到购物车')
-      showLogin.value = true
       return
     }
     
@@ -335,58 +286,15 @@ function checkInvestorCertification() {
     alert(`已成功添加 ${productTypeName} 产品到购物车！`)
   }
 
-  // 添加事件监听器来响应认证状态变化
-  function setupInvestorCertificationListener() {
-    window.addEventListener('storage', (event) => {
-      if (event.key === 'qualifiedInvestor') {
-        checkInvestorCertification()
-      }
-    })
-    
-    // 添加自定义事件监听器，用于同一个标签页内的状态同步
-    window.addEventListener('investorCertificationChanged', () => {
-      checkInvestorCertification()
-    })
-  }
-
 onMounted(() => {
-  const status = localStorage.getItem('quantLogin')
-  if (status === '123') {
-    logged.value = true
-    userText.value = '已登录（123）'
+  if (logged.value) {
     showFund.value = true
-    // 强制检查并设置认证状态
-    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
-    // 设置认证状态变化监听
-    setupInvestorCertificationListener()
-  } else {
-    // 如果没有登录，确保认证状态为false
-    isQualifiedInvestor.value = false
   }
-  // 如果未登录，默认显示登录弹窗以与原始静态页面行为一致
-  if (!logged.value) showLogin.value = true
   // lazy set loading attribute for any images already rendered (redundant with loading attr)
   try {
     document.querySelectorAll('.goods-img').forEach(img => img.setAttribute('loading', 'lazy'))
   } catch (e) {}
 })
-
-function submitLogin() {
-  if (username.value.trim() === '123' && password.value.trim() === '123') {
-    // 登录成功，显示动态风险提示
-    showRiskTip.value = true
-    showLogin.value = false
-    errorVisible.value = false
-    // 清空输入框
-    username.value = ''
-    password.value = ''
-  } else {
-    errorVisible.value = true
-    setTimeout(() => (errorVisible.value = false), 3000)
-  }
-}
-
-function closeLogin() { showLogin.value = false }
 
 let menuTimeout = null
 let hideTimeout = null
@@ -420,7 +328,7 @@ function onDropdownLeave() {
 
 function toggleUserMenu() { 
   if (!logged.value) {
-    showLogin.value = true 
+    openLoginModal()
     showUserMenu.value = false
   } else {
     clearTimeout(menuTimeout)
@@ -429,23 +337,10 @@ function toggleUserMenu() {
   }
 }
 
-function logout() {
-  logged.value = false
-  userText.value = '登录/注册'
+function handleLogout() {
+  logout()
   showFund.value = false
   showUserMenu.value = false
-  localStorage.removeItem('quantLogin')
-}
-
-function confirmRiskTip() {
-  showRiskTip.value = false
-  logged.value = true
-  userText.value = '已登录（123）'
-  localStorage.setItem('quantLogin', '123')
-  showFund.value = true
-  showUserMenu.value = false
-  // 强制检查认证状态
-  isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
 }
 
 function goToUserProfile() {
@@ -454,18 +349,16 @@ function goToUserProfile() {
 }
 
 function goToCart() {
-  if (!logged.value) {
+  if (!requireAuth()) {
     alert('请先登录后查看购物车')
-    showLogin.value = true
     return
   }
   router.push('/shop/cart')
 }
 
 function goToOrders() {
-  if (!logged.value) {
+  if (!requireAuth()) {
     alert('请先登录后查看订单')
-    showLogin.value = true
     return
   }
   router.push('/shop/orders')

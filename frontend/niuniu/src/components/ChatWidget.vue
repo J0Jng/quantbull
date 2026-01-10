@@ -28,6 +28,7 @@ const isDragging = ref(false)
 const chatWindowRef = ref(null)
 const messagesEndRef = ref(null)
 const videoPlayerRef = ref(null)
+const maxTokens = ref(500)
 
 // 窗口位置状态
 const windowState = reactive({
@@ -69,7 +70,13 @@ const sendMessage = async () => {
       const videoPrompt = digitalHumanService.generateFinancialContent(message)
       
       // 先获取AI生成的文本内容
-      const aiResponse = await chatService.sendChat(videoPrompt, chatStore.currentSystemPrompt)
+      const aiResponse = await chatService.sendChat(
+        videoPrompt,
+        chatStore.currentSystemPrompt,
+        null,
+        0.7,
+        maxTokens.value
+      )
       
       if (aiResponse.success) {
         // 验证内容合规性
@@ -105,7 +112,10 @@ const sendMessage = async () => {
       // 普通聊天模式
       const response = await chatService.sendChat(
         message, 
-        chatStore.currentSystemPrompt
+        chatStore.currentSystemPrompt,
+        null,
+        0.7,
+        maxTokens.value
       )
       
       if (response.success) {
@@ -360,6 +370,17 @@ onUnmounted(() => {
         </div>
         
         <div class="input-container">
+          <div class="token-control">
+            <label for="maxTokens">max_tokens</label>
+            <input
+              id="maxTokens"
+              type="number"
+              v-model.number="maxTokens"
+              min="128"
+              max="4096"
+              step="64"
+            />
+          </div>
           <textarea
             v-model="currentMessage"
             @keydown="handleKeydown"
@@ -789,6 +810,31 @@ onUnmounted(() => {
   display: flex;
   gap: 10px;
   align-items: flex-end;
+}
+
+.token-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.token-control label {
+  font-size: 12px;
+  color: #666;
+}
+
+.token-control input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.token-control input:focus {
+  outline: none;
+  border-color: #ff7f00;
 }
 
 .message-input {

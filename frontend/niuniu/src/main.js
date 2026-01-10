@@ -4,6 +4,9 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
+// 全局样式
+import './assets/api-states.css'
+
 const app = createApp(App)
 
 app.use(createPinia())

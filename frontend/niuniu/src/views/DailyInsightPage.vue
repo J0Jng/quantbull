@@ -28,49 +28,74 @@
         <p>正在加载数据...</p>
       </div>
 
+      <!-- 错误提示 -->
+      <div v-if="error && !loading" class="error-section">
+        <div class="error-icon">⚠️</div>
+        <p>{{ error }}</p>
+        <button class="retry-btn" @click="loadDailyData">重新加载</button>
+      </div>
+
+      <!-- 空状态 -->
+      <div v-if="!loading && !error && !reportData" class="empty-section">
+        <div class="empty-icon">📭</div>
+        <p>该日期暂无内参数据</p>
+        <button class="retry-btn" @click="loadDailyData">刷新</button>
+      </div>
+
       <!-- 市场概览模块 -->
-      <section class="module market-overview" v-if="!loading">
+      <section class="module market-overview" v-if="!loading && !error && reportData">
         <h2 class="module-title">
           <span class="title-icon">📊</span>
           市场概览
         </h2>
-        <div class="market-stats">
-          <div class="stat-card">
+        <div class="market-stats" v-if="marketOverview">
+          <div class="stat-card" v-if="marketOverview.sh_index">
             <div class="stat-icon">📈</div>
             <div class="stat-info">
-              <div class="stat-value">3,525.68</div>
+              <div class="stat-value">{{ marketOverview.sh_index.value || '-' }}</div>
               <div class="stat-label">上证指数</div>
-              <div class="stat-change positive">+1.25%</div>
+              <div class="stat-change" :class="(marketOverview.sh_index.change || 0) >= 0 ? 'positive' : 'negative'">
+                {{ (marketOverview.sh_index.change || 0) >= 0 ? '+' : '' }}{{ marketOverview.sh_index.change || 0 }}%
+              </div>
             </div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" v-if="marketOverview.sz_index">
             <div class="stat-icon">📉</div>
             <div class="stat-info">
-              <div class="stat-value">11,268.45</div>
+              <div class="stat-value">{{ marketOverview.sz_index.value || '-' }}</div>
               <div class="stat-label">深证成指</div>
-              <div class="stat-change positive">+0.89%</div>
+              <div class="stat-change" :class="(marketOverview.sz_index.change || 0) >= 0 ? 'positive' : 'negative'">
+                {{ (marketOverview.sz_index.change || 0) >= 0 ? '+' : '' }}{{ marketOverview.sz_index.change || 0 }}%
+              </div>
             </div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" v-if="marketOverview.cyb_index">
             <div class="stat-icon">🔬</div>
             <div class="stat-info">
-              <div class="stat-value">2,345.12</div>
+              <div class="stat-value">{{ marketOverview.cyb_index.value || '-' }}</div>
               <div class="stat-label">创业板指</div>
-              <div class="stat-change negative">-0.32%</div>
+              <div class="stat-change" :class="(marketOverview.cyb_index.change || 0) >= 0 ? 'positive' : 'negative'">
+                {{ (marketOverview.cyb_index.change || 0) >= 0 ? '+' : '' }}{{ marketOverview.cyb_index.change || 0 }}%
+              </div>
             </div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" v-if="marketOverview.north_flow">
             <div class="stat-icon">💧</div>
             <div class="stat-info">
-              <div class="stat-value">+128.45亿</div>
+              <div class="stat-value">{{ marketOverview.north_flow.value || '-' }}</div>
               <div class="stat-label">北向资金</div>
-              <div class="stat-change positive">净流入</div>
+              <div class="stat-change" :class="(marketOverview.north_flow.amount || 0) >= 0 ? 'positive' : 'negative'">
+                {{ (marketOverview.north_flow.amount || 0) >= 0 ? '净流入' : '净流出' }}
+              </div>
             </div>
           </div>
         </div>
+        <div class="market-stats" v-else>
+          <p class="no-data">暂无市场概览数据</p>
+        </div>
 
         <!-- 行业板块表现 -->
-        <div class="sector-performance">
+        <div class="sector-performance" v-if="sectorPerformance.length > 0">
           <h3>行业板块表现</h3>
           <div class="sector-list">
             <div class="sector-item" v-for="sector in sectorPerformance" :key="sector.name">
@@ -84,31 +109,31 @@
       </section>
 
       <!-- 重点关注模块 -->
-      <section class="module key-focus" v-if="!loading">
+      <section class="module key-focus" v-if="!loading && !error && reportData">
         <h2 class="module-title">
           <span class="title-icon">⭐</span>
           重点关注
         </h2>
         <div class="focus-content">
-          <div class="focus-item">
+          <div class="focus-item" v-if="todayEvents.length > 0">
             <h3>今日重要财经事件</h3>
             <ul>
-              <li v-for="event in todayEvents" :key="event.id">
+              <li v-for="event in todayEvents" :key="event.id || event.time">
                 <span class="event-time">{{ event.time }}</span>
                 <span class="event-content">{{ event.content }}</span>
               </li>
             </ul>
           </div>
-          <div class="focus-item">
+          <div class="focus-item" v-if="policyAnalysis.content">
             <h3>重大政策解读</h3>
             <div class="policy-analysis">
               <p>{{ policyAnalysis.content }}</p>
-              <div class="policy-impact">
+              <div class="policy-impact" v-if="policyAnalysis.impact">
                 <strong>影响评估：</strong> {{ policyAnalysis.impact }}
               </div>
             </div>
           </div>
-          <div class="focus-item">
+          <div class="focus-item" v-if="institutionViews.length > 0">
             <h3>机构观点汇总</h3>
             <div class="institution-views">
               <div class="view-card" v-for="view in institutionViews" :key="view.institution">
@@ -122,7 +147,7 @@
       </section>
 
       <!-- 个股分析模块 -->
-      <section class="module stock-analysis" v-if="!loading">
+      <section class="module stock-analysis" v-if="!loading && !error && stockAnalysis.length > 0">
         <h2 class="module-title">
           <span class="title-icon">💡</span>
           个股分析
@@ -159,32 +184,36 @@
       </section>
 
       <!-- 风险提示模块 -->
-      <section class="module risk-alert" v-if="!loading">
+      <section class="module risk-alert" v-if="!loading && !error && reportData">
         <h2 class="module-title">
           <span class="title-icon">⚠️</span>
           风险提示
         </h2>
         <div class="risk-content">
-          <div class="risk-item">
+          <div class="risk-item" v-if="marketRisks.length > 0">
             <h3>当前市场风险因素</h3>
             <ul>
               <li v-for="risk in marketRisks" :key="risk.id">{{ risk.content }}</li>
             </ul>
           </div>
-          <div class="risk-item">
+          <div class="risk-item" v-if="investmentTips.length > 0">
             <h3>投资注意事项</h3>
             <div class="investment-tips">
-              <p v-for="tip in investmentTips" :key="tip">{{ tip }}</p>
+              <p v-for="(tip, index) in investmentTips" :key="index">{{ tip }}</p>
             </div>
           </div>
-          <div class="risk-item">
+          <div class="risk-item" v-if="riskControls.length > 0">
             <h3>风险控制建议</h3>
             <div class="risk-control">
-              <div class="control-item" v-for="control in riskControls" :key="control">
+              <div class="control-item" v-for="(control, index) in riskControls" :key="index">
                 <span class="control-icon">✅</span>
                 <span>{{ control }}</span>
               </div>
             </div>
+          </div>
+          <!-- 默认风险提示 -->
+          <div class="risk-item" v-if="marketRisks.length === 0 && investmentTips.length === 0">
+            <p class="default-risk">投资有风险，入市需谨慎。请根据自身风险承受能力合理配置资产。</p>
           </div>
         </div>
       </section>
@@ -196,88 +225,100 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
+import { getDailyReportByDate, getLatestDailyReport } from '@/services/dailyReportService'
 
 const router = useRouter()
 
 // 响应式数据
 const loading = ref(true)
+const error = ref('')
 const selectedDate = ref(new Date().toISOString().split('T')[0])
+const reportData = ref(null)
 
-// 市场概览数据
-const sectorPerformance = ref([
-  { name: '新能源', change: 3.2 },
-  { name: '半导体', change: 2.1 },
-  { name: '医药生物', change: 1.8 },
-  { name: '消费电子', change: 1.5 },
-  { name: '金融', change: -0.5 },
-  { name: '房地产', change: -1.2 }
-])
-
-// 重点关注数据
-const todayEvents = ref([
-  { id: 1, time: '09:30', content: '国务院新闻办公室举行宏观经济形势发布会' },
-  { id: 2, time: '14:00', content: '工信部召开新能源汽车产业发展座谈会' },
-  { id: 3, time: '16:00', content: '央行发布金融统计数据报告' }
-])
-
-const policyAnalysis = ref({
-  content: '近期央行降准释放流动性，市场资金面相对宽裕，利好实体经济融资环境。',
-  impact: '短期提振市场情绪，中长期需关注政策效果传导。'
+// 市场概览数据（从 API 获取或使用默认值）
+const marketOverview = computed(() => {
+  if (reportData.value?.market_overview) {
+    return reportData.value.market_overview
+  }
+  return null
 })
 
-const institutionViews = ref([
-  { institution: '中信证券', content: '看好科技成长股表现，建议关注AI产业链', rating: '积极' },
-  { institution: '中金公司', content: '市场震荡上行，建议均衡配置', rating: '谨慎乐观' },
-  { institution: '国泰君安', content: '关注政策受益板块，挖掘结构性机会', rating: '中性' }
-])
-
-// 个股分析数据
-const stockAnalysis = ref([
-  {
-    code: '300750',
-    name: '宁德时代',
-    recommendation: '买入',
-    currentPrice: '545.40',
-    change: 5.23,
-    technicalAnalysis: '股价突破前期高点，技术形态良好，建议关注成交量配合情况。',
-    fundamentalAnalysis: '新能源车销量持续增长，公司技术领先，市场份额稳固。',
-    targetPrice: '600.00',
-    upside: 10.0
-  },
-  {
-    code: '000858',
-    name: '五粮液',
-    recommendation: '增持',
-    currentPrice: '142.30',
-    change: 1.2,
-    technicalAnalysis: '股价在支撑位附近震荡，等待突破确认。',
-    fundamentalAnalysis: '白酒消费复苏，公司品牌优势明显，盈利能力强。',
-    targetPrice: '160.00',
-    upside: 12.4
+// 行业板块表现
+const sectorPerformance = computed(() => {
+  if (reportData.value?.sector_performance) {
+    return reportData.value.sector_performance
   }
-])
+  return []
+})
 
-// 风险提示数据
-const marketRisks = ref([
-  { id: 1, content: '全球经济复苏不确定性增加' },
-  { id: 2, content: '地缘政治风险持续发酵' },
-  { id: 3, content: '通胀压力可能超预期' }
-])
+// 重点关注 - 今日事件
+const todayEvents = computed(() => {
+  if (reportData.value?.key_events) {
+    return reportData.value.key_events
+  }
+  return []
+})
 
-const investmentTips = ref([
-  '控制仓位，避免过度集中投资',
-  '关注基本面，远离概念炒作',
-  '设置止损位，做好风险防范'
-])
+// 政策分析
+const policyAnalysis = computed(() => {
+  if (reportData.value?.policy_analysis) {
+    return reportData.value.policy_analysis
+  }
+  return { content: '暂无政策分析', impact: '' }
+})
 
-const riskControls = ref([
-  '分散投资降低单一风险',
-  '定期评估投资组合',
-  '设置明确的止盈止损点'
-])
+// 机构观点
+const institutionViews = computed(() => {
+  if (reportData.value?.institution_views) {
+    return reportData.value.institution_views
+  }
+  return []
+})
+
+// 个股分析（从 stock_recommendations 映射）
+const stockAnalysis = computed(() => {
+  if (reportData.value?.stock_recommendations) {
+    return reportData.value.stock_recommendations.map(stock => ({
+      code: stock.stock_code || stock.code,
+      name: stock.stock_name || stock.name,
+      recommendation: stock.rating || stock.recommendation || '持有',
+      currentPrice: stock.current_price || stock.price || '-',
+      change: stock.change_pct || stock.change || 0,
+      technicalAnalysis: stock.technical_analysis || stock.reason || '',
+      fundamentalAnalysis: stock.fundamental_analysis || '',
+      targetPrice: stock.target_price || '-',
+      upside: stock.upside_potential || stock.upside || 0
+    }))
+  }
+  return []
+})
+
+// 风险提示
+const marketRisks = computed(() => {
+  if (reportData.value?.risk_warnings) {
+    return reportData.value.risk_warnings.map((content, id) => ({ id, content }))
+  }
+  return []
+})
+
+// 投资建议
+const investmentTips = computed(() => {
+  if (reportData.value?.investment_tips) {
+    return reportData.value.investment_tips
+  }
+  return []
+})
+
+// 风险控制
+const riskControls = computed(() => {
+  if (reportData.value?.risk_controls) {
+    return reportData.value.risk_controls
+  }
+  return []
+})
 
 // 方法
 const goHome = () => {
@@ -305,14 +346,36 @@ const nextDay = () => {
 
 const loadDailyData = async () => {
   loading.value = true
-  // 模拟数据加载
-  setTimeout(() => {
+  error.value = ''
+  
+  try {
+    const result = await getDailyReportByDate(selectedDate.value)
+    
+    if (result.success && result.data) {
+      reportData.value = result.data
+    } else {
+      // 如果指定日期没有报告，尝试获取最新报告
+      const latestResult = await getLatestDailyReport()
+      if (latestResult.success && latestResult.data) {
+        reportData.value = latestResult.data
+        // 更新日期为实际报告日期
+        if (latestResult.data.report_date) {
+          selectedDate.value = latestResult.data.report_date
+        }
+      } else {
+        error.value = result.message || '暂无数据'
+        reportData.value = null
+      }
+    }
+  } catch (e) {
+    error.value = '加载数据失败，请稍后重试'
+    console.error('加载每日内参失败:', e)
+  } finally {
     loading.value = false
-  }, 1000)
+  }
 }
 
 const shareContent = () => {
-  // 简单的分享功能实现
   if (navigator.share) {
     navigator.share({
       title: `量化牛牛每日内参 - ${formatDate(selectedDate.value)}`,
@@ -320,7 +383,6 @@ const shareContent = () => {
       url: window.location.href
     })
   } else {
-    // 降级方案
     navigator.clipboard.writeText(window.location.href)
     alert('链接已复制到剪贴板')
   }

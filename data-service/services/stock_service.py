@@ -53,6 +53,8 @@ def _save_stocks_to_db(stock_items: List[StockItem], trade_date: date) -> None:
     try:
         with SessionLocal() as session:
             for item in stock_items:
+                payload = item.model_dump()
+                amount_k = float(payload.pop("_amount_k", 0.0) or 0.0)
                 stmt = insert(StockBasic).values(
                     symbol=item.symbol,
                     name=item.name,
@@ -61,7 +63,7 @@ def _save_stocks_to_db(stock_items: List[StockItem], trade_date: date) -> None:
                     latest_price=item.latest_price,
                     pct_change=item.pct_change,
                     turnover_rate=item.turnover_rate,
-                    amount=0.0,  # 可选字段
+                    amount=amount_k,
                 )
                 stmt = stmt.on_conflict_do_update(
                     constraint="uq_stock_symbol_trade_date",
@@ -71,6 +73,7 @@ def _save_stocks_to_db(stock_items: List[StockItem], trade_date: date) -> None:
                         latest_price=stmt.excluded.latest_price,
                         pct_change=stmt.excluded.pct_change,
                         turnover_rate=stmt.excluded.turnover_rate,
+                        amount=stmt.excluded.amount,
                     ),
                 )
                 session.execute(stmt)
@@ -80,35 +83,53 @@ def _save_stocks_to_db(stock_items: List[StockItem], trade_date: date) -> None:
         logger.error(f"保存股票数据到数据库失败: {e}")
 
 
-def _load_stocks_from_db(limit: int = 100) -> List[Dict]:
-    """从数据库加载最新的股票列表（fallback）"""
+def _load_stocks_from_db(
+    limit: int = 100,
+    trade_date: Optional[date] = None,
+    min_amount_k: float = 0.0,
+) -> List[StockItem]:
+    """从数据库加载股票列表（DB优先）
+
+    Args:
+        limit: 返回数量
+        trade_date: 指定交易日；不传则使用库中最新交易日
+        min_amount_k: 最小成交额过滤（单位：千元）
+    """
     try:
         with SessionLocal() as session:
-            # 查找最近的交易日数据
-            stmt = (
-                select(StockBasic)
-                .order_by(StockBasic.trade_date.desc(), StockBasic.amount.desc())
-                .limit(limit)
-            )
+            query_trade_date = trade_date
+            if query_trade_date is None:
+                latest_stmt = select(StockBasic.trade_date).order_by(StockBasic.trade_date.desc()).limit(1)
+                query_trade_date = session.exec(latest_stmt).first()
+
+            if query_trade_date is None:
+                return []
+
+            stmt = select(StockBasic).where(StockBasic.trade_date == query_trade_date)
+            if min_amount_k and min_amount_k > 0:
+                stmt = stmt.where(StockBasic.amount >= min_amount_k)
+
+            stmt = stmt.order_by(StockBasic.amount.desc()).limit(limit)
             results = session.exec(stmt).all()
             
             if not results:
                 return []
             
-            # 转换为字典列表
-            stock_list = []
+            items: List[StockItem] = []
             for stock in results:
-                stock_list.append({
-                    "symbol": stock.symbol,
-                    "name": stock.name,
-                    "industry": stock.industry,
-                    "latest_price": stock.latest_price,
-                    "pct_change": stock.pct_change,
-                    "turnover_rate": stock.turnover_rate,
-                })
-            
-            logger.info(f"从数据库加载 {len(stock_list)} 条股票数据（交易日: {results[0].trade_date}）")
-            return stock_list
+                items.append(
+                    StockItem(
+                        symbol=stock.symbol,
+                        name=stock.name,
+                        industry=stock.industry,
+                        latest_price=stock.latest_price,
+                        pct_change=stock.pct_change,
+                        turnover_rate=stock.turnover_rate,
+                    )
+                )
+
+            logger.info(f"从数据库加载 {len(items)} 条股票数据（交易日: {query_trade_date}）")
+            return items
     except Exception as e:
         logger.error(f"从数据库加载股票数据失败: {e}")
         return []
@@ -136,10 +157,18 @@ class StockService:
         """
         cache_key = f"stock_list_{date}_{limit}_{min_turnover}" if date else f"stock_list_latest_{limit}_{min_turnover}"
 
-        # 检查缓存
-        if _is_cache_valid(cache_key):
-            logger.info(f"使用缓存的股票列表: {cache_key}")
-            return success(_cache[cache_key])
+        # DB 优先：先尝试从数据库读取
+        try:
+            db_trade_date: Optional[date] = None
+            if date:
+                db_trade_date = datetime.strptime(date, "%Y-%m-%d").date()
+            min_amount_k = (min_turnover / 1000) if min_turnover > 0 else 0.0
+            db_items = _load_stocks_from_db(limit=limit, trade_date=db_trade_date, min_amount_k=min_amount_k)
+            if db_items:
+                _set_cache(cache_key, [item.model_dump() for item in db_items])
+                return success(db_items)
+        except Exception as e:
+            logger.warning(f"数据库读取失败，继续尝试 Tushare: {e}")
 
         try:
             # 确定查询日期
@@ -201,6 +230,8 @@ class StockService:
                     pct_change=float(row['pct_chg']) if 'pct_chg' in row else 0.0,
                     turnover_rate=float(row.get('turnover_rate', 0.0))
                 )
+                # 用于入库排序/过滤（StockItem schema 不包含成交额）
+                setattr(item, "_amount_k", float(row.get('amount', 0.0) or 0.0))
                 stock_items.append(item)
 
             logger.info(f"生成 {len(stock_items)} 条股票数据")
@@ -216,16 +247,21 @@ class StockService:
 
         except Exception as e:
             logger.error(f"获取股票列表失败: {e}", exc_info=True)
-            # 降级策略：1. 内存缓存 -> 2. 数据库 -> 3. 空列表
+            # 降级策略：1. 数据库 -> 2. 内存缓存 -> 3. 空列表
+            try:
+                db_trade_date: Optional[date] = None
+                if date:
+                    db_trade_date = datetime.strptime(date, "%Y-%m-%d").date()
+                min_amount_k = (min_turnover / 1000) if min_turnover > 0 else 0.0
+                db_items = _load_stocks_from_db(limit=limit, trade_date=db_trade_date, min_amount_k=min_amount_k)
+                if db_items:
+                    _set_cache(cache_key, [item.model_dump() for item in db_items], ttl_minutes=60)
+                    return success(db_items)
+            except Exception:
+                pass
+
             if cache_key in _cache:
                 logger.info("使用过期缓存的股票列表")
                 return success(_cache[cache_key])
-            
-            # 尝试从数据库加载
-            db_stocks = _load_stocks_from_db(limit)
-            if db_stocks:
-                logger.info(f"从数据库降级加载 {len(db_stocks)} 条股票数据")
-                _set_cache(cache_key, db_stocks, ttl_minutes=60)  # 延长缓存时间
-                return success(db_stocks)
-            
+
             return success([])

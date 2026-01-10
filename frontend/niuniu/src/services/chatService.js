@@ -1,43 +1,32 @@
+import http from './http'
+
 // AI聊天API服务
 class ChatService {
-  constructor() {
-    this.baseURL = '/api/ai'
-  }
-
   // 发送聊天消息
   async sendChat(message, systemPrompt = null, model = null, temperature = 0.7, maxTokens = 1000) {
     try {
-      const response = await fetch(`${this.baseURL}/api/ai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          system_prompt: systemPrompt,
-          model,
-          temperature,
-          max_tokens: maxTokens
-        })
+      const response = await http.post('/ai/chat', {
+        message,
+        system_prompt: systemPrompt,
+        model,
+        temperature,
+        max_tokens: maxTokens
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`)
-      }
-
-      const data = await response.json()
-      
-      // 验证响应格式
-      if (!data.content || !data.model) {
+      const raw = response
+      const payload = raw?.data ?? raw
+      const content = payload?.content ?? payload?.message ?? payload?.answer ?? null
+      const modelName = payload?.model ?? payload?.used_model ?? null
+      if (!content) {
         throw new Error('Invalid response format from AI service')
       }
 
       return {
         success: true,
-        content: data.content,
-        model: data.model,
-        tokensUsed: data.tokens_used || null,
-        finishReason: data.finish_reason || null
+        content,
+        model: modelName || 'unknown',
+        tokensUsed: payload?.tokens_used ?? payload?.usage ?? null,
+        finishReason: payload?.finish_reason ?? null
       }
     } catch (error) {
       console.error('Chat API Error:', error)
@@ -52,10 +41,7 @@ class ChatService {
   // 检查API健康状况
   async checkHealth() {
     try {
-      const response = await fetch(`${this.baseURL}/health`)
-      if (!response.ok) {
-        throw new Error(`Health check failed: ${response.status}`)
-      }
+      await http.get('/ai/health')
       return { success: true, status: 'online' }
     } catch (error) {
       console.error('Health check error:', error)
@@ -66,22 +52,12 @@ class ChatService {
   // 模型路由推荐
   async getRecommendedModel(taskType, message) {
     try {
-      const response = await fetch(`${this.baseURL}/api/ai/model/route`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          task_type: taskType,
-          message
-        })
+      const response = await http.post('/ai/model/route', {
+        task_type: taskType,
+        message
       })
 
-      if (!response.ok) {
-        throw new Error(`Model routing error: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = response?.data ?? response
       return {
         success: true,
         recommendedModel: data.recommended_model,
@@ -96,23 +72,13 @@ class ChatService {
   // 生成投资策略代码
   async generateStrategy(description, includeRiskControl = true) {
     try {
-      const response = await fetch(`${this.baseURL}/api/ai/generate/strategy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_description: description,
-          include_risk_control: includeRiskControl,
-          framework: 'backtrader'
-        })
+      const response = await http.post('/ai/generate/strategy', {
+        user_description: description,
+        include_risk_control: includeRiskControl,
+        framework: 'backtrader'
       })
 
-      if (!response.ok) {
-        throw new Error(`Strategy generation error: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = response?.data ?? response
       return {
         success: true,
         strategyCode: data.strategy_code,
@@ -128,23 +94,13 @@ class ChatService {
   // 新闻解读生成
   async generateNewsAnalysis(newsFlash, stockCode = null) {
     try {
-      const response = await fetch(`${this.baseURL}/api/ai/generate/news`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          news_flash: newsFlash,
-          stock_code: stockCode,
-          target_length: 300
-        })
+      const response = await http.post('/ai/generate/news', {
+        news_flash: newsFlash,
+        stock_code: stockCode,
+        target_length: 300
       })
 
-      if (!response.ok) {
-        throw new Error(`News generation error: ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = response?.data ?? response
       return {
         success: true,
         newsContent: data.news_content,

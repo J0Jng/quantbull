@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isAuthenticated } from '@/services/authService'
 import HomePage from '@/components/HomePage.vue'
 import ShopPage from '@/views/ShopPage.vue'
 import QuantAnalysisTool from '@/views/QuantAnalysisTool.vue'
+import BacktestDetailPage from '@/views/BacktestDetailPage.vue'
 import NewsDetailPage from '@/views/NewsDetailPage.vue'
 import CompanyResearchPage from '@/views/CompanyResearchPage.vue'
 import ResearchDetailPage from '@/views/ResearchDetailPage.vue'
@@ -44,6 +46,13 @@ const routes = [
     path: '/quant-analysis',
     name: 'QuantAnalysis',
     component: QuantAnalysisTool
+  },
+  {
+    path: '/backtests/:id',
+    name: 'BacktestDetail',
+    component: BacktestDetailPage,
+    props: true,
+    meta: { title: '回测详情' }
   },
   {
     path: '/news-list',
@@ -161,10 +170,24 @@ const router = createRouter({
   }
 })
 
-// 设置页面标题
+// 设置页面标题 + 鉴权守卫
 router.beforeEach((to, from, next) => {
   const title = to.meta.title || '量化牛牛'
   document.title = `${title} - 量化牛牛`
+  
+  // 白名单路由（不需要登录）
+  const publicRoutes = ['/', '/Home']
+  const isPublic = publicRoutes.includes(to.path) || to.name === 'Home'
+  
+  // 如果不是公开页面且未登录，触发登录弹窗并阻止导航
+  if (!isPublic && !isAuthenticated()) {
+    // 触发全局登录弹窗事件
+    window.dispatchEvent(new CustomEvent('auth:required'))
+    // 重定向到首页
+    next('/')
+    return
+  }
+  
   next()
 })
 

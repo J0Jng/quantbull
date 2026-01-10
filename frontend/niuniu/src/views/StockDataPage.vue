@@ -1,21 +1,6 @@
 <template>
   <!-- 头部导航 -->
   <div class="stock-data-container" style="background: #fff8f0; min-height: 100vh;">
-    <!-- 登录弹窗 -->
-    <div class="login-modal" v-show="showLogin">
-      <div class="login-box">
-        <span class="close-login" @click="closeLogin">&times;</span>
-        <div class="login-title">量化牛牛 - 登录</div>
-        <div class="error-tips" v-show="errorVisible">账号或密码错误，请重试！</div>
-        <form class="login-form" @submit.prevent>
-          <input v-model="username" type="text" placeholder="请输入账号" />
-          <input v-model="password" type="password" placeholder="请输入密码" />
-          <button type="button" class="login-btn" @click="submitLogin">登录</button>
-        </form>
-        <div class="login-tips">演示账号：123 | 演示密码：123</div>
-      </div>
-    </div>
-
     <header class="header">
       <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
       <div class="header-nav">
@@ -24,7 +9,7 @@
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
             <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="logout">退出登录</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
           </div>
         </div>
       </div>
@@ -254,14 +239,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuth } from '@/composables/useAuth';
+import { getRealtimeQuotes, getDailyQuotes } from '@/services/marketService';
 
-// ============================================
-// API 配置
-// ============================================
-// 修改此处的 API_BASE_URL 以匹配您的 data-service 服务地址
-// 默认: http://localhost:8000
-// 如果服务运行在其他端口或地址，请修改此处
-const API_BASE_URL = 'http://localhost:8000';
+// 使用全局认证
+const { logged, userText, openLoginModal, logout } = useAuth()
 
 // ============================================
 // 默认股票代码列表
@@ -280,13 +262,7 @@ const INDEX_CODES = {
   '000905': '中证500'
 };
 
-// 登录相关状态
-const username = ref('');
-const password = ref('');
-const showLogin = ref(false);
-const errorVisible = ref(false);
-const logged = ref(false);
-const userText = ref('登录/注册');
+// 用户菜单状态
 const showUserMenu = ref(false);
 
 // 响应式数据
@@ -343,27 +319,20 @@ const loadMarketOverview = async () => {
   const indexCodes = Object.keys(INDEX_CODES);
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/quotes/realtime`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ codes: indexCodes })
-    });
+    const result = await getRealtimeQuotes(indexCodes);
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    
-    if (result.data && result.data.length > 0) {
-      marketIndexes.value = result.data.map(item => {
-        const name = INDEX_CODES[item.code] || item.name;
-        return { ...item, name };
-      });
+    if (result.success && result.data) {
+      const data = result.data.data || result.data;
+      if (data && data.length > 0) {
+        marketIndexes.value = data.map(item => {
+          const name = INDEX_CODES[item.code] || item.name;
+          return { ...item, name };
+        });
+      } else {
+        console.error('暂无指数数据');
+      }
     } else {
-      console.error('暂无指数数据');
+      console.error('加载大盘指数失败:', result.message);
     }
   } catch (error) {
     console.error('加载大盘指数失败:', error);
@@ -373,24 +342,19 @@ const loadMarketOverview = async () => {
 // 加载股票数据
 const loadStockData = async (codes = DEFAULT_STOCK_CODES) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/quotes/realtime`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ codes: codes })
-    });
+    const result = await getRealtimeQuotes(codes);
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    stockData.value = result.data || [];
-    
-    // 如果有失败的代码，显示提示
-    if (result.failed_codes && result.failed_codes.length > 0) {
-      console.warn('部分股票数据获取失败:', result.failed_codes);
+    if (result.success && result.data) {
+      const data = result.data.data || result.data;
+      stockData.value = data || [];
+      
+      // 如果有失败的代码，显示提示
+      const failedCodes = result.data.failed_codes;
+      if (failedCodes && failedCodes.length > 0) {
+        console.warn('部分股票数据获取失败:', failedCodes);
+      }
+    } else {
+      console.error('加载股票数据失败:', result.message);
     }
   } catch (error) {
     console.error('加载股票数据失败:', error);
@@ -410,24 +374,19 @@ const loadKlineData = async (code, name) => {
   const endDateStr = formatDate(endDate);
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tushare/daily`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        codes: [code],
-        start_date: startDateStr,
-        end_date: endDateStr
-      })
+    const result = await getDailyQuotes({
+      codes: [code],
+      start_date: startDateStr,
+      end_date: endDateStr
     });
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (result.success && result.data) {
+      const data = result.data.data || result.data;
+      klineData.value = data || [];
+    } else {
+      console.error('加载K线数据失败:', result.message);
+      klineData.value = [];
     }
-    
-    const result = await response.json();
-    klineData.value = result.data || [];
   } catch (error) {
     console.error('加载K线数据失败:', error);
     klineData.value = [];
@@ -489,33 +448,7 @@ const formatDate = (date) => {
 
 const router = useRouter();
 
-// 登录功能
-function submitLogin() {
-  if (username.value.trim() === '123' && password.value.trim() === '123') {
-    // 登录成功
-    logged.value = true;
-    userText.value = '已登录（123）';
-    showLogin.value = false;
-    errorVisible.value = false;
-    localStorage.setItem('quantLogin', '123');
-    // 清空输入框
-    username.value = '';
-    password.value = '';
-  } else {
-    errorVisible.value = true;
-    setTimeout(() => (errorVisible.value = false), 3000);
-  }
-}
-
-function closeLogin() { 
-  showLogin.value = false; 
-}
-
-function goToUserProfile() {
-  showUserMenu.value = false;
-  router.push('/profile');
-}
-
+// 用户菜单交互
 let menuTimeout = null;
 let hideTimeout = null;
 
@@ -548,7 +481,7 @@ function onDropdownLeave() {
 
 function toggleUserMenu() { 
   if (!logged.value) {
-    showLogin.value = true; 
+    openLoginModal()
     showUserMenu.value = false;
   } else {
     clearTimeout(menuTimeout);
@@ -557,22 +490,18 @@ function toggleUserMenu() {
   }
 }
 
-function logout() {
-  logged.value = false;
-  userText.value = '登录/注册';
+function handleLogout() {
+  logout();
   showUserMenu.value = false;
-  localStorage.removeItem('quantLogin');
+}
+
+function goToUserProfile() {
+  showUserMenu.value = false;
+  router.push('/profile');
 }
 
 // 页面加载时初始化数据
 onMounted(() => {
-  // 检查登录状态
-  const status = localStorage.getItem('quantLogin');
-  if (status === '123') {
-    logged.value = true;
-    userText.value = '已登录（123）';
-  }
-  
   loadMarketOverview();
   loadStockData();
   

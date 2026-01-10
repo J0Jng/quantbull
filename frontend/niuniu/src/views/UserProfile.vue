@@ -7,7 +7,7 @@
         <a href="#">我的订单</a>
         <a href="#">购物车</a>
         <div class="user-menu-container">
-          <div class="user-btn">已登录（123）</div>
+          <div class="user-btn">已登录</div>
         </div>
       </div>
     </div>
@@ -27,15 +27,15 @@
             </div>
             <div class="info-item">
               <label>邮箱</label>
-              <div class="info-value">user@quantniuniu.com</div>
+              <div class="info-value">占位</div>
             </div>
             <div class="info-item">
               <label>电话号码</label>
-              <div class="info-value">138****8888</div>
+              <div class="info-value">占位</div>
             </div>
             <div class="info-item">
               <label>注册时间</label>
-              <div class="info-value">2025-01-15</div>
+              <div class="info-value">占位</div>
             </div>
           </div>
         </div>
@@ -63,6 +63,13 @@
               <div class="status-info">
                 <div class="status-label">会员等级</div>
                 <div class="status-value">普通会员</div>
+              </div>
+            </div>
+            <div class="status-item">
+              <span class="status-icon">🔑</span>
+              <div class="status-info">
+                <div class="status-label">AI Token 余额</div>
+                <div class="status-value">{{ tokenBalanceDisplay }}</div>
               </div>
             </div>
           </div>
@@ -193,14 +200,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
+import { getTokenBalance } from '@/services/authService'
 
 const router = useRouter()
 const isQualifiedInvestor = ref(false)
 const showCertification = ref(false)
 const certStep = ref(1)
+const tokenBalance = ref(null)
+const tokenLoading = ref(false)
+const tokenError = ref('')
 
 // 在页面加载时检查认证状态
 onMounted(() => {
@@ -208,6 +219,7 @@ onMounted(() => {
   if (investorStatus === 'certified') {
     isQualifiedInvestor.value = true
   }
+  loadTokenBalance()
 })
 
 const certForm = ref({
@@ -242,6 +254,33 @@ function startInvestorCertification() {
     riskConfirmed: false
   }
 }
+
+// 加载 AI Token 余额
+async function loadTokenBalance() {
+  tokenLoading.value = true
+  tokenError.value = ''
+  try {
+    const result = await getTokenBalance()
+    if (result.success) {
+      const data = result.data?.data || result.data || {}
+      const balance = data.ai_tokens ?? data.balance ?? data.tokens ?? null
+      tokenBalance.value = balance !== null ? Number(balance) : null
+    } else {
+      tokenError.value = result.message || '获取失败'
+    }
+  } catch (err) {
+    tokenError.value = err.message || '获取失败'
+  } finally {
+    tokenLoading.value = false
+  }
+}
+
+const tokenBalanceDisplay = computed(() => {
+  if (tokenLoading.value) return '加载中...'
+  if (tokenError.value) return '获取失败'
+  if (tokenBalance.value === null || Number.isNaN(tokenBalance.value)) return '--'
+  return `${tokenBalance.value}`
+})
 
 function closeCertification() {
   showCertification.value = false

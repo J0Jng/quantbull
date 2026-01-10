@@ -17,6 +17,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         ##"/openapi.json",
         ##"/redoc",
         "/",
+        "/api/ai/health",
+        "/api/ai/health/",
+        "/api/strategy/builtin",
+        "/api/strategy/builtin/",
         "/api/auth/login",
         "/api/auth/login/json",
         "/api/auth/register"

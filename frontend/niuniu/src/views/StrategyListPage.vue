@@ -171,6 +171,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getStrategies, deleteStrategy as deleteStrategyApi } from '@/services/strategyService'
 
 const router = useRouter()
 
@@ -195,7 +196,9 @@ const fetchStrategies = async () => {
     })
     
     if (response.success) {
-      strategies.value = response.data.strategies || []
+      // 适配不同的返回格式
+      const data = response.data
+      strategies.value = data.strategies || data.items || data || []
     } else {
       error.value = response.message || '获取策略列表失败'
     }
@@ -258,14 +261,18 @@ const deleteStrategy = async (strategyId) => {
   if (confirm('确定要删除这个策略吗？此操作不可恢复。')) {
     try {
       loading.value = true
-      // 模拟删除操作
-      await new Promise(resolve => setTimeout(resolve, 500))
       
-      strategies.value = strategies.value.filter(strategy => strategy.id !== strategyId)
+      const response = await deleteStrategyApi(strategyId)
       
-      // 如果当前页没有数据，回到上一页
-      if (paginatedStrategies.value.length === 0 && currentPage.value > 1) {
-        currentPage.value = currentPage.value - 1
+      if (response.success) {
+        strategies.value = strategies.value.filter(strategy => strategy.id !== strategyId)
+        
+        // 如果当前页没有数据，回到上一页
+        if (paginatedStrategies.value.length === 0 && currentPage.value > 1) {
+          currentPage.value = currentPage.value - 1
+        }
+      } else {
+        error.value = response.message || '删除策略失败'
       }
     } catch (err) {
       error.value = `删除策略失败: ${err.message}`

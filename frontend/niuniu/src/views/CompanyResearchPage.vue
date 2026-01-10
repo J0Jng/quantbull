@@ -28,31 +28,47 @@
     <div class="container">
       <!-- 全部研报 -->
       <h2 class="section-title" id="all">全部研报</h2>
-      <div class="results-info">
-        共找到 {{ filteredReports.length }} 条研报
-      </div>
-      <div class="report-grid">
-        <div class="report-card" v-for="(item, index) in filteredReports" :key="index">
-          <div class="report-info">
-            <div class="stock-info">
-              <span class="stock-name">{{ item.name }}</span>
-              <span :class="item.tagClass">{{ item.tag }}</span>
-            </div>
-            <div class="price">{{ item.priceLabel }}：<span class="current-price">{{ item.price }}</span></div>
-            <div class="profit">{{ item.profitLabel }}:<span class="profit-value" :class="{ 'positive': parseFloat(item.profit) > 0, 'negative': parseFloat(item.profit) < 0 }">{{ item.profit }}</span></div>
-            <ul class="report-tags">
-              <li v-for="(tag, i) in item.tags" :key="i">{{ tag }}</li>
-            </ul>
-            <div style="clear:both;"></div>
-            <button class="view-btn" @click="viewReport(index)">查看研报</button>
-          </div>
-        </div>
+      
+      <!-- 加载状态 -->
+      <div v-if="loading" class="loading-section">
+        <div class="loading-spinner"></div>
+        <p>正在加载研报数据...</p>
       </div>
       
-      <!-- 无结果提示 -->
-      <div v-if="filteredReports.length === 0" class="no-results">
-        <p>暂无符合条件的研报</p>
+      <!-- 错误提示 -->
+      <div v-if="error && !loading" class="error-section">
+        <p class="error-text">{{ error }}</p>
+        <button class="retry-btn" @click="fetchReports">重新加载</button>
       </div>
+      
+      <!-- 研报列表 -->
+      <template v-if="!loading && !error">
+        <div class="results-info">
+          共找到 {{ filteredReports.length }} 条研报
+        </div>
+        <div class="report-grid">
+          <div class="report-card" v-for="item in filteredReports" :key="item.id">
+            <div class="report-info">
+              <div class="stock-info">
+                <span class="stock-name">{{ item.name }}</span>
+                <span :class="item.tagClass">{{ item.tag }}</span>
+              </div>
+              <div class="price">{{ item.priceLabel }}：<span class="current-price">{{ item.price }}</span></div>
+              <div class="profit">{{ item.profitLabel }}:<span class="profit-value" :class="{ 'positive': parseFloat(item.profit) > 0, 'negative': parseFloat(item.profit) < 0 }">{{ item.profit }}</span></div>
+              <ul class="report-tags">
+                <li v-for="(tag, i) in item.tags" :key="i">{{ tag }}</li>
+              </ul>
+              <div style="clear:both;"></div>
+              <button class="view-btn" @click="viewReport(item)">查看研报</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 无结果提示 -->
+        <div v-if="filteredReports.length === 0" class="no-results">
+          <p>暂无符合条件的研报</p>
+        </div>
+      </template>
     </div>
 
     <!-- 底部 -->
@@ -61,50 +77,86 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
+import { getReportSummaries } from '@/services/reportService'
 
 const router = useRouter()
 
+// 响应式状态
 const searchQuery = ref('')
 const activeCategory = ref('all')
+const loading = ref(true)
+const error = ref('')
+const reportList = ref([])
 
-// 模拟更多的研报数据
-const reportData = [
-  { name: '键凯科技', tag: '买入', tagClass: 'mai-ru', priceLabel: '当前价', price: '71.25元', profitLabel: '目标价格', profit: '94.00%', tags: ['光伏', '碳中和', '新能源'] },
-  { name: '宁德时代', tag: '买入', tagClass: 'mai-ru', priceLabel: '目标价', price: '544.40元', profitLabel: '机构预测', profit: '68.00%', tags: ['光伏', '碳中和', '新能源'] },
-  { name: '招商银行', tag: '增持', tagClass: 'mai-ru-zeng', priceLabel: '目标价', price: '42.50元', profitLabel: '机构预测', profit: '44.30%', tags: ['金融', '银行', '蓝筹股'] },
-  { name: '比亚迪', tag: '买入', tagClass: 'mai-ru', priceLabel: '当前价', price: '235.60元', profitLabel: '目标价格', profit: '72.50%', tags: ['新能源车', '电池', '科技'] },
-  { name: '贵州茅台', tag: '持有', tagClass: 'chi-you', priceLabel: '当前价', price: '1580.00元', profitLabel: '机构预测', profit: '28.30%', tags: ['白酒', '消费', '高端品牌'] },
-  { name: '隆基绿能', tag: '增持', tagClass: 'mai-ru-zeng', priceLabel: '目标价', price: '78.50元', profitLabel: '机构预测', profit: '55.20%', tags: ['光伏', '清洁能源', '龙头'] },
-  { name: '中国平安', tag: '减持', tagClass: 'jian-chi', priceLabel: '目标价', price: '45.20元', profitLabel: '机构预测', profit: '12.80%', tags: ['保险', '金融', '蓝筹股'] },
-  { name: '五粮液', tag: '持有', tagClass: 'chi-you', priceLabel: '当前价', price: '142.30元', profitLabel: '目标价格', profit: '32.60%', tags: ['白酒', '消费', '高端品牌'] },
-  { name: '立讯精密', tag: '卖出', tagClass: 'mai-chu', priceLabel: '目标价', price: '32.80元', profitLabel: '机构预测', profit: '-5.20%', tags: ['电子', '苹果供应链', '消费电子'] },
-  { name: '东方财富', tag: '买入', tagClass: 'mai-ru', priceLabel: '当前价', price: '23.45元', profitLabel: '目标价格', profit: '58.70%', tags: ['金融', '互联网', '券商'] },
-  { name: '恒瑞医药', tag: '增持', tagClass: 'mai-ru-zeng', priceLabel: '目标价', price: '45.60元', profitLabel: '机构预测', profit: '35.20%', tags: ['医药', '创新药', '医疗'] },
-  { name: '海康威视', tag: '持有', tagClass: 'chi-you', priceLabel: '当前价', price: '32.80元', profitLabel: '机构预测', profit: '18.50%', tags: ['安防', '人工智能', '科技'] }
-]
+// 评级映射
+const ratingMap = {
+  'buy': { tag: '买入', tagClass: 'mai-ru' },
+  'add': { tag: '增持', tagClass: 'mai-ru-zeng' },
+  'hold': { tag: '持有', tagClass: 'chi-you' },
+  'reduce': { tag: '减持', tagClass: 'jian-chi' },
+  'sell': { tag: '卖出', tagClass: 'mai-chu' }
+}
 
-const filteredReports = computed(() => {
-  let filtered = reportData
+// 加载研报数据
+const fetchReports = async () => {
+  loading.value = true
+  error.value = ''
   
-  // 根据分类过滤
+  try {
+    const params = {
+      limit: 50,
+      offset: 0
+    }
+    
+    // 根据分类筛选
+    if (activeCategory.value !== 'all') {
+      params.rating = activeCategory.value
+    }
+    
+    const result = await getReportSummaries(params)
+    
+    if (result.success && result.data) {
+      // 转换 API 数据格式为前端展示格式
+      const reports = result.data.reports || result.data.items || result.data || []
+      reportList.value = reports.map(item => ({
+        id: item.id,
+        name: item.stock_name || item.title || '未知',
+        tag: ratingMap[item.rating]?.tag || item.rating || '持有',
+        tagClass: ratingMap[item.rating]?.tagClass || 'chi-you',
+        priceLabel: item.price_label || '当前价',
+        price: item.current_price ? `${item.current_price}元` : '-',
+        profitLabel: item.profit_label || '目标价格',
+        profit: item.target_return ? `${item.target_return}%` : '-',
+        tags: item.tags || item.sectors || []
+      }))
+    } else {
+      error.value = result.message || '获取研报失败'
+    }
+  } catch (e) {
+    error.value = '加载研报数据失败'
+    console.error('获取研报列表失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 筛选后的研报列表
+const filteredReports = computed(() => {
+  let filtered = reportList.value
+  
+  // 根据分类过滤（如果 API 不支持服务端筛选）
   if (activeCategory.value !== 'all') {
     filtered = filtered.filter(item => {
       switch (activeCategory.value) {
-        case 'buy':
-          return item.tagClass === 'mai-ru'
-        case 'add':
-          return item.tagClass === 'mai-ru-zeng'
-        case 'hold':
-          return item.tagClass === 'chi-you'
-        case 'reduce':
-          return item.tagClass === 'jian-chi'
-        case 'sell':
-          return item.tagClass === 'mai-chu'
-        default:
-          return true
+        case 'buy': return item.tagClass === 'mai-ru'
+        case 'add': return item.tagClass === 'mai-ru-zeng'
+        case 'hold': return item.tagClass === 'chi-you'
+        case 'reduce': return item.tagClass === 'jian-chi'
+        case 'sell': return item.tagClass === 'mai-chu'
+        default: return true
       }
     })
   }
@@ -125,17 +177,26 @@ function goHome() {
   router.push('/')
 }
 
-function viewReport(index) {
-  // 在实际应用中，这里应该使用真实的研报ID
-  // 目前我们使用索引作为ID模拟
-  router.push(`/company-research/research-detail/${index + 1}`)
+function viewReport(item) {
+  // 使用真实的研报 ID
+  router.push(`/company-research/research-detail/${item.id}`)
 }
 
 function go(id) {
   activeCategory.value = id
-  const el = document.getElementById(id)
-  if (el) window.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' })
+  // 切换分类时重新加载数据
+  fetchReports()
 }
+
+// 搜索处理
+function handleSearch() {
+  // 本地搜索，无需重新请求 API
+}
+
+// 生命周期
+onMounted(() => {
+  fetchReports()
+})
 </script>
 
 <style scoped>

@@ -71,7 +71,7 @@ class BacktestRepository:
     @staticmethod
     def list(limit: int = 10, offset: int = 0) -> List[BacktestRecord]:
         with get_session() as session:
-            stmt = select(BacktestRecord).offset(offset).limit(limit)
+            stmt = select(BacktestRecord).order_by(BacktestRecord.created_at.desc()).offset(offset).limit(limit)
             return list(session.exec(stmt).all())
 
     @staticmethod

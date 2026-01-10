@@ -10,6 +10,12 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 基础/包装类不应作为可选内置策略暴露给前端
+EXCLUDED_BUILTIN_FILES = {
+    "legacy_signal_wrapper",
+    "portfolio_base",
+}
+
 
 def load_strategy(
     mode: str,
@@ -152,3 +158,66 @@ def _load_builtin_strategy(
     except Exception as e:
         logger.error(f"加载内置策略失败: {e}")
         raise ValueError(f"加载内置策略失败: {e}")
+
+
+def list_builtin_strategies() -> list[dict]:
+    """列出内置策略名称及简要元数据"""
+    strategies_dir = Path(__file__).parent.parent / "strategies"
+    results: list[dict] = []
+
+    for file in strategies_dir.glob("*.py"):
+        if file.stem == "__init__":
+            continue
+        if file.stem in EXCLUDED_BUILTIN_FILES:
+            continue
+
+        name = file.stem
+        description = ""
+        params: dict = {}
+        display_name = name
+
+        try:
+            spec = importlib.util.spec_from_file_location(f"strategies.{name}", file)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[f"strategies.{name}"] = module
+                spec.loader.exec_module(module)
+
+                # 取 docstring 首行作为描述
+                doc = getattr(module, "__doc__", "") or ""
+                doc_lines = [line.strip() for line in doc.strip().splitlines() if line.strip()] if doc else []
+                if doc_lines:
+                    description = doc_lines[0]
+
+                # 查找策略类用于展示更友好的名称与参数
+                strategy_class = None
+                for attr_name in [name.title().replace("_", ""), "Strategy"]:
+                    if hasattr(module, attr_name):
+                        obj = getattr(module, attr_name)
+                        if isinstance(obj, type) and issubclass(obj, bt.Strategy):
+                            strategy_class = obj
+                            break
+                if not strategy_class:
+                    for _, obj in vars(module).items():
+                        if isinstance(obj, type) and issubclass(obj, bt.Strategy) and obj != bt.Strategy:
+                            strategy_class = obj
+                            break
+
+                if strategy_class:
+                    display_name = strategy_class.__name__
+                    params_attr = getattr(strategy_class, "params", None)
+                    try:
+                        params = dict(params_attr) if params_attr else {}
+                    except Exception:
+                        params = {}
+        except Exception as e:
+            logger.warning(f"读取内置策略元数据失败: {name}, {e}")
+
+        results.append({
+            "name": name,
+            "display_name": display_name,
+            "description": description,
+            "params": params,
+        })
+
+    return sorted(results, key=lambda x: x["name"])
