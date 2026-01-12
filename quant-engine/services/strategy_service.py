@@ -15,6 +15,7 @@ from schemas.strategy import (
     StrategyValidateRequest,
     StrategyValidateResponse,
 )
+from services.strategy_loader import list_builtin_strategies
 
 logger = get_logger(__name__)
 
@@ -148,6 +149,10 @@ class StrategyService:
             warnings=warnings,
             message="策略代码验证通过" if valid else "策略代码验证失败",
         )
+
+    async def list_builtin_strategies(self) -> list[dict]:
+        """列出内置策略元数据"""
+        return list_builtin_strategies()
 
     async def _assert_factors_exist(self, factor_ids: list[str]) -> None:
         """校验因子存在"""

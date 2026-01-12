@@ -363,6 +363,86 @@ class TushareService:
             logger.error(f"获取龙虎榜机构明细 {trade_date} 失败: {e}")
             return []
     
+    def fetch_top_list_multi_days(self, days: int = 5) -> List[dict]:
+        """获取多日龙虎榜汇总数据
+        
+        Args:
+            days: 天数（5 或 20）
+            
+        Returns:
+            汇总后的龙虎榜列表，按净买入额排序
+        """
+        from datetime import datetime, timedelta
+        from collections import defaultdict
+        
+        try:
+            # 计算日期范围（跳过周末）
+            end_date = datetime.now()
+            trade_dates = []
+            current = end_date
+            
+            while len(trade_dates) < days:
+                # 跳过周末
+                if current.weekday() < 5:  # 0-4 是周一到周五
+                    trade_dates.append(current.strftime("%Y%m%d"))
+                current -= timedelta(days=1)
+            
+            # 汇总数据
+            stock_summary = defaultdict(lambda: {
+                "ts_code": "",
+                "name": "",
+                "close": 0,
+                "pct_change": 0,
+                "total_buy": 0,
+                "total_sell": 0,
+                "net_amount": 0,
+                "appear_count": 0,
+                "reasons": set()
+            })
+            
+            # 获取每天的龙虎榜数据
+            for trade_date in trade_dates:
+                daily_data = self.fetch_top_list(trade_date)
+                for item in daily_data:
+                    ts_code = item.get("ts_code", "")
+                    if not ts_code:
+                        continue
+                    
+                    summary = stock_summary[ts_code]
+                    summary["ts_code"] = ts_code
+                    summary["name"] = item.get("name", "")
+                    summary["close"] = item.get("close", 0)  # 使用最新价格
+                    summary["pct_change"] += item.get("pct_change", 0) or 0
+                    summary["total_buy"] += item.get("l_buy", 0) or 0
+                    summary["total_sell"] += item.get("l_sell", 0) or 0
+                    summary["net_amount"] += item.get("net_amount", 0) or 0
+                    summary["appear_count"] += 1
+                    if item.get("reason"):
+                        summary["reasons"].add(item.get("reason"))
+            
+            # 转换为列表并排序
+            result = []
+            for ts_code, data in stock_summary.items():
+                result.append({
+                    "ts_code": data["ts_code"],
+                    "name": data["name"],
+                    "close": data["close"],
+                    "pct_change": round(data["pct_change"], 2),
+                    "total_buy": round(data["total_buy"], 2),
+                    "total_sell": round(data["total_sell"], 2),
+                    "net_amount": round(data["net_amount"], 2),
+                    "appear_count": data["appear_count"],
+                    "reason": f"{days}日上榜{data['appear_count']}次" if data["appear_count"] > 1 else list(data["reasons"])[0] if data["reasons"] else ""
+                })
+            
+            # 按净买入额降序排序
+            result.sort(key=lambda x: x["net_amount"], reverse=True)
+            return result[:20]  # 返回前20条
+            
+        except Exception as e:
+            logger.error(f"获取{days}日龙虎榜汇总失败: {e}")
+            return []
+    
     def fetch_limit_list(self, trade_date: str) -> List[dict]:
         """获取涨跌停股票列表
         
