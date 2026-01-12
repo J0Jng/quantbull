@@ -1,0 +1,1011 @@
+/* 基础重置 */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+	font-family: "微软雅黑", Arial, sans-serif;
+}
+
+/* 页面整体背景 */
+html, body {
+	background-color: #fff8f0;
+}
+a {
+	text-decoration: none;
+	color: inherit;
+}
+ul {
+	list-style: none;
+}
+table {
+	border-collapse: collapse;
+	width: 100%;
+}
+
+/* 全局居中容器 */
+.container {
+	width: 1200px;
+	margin: 0 auto;
+	position: relative;
+}
+
+/* 顶部栏 */
+.top-bar {
+	height: 60px;
+	line-height: 60px;
+	background: #fff8f0;
+	border-bottom: 1px solid #f0f0f0;
+}
+.top-left {
+	float: left;
+}
+.logo {
+	font-size: 22px;
+	color: #ff7f00;
+	font-weight: bold;
+	display: inline-block;
+}
+.slogan {
+	font-size: 12px;
+	color: #999;
+	margin-left: 5px;
+}
+.top-middle {
+	float: left;
+	margin-left: 40px;
+}
+.search-input {
+	width: 350px;
+	height: 36px;
+	padding: 0 12px;
+	border: 2px solid #ff7f00;
+	border-radius: 4px 0 0 4px;
+	vertical-align: middle;
+	font-size: 14px;
+}
+.search-btn {
+	height: 36px;
+	width: 80px;
+	background: #ff7f00;
+	color: #fff;
+	border: none;
+	border-radius: 0 4px 4px 0;
+	vertical-align: middle;
+	cursor: pointer;
+	font-size: 14px;
+}
+.top-right {
+	float: right;
+	font-size: 14px;
+}
+.login-btn, .register-btn {
+	margin-left: 20px;
+	background: transparent;
+}
+.register-btn {
+	color: #ff7f00;
+}
+
+/* 用户菜单容器 */
+.user-menu-container {
+	background: transparent;
+	position: relative;
+}
+
+/* 用户按钮样式 */
+.user-btn {
+    background: #ff7f24 !important;
+    color: #ffffff !important;
+    padding: 5px 12px !important;  /* 减小上下padding，从6px改为4px */
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    display: inline-block !important;
+    text-decoration: none !important;
+    font-weight: bold !important;
+    transition: background-color 0.3s ease !important;
+    line-height: 1.2 !important;  /* 添加行高控制，确保垂直居中 */
+}
+
+.user-btn:hover,
+.user-btn:focus,
+.user-btn:active {
+    background: #ff6a00 !important;
+}
+
+/* 用户下拉菜单 */
+.user-dropdown {
+	background: #fff8f0;
+	border: 1px solid #ffb380;
+	position: absolute;
+	right: 0;
+	top: 100%;
+	min-width: 120px;
+	z-index: 100;
+}
+
+/* 下拉菜单项 */
+.dropdown-item {
+	padding: 8px 12px;
+	display: block;
+	color: #333;
+	text-decoration: none;
+}
+
+.dropdown-item:hover {
+	background-color: #ffebd8;
+}
+
+/* 主导航菜单 */
+.main-nav {
+	height: 40px;
+	line-height: 40px;
+	background: #fff8f0;
+	border-bottom: 2px solid #ff7f00;
+}
+.nav-list {
+	display: flex;
+}
+.nav-list li {
+	margin-right: 30px;
+}
+.nav-list li a {
+	font-size: 14px;
+	color: #333;
+	padding: 0 2px;
+}
+.nav-list li a.active, .nav-list li a:hover {
+	color: #ff7f00;
+	border-bottom: 2px solid #ff7f00;
+}
+
+/* 主内容区 */
+.main-content {
+	padding: 15px 0;
+	background: #fff8f0;
+}
+
+/* 外置板块标题样式 */
+.section-title {
+	font-size: 24px;
+	color: #fff;
+	background: #ff7f00;
+	padding: 4px 12px;
+	border-radius: 3px;
+	margin: 15px 0 0px 0;
+	display: inline-block;
+	border-radius: 10px;
+}
+
+/* 财经头条板块 */
+.news-section {
+	display: flex;
+	background: #fff;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	margin-bottom: 15px;
+	overflow: hidden;
+}
+.news-banner {
+	width: 70%;
+	position: relative;
+}
+.news-banner img {
+	width: 100%;
+	height: 300px;
+	object-fit: cover;
+	display: block;
+}
+.banner-mask {
+	position: absolute;
+	bottom: 10px;
+	left: 0;
+	right: 0;
+	background: rgba(0, 0, 0, 0.6);
+	padding: 20px;
+	color: #fff;
+}
+.mask-title {
+	font-size: 18px;
+	font-weight: bold;
+	margin-bottom: 8px;
+}
+.mask-desc {
+	font-size: 14px;
+	line-height: 1.5;
+}
+.news-list {
+	width: 30%;
+	padding: 20px;
+	background: #f5f5f5;
+}
+.news-list ul li {
+	margin-bottom: 15px;
+	font-size: 14px;
+	line-height: 1.5;
+	padding-bottom: 15px;
+	border-bottom: 1px dashed #ddd;
+}
+.news-list ul li:last-child {
+	border-bottom: none;
+	margin-bottom: 0;
+	padding-bottom: 0;
+}
+.news-list ul li a:hover {
+	color: #ff7f00;
+}
+
+/* AI智能服务入口板块 */
+.ai-service-section {
+	background: #fff;
+	padding: 20px;
+	border-radius: 8px;
+	margin-bottom: 15px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+	border: 1px solid #eee;
+}
+
+.ai-service-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	gap: 20px;
+}
+
+.ai-service-card {
+	border: 1px solid #eee;
+	border-radius: 8px;
+	padding: 20px;
+	text-align: center;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	background: #fff;
+}
+
+.ai-service-card:hover {
+	transform: translateY(-5px);
+	box-shadow: 0 5px 15px rgba(255, 127, 0, 0.2);
+	border-color: #ff7f00;
+}
+
+.ai-icon {
+	font-size: 40px;
+	margin-bottom: 15px;
+}
+
+.news-icon {
+	color: #4A90E2;
+}
+
+.strategy-icon {
+	color: #F5A623;
+}
+
+.summary-icon {
+	color: #7ED321;
+}
+
+.report-icon {
+	color: #BD10E0;
+}
+
+.ai-service-card h3 {
+	font-size: 18px;
+	margin-bottom: 10px;
+	color: #333;
+}
+
+.ai-service-card p {
+	font-size: 14px;
+	color: #666;
+	margin-bottom: 15px;
+	min-height: 40px;
+}
+
+.ai-tag {
+	display: inline-block;
+	background: #ff7f00;
+	color: white;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+/* AI服务模态框 */
+.ai-modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.7);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 1000;
+}
+
+.ai-modal-content {
+	background: white;
+	border-radius: 8px;
+	width: 90%;
+	max-width: 600px;
+	max-height: 90vh;
+	overflow-y: auto;
+}
+
+.ai-modal-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 20px;
+	border-bottom: 1px solid #eee;
+}
+
+.ai-modal-header h3 {
+	margin: 0;
+	color: #333;
+}
+
+.close-btn {
+	background: none;
+	border: none;
+	font-size: 24px;
+	cursor: pointer;
+	color: #999;
+}
+
+.close-btn:hover {
+	color: #333;
+}
+
+.ai-modal-body {
+	padding: 20px;
+}
+
+.ai-input-section textarea {
+	width: 100%;
+	padding: 10px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	resize: vertical;
+	font-size: 14px;
+	margin-bottom: 15px;
+}
+
+.ai-options {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.ai-options label {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 14px;
+}
+
+.ai-options input[type="text"],
+.ai-options select {
+	padding: 5px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.ai-submit-btn {
+	background: #ff7f00;
+	color: white;
+	border: none;
+	padding: 8px 15px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+}
+
+.ai-submit-btn:hover {
+	background: #e06f00;
+}
+
+.ai-result-section {
+	margin-top: 20px;
+	padding-top: 20px;
+	border-top: 1px solid #eee;
+}
+
+.ai-result-section h4 {
+	margin-bottom: 10px;
+	color: #333;
+}
+
+.ai-result-content {
+	background: #f9f9f9;
+	padding: 15px;
+	border-radius: 4px;
+	border: 1px solid #eee;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.ai-result-content pre {
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	margin: 0;
+	font-family: "微软雅黑", Arial, sans-serif;
+	line-height: 1.5;
+}
+
+.ai-result-meta {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 10px;
+	font-size: 12px;
+	color: #666;
+}
+
+/* API状态指示器 */
+.api-status {
+	text-align: center;
+	padding: 10px;
+	border-radius: 4px;
+	margin-bottom: 15px;
+	font-size: 14px;
+	font-weight: bold;
+}
+
+.api-status.checking {
+	background: #f0f0f0;
+	color: #666;
+}
+
+.api-status.online {
+	background: #e8f5e9;
+	color: #4caf50;
+}
+
+.api-status.offline {
+	background: #ffebee;
+	color: #f44336;
+}
+
+/* 广告横幅 */
+.ad-banner {
+	margin-bottom: 15px;
+}
+.ad-banner img {
+	width: 100%;
+	height: 80px;
+	object-fit: cover;
+	border-radius: 4px;
+	display: block;
+}
+
+/* 通用右侧链接/标签切换样式 */
+.more-link {
+	font-size: 12px;
+	color: #ff7f00;
+	float: right;
+	margin-top: 5px;
+}
+.tab-switch {
+	float:right;
+	text-align: right;
+	margin-bottom: 8px;
+	margin-top:15px;
+}
+.tab-switch a {
+	font-size: 13px;
+	margin-left: 10px;
+	padding: 2px 6px;
+}
+.tab-switch a.active {
+	background: #ff7f00;
+	color: #fff;
+	border-radius: 3px;
+}
+.tab-switch a.active {
+	background: #ff7f00 !important;
+	color: #fff !important;
+	border-radius: 3px;
+}
+/* 修复切换标签布局 */
+.dragon-tab-switch, .report-tab-switch {
+	float:right;
+	text-align: right;
+	margin-bottom: 8px;
+	margin-top:15px;
+}
+
+/* 龙虎榜板块 */
+.dragon-board {
+	background: #fff;
+	padding: 10px;
+	border: 3px solid #ff7f00;
+	border-radius: 12px;
+	margin-bottom: 10px;
+}
+.dragon-table {
+	font-size: 13px;
+}
+.dragon-table th, .dragon-table td {
+	padding: 8px 5px;
+	text-align: left;
+	border-bottom: 1px solid #f0f0f0;
+}
+.dragon-table th {
+	background: #f9f9f9;
+}
+.green {
+	color: #00b300;
+}
+.red {
+	color: #ff3333;
+}
+
+/* 公司研报板块 */
+.company-report {
+	background: #fff;
+	padding: 10px;
+	border: 3px solid #ff7f00;
+	border-radius: 12px;
+	margin-bottom: 10px;
+}
+.report-cards {
+	display: flex;
+	justify-content: space-between;
+	clear: both;
+}
+.report-card {
+	width: 32%;
+	border: 1px solid #f0f0f0;
+	padding: 10px;
+	border-radius: 4px;
+}
+.report-ul{
+	margin-top:6px;
+}
+.report-ul li{
+	background:#ddd;
+	padding:2px 4px;
+	font-size:12px;
+	float:left;
+	margin-right:5px;
+}
+.card-header {
+	font-size: 12px;
+	margin-bottom: 8px;
+}
+.tag {
+	background: #ff7f00;
+	color: #fff;
+	padding: 1px 4px;
+	border-radius: 2px;
+	margin-right: 5px;
+}
+.card-body {
+    
+	align-items: center;
+	justify-content: space-between;
+}
+.stock-icon {
+	width: 24px;
+	height: 24px;
+	margin-right: 5px;
+}
+.stock-name {
+	font-size: 16px;
+	font-weight: bold;
+}
+.mai-ru{
+	float: right;
+	background:#DDFCE6;
+	padding:2px 4px;
+	color:#18A44B;
+	font-size:12px;
+	display: block;
+}
+.mai-ru-zeng{
+	float: right;
+	background:#FCF5C4;
+	padding:2px 4px;
+	color:#976A1C;
+	font-size:12px;
+	display: block;
+}
+.price, .profit {
+	font-size: 12px;
+	margin-top: 4px;
+}
+.current-price{
+	float: right;
+}
+.price span, .profit span {
+	color: #ff7f00;
+}
+.view-btn {
+	font-size: 12px;
+	padding: 4px 8px;
+	color: #ff7f00;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	width:100%;
+	margin-top:5px;
+	background:#fff6ee;
+}
+
+/* 策略技术平台板块 */
+.strategy-platform {
+	background: #fff;
+	padding: 10px;
+	border: 3px solid #ff7f00;
+	border-radius: 4px;
+	margin-bottom: 10px;
+	border-radius: 12px;
+}
+.platform-cards {
+	display: flex;
+	justify-content: space-between;
+}
+.platform-card {
+	width: 32%;
+	padding: 15px;
+	border-radius: 4px;
+	color: #fff;
+}
+.platform-card.orange {
+	background: #ff7f00;
+}
+.platform-card.blue {
+	background: #1e90ff;
+}
+.platform-card.green {
+	background: #00b300;
+}
+.platform-card h3 {
+	font-size: 15px;
+	margin-bottom: 8px;
+}
+.platform-card p {
+	font-size: 12px;
+	margin-bottom: 10px;
+}
+.try-btn {
+	font-size: 12px;
+	padding: 4px 8px;
+	background: #fff;
+	color: inherit;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+/* 商城板块 */
+.mall-section {
+	background: #fff;
+	padding: 10px;
+	border: 3px solid #ff7f00;
+	border-radius: 4px;
+	margin-bottom: 10px;
+	border-radius: 12px;
+}
+.mall-cards {
+	display: flex;
+	justify-content: space-between;
+	clear: both;
+}
+.mall-card {
+	width: 48%;
+	border: 1px solid #f0f0f0;
+	padding: 10px;
+	border-radius: 4px;
+	display: flex;
+	/* align-items: center; */
+	justify-content: space-between;
+}
+.card-icon img {
+	width: 48px;
+	height: 48px;
+}
+.card-info {
+	flex: 1;
+	margin: 0 10px;
+}
+.card-info h4 {
+	font-size: 14px;
+	margin-bottom: 4px;
+}
+.card-info p {
+	font-size: 12px;
+	color: #666;
+}
+.price {
+	font-size: 14px;
+	color: #ff7f00;
+	font-weight: bold;
+}
+.buy-btn {
+	font-size: 12px;
+	padding: 4px 8px;
+	background: #ff7f00;
+	color: #fff;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+/* 基金排行榜板块（核心修改） */
+.fund-rank {
+	background: #fff;
+	padding: 10px;
+	border: 3px solid #ff7f00;
+	border-radius: 4px;
+	margin-bottom: 10px;
+}
+.fund-list {
+	width: 100%;
+}
+/* 基金列表项 */
+.fund-item {
+	display: flex;
+	align-items: center;
+	padding: 10px 0;
+	border-bottom: 1px solid #f0f0f0;
+}
+.fund-item:last-child {
+	border-bottom: none;
+}
+/* 基金列通用样式 */
+.fund-col {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 0 5px;
+}
+/* 单选框列 */
+.check-col {
+	width: 4%;
+}
+/* 序号列 */
+.num-col {
+	width: 5%;
+	font-size: 12px;
+	color: #666;
+}
+/* 基金名称列 */
+.name-col {
+	width: 15%;
+	text-align: left;
+	justify-content: flex-start;
+}
+.fund-name {
+	font-size: 13px;
+	font-weight: 500;
+	color: #333;
+}
+.fund-type {
+	font-size: 11px;
+	color: #999;
+	margin-top: 2px;
+}
+/* 数据列（数值+时间） */
+.data-col {
+	width: 8%;
+	flex-direction: column;
+	justify-content: center;
+}
+.data-value {
+	font-size: 12px;
+	color: #ec1b1b;
+	margin-bottom: 2px;
+}
+.data-time {
+	font-size: 10px;
+	color: #999;
+}
+/* 涨跌列 */
+.trend-col {
+	width: 7%;
+	font-size: 12px;
+	font-weight: 500;
+}
+/* 走势图片列 */
+.trend-img-col {
+	width: 8%;
+}
+.trend-img {
+	width: 60px;
+	height: 30px;
+	object-fit: cover;
+}
+/* 按钮列 */
+.btn-col {
+	width: 12%;
+	display: flex;
+	gap: 5px;
+}
+/* 小按钮样式 */
+.btn-col .small {
+	padding: 3px 6px;
+	font-size: 11px;
+}
+.fav-btn {
+	font-size: 12px;
+	padding: 4px 8px;
+	background: #fff;
+	color: #ff7f00;
+	border: 1px solid #ff7f00;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+/* 每日内参板块 */
+.daily-report {
+	background: #fff;
+	padding: 10px;
+	border: 3px solid #ff7f00;
+	border-radius: 4px;
+	margin-bottom: 10px;
+	border-radius: 12px;
+}
+.report-content {
+	font-size: 13px;
+	clear: both;
+}
+.report-item {
+	margin-bottom: 10px;
+	border-bottom: 1px dashed #f0f0f0;
+	padding:10px;
+}
+.report-item:hover {
+	background:#FFF6EE;
+}
+.report-item h3 {
+	font-size: 14px;
+	margin-bottom: 5px;
+}
+.report-item p {
+	line-height: 1.5;
+}
+.design{
+	color: #999;
+	margin-right: 10px;
+}
+.date {
+	font-size: 12px;
+	color: #999;
+}
+
+/* 页脚 */
+.page-footer {
+	height: 50px;
+	line-height: 50px;
+	background: #fff8f0;
+	text-align: center;
+	font-size: 12px;
+	color: #999;
+	border-top: 1px solid #f0f0f0;
+	margin-top: 20px;
+}
+
+/* 聊天窗口特殊样式增强 */
+.chat-widget-container * {
+  box-sizing: border-box;
+}
+
+/* 聊天窗口动画效果 */
+@keyframes chatPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.chat-icon:hover {
+  animation: chatPulse 2s infinite;
+}
+
+/* 新消息闪烁效果 */
+@keyframes newMessageFlash {
+  0% { box-shadow: 0 0 0 0 rgba(255, 127, 0, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 127, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 127, 0, 0); }
+}
+
+.chat-icon.has-unread {
+  animation: newMessageFlash 2s infinite;
+}
+
+/* 消息气泡动画 */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+/* 加载动画增强 */
+@keyframes typingDots {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+.typing-indicator span {
+  animation: typingDots 1.4s ease-in-out infinite both;
+}
+
+/* 拖拽时的半透明效果 */
+.chat-window.dragging {
+  opacity: 0.8;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* 响应式优化 */
+@media (max-width: 480px) {
+  .chat-window {
+    width: 95vw !important;
+    height: 80vh !important;
+    left: 2.5vw !important;
+    top: 10vh !important;
+  }
+  
+  .chat-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+}
+
+/* 无障碍访问支持 */
+.chat-window:focus-within {
+  outline: 2px solid #ff7f00;
+  outline-offset: 2px;
+}
+
+.send-btn:focus,
+.message-input:focus,
+.action-btn:focus {
+  outline: 2px solid #ff7f00;
+  outline-offset: 2px;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .chat-window {
+    border: 2px solid #ff7f00;
+  }
+  
+  .message-content {
+    border: 1px solid #333;
+  }
+}
+
+/* 减少动画支持 */
+@media (prefers-reduced-motion: reduce) {
+  .chat-icon:hover,
+  .message,
+  .typing-indicator span {
+    animation: none;
+  }
+  
+  .chat-icon:hover {
+    transform: none;
+  }
+}

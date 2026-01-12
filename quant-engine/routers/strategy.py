@@ -12,12 +12,20 @@ from schemas.strategy import (
     StrategyValidateResponse,
 )
 from services.strategy_service import StrategyService
+from core.response import success
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 # 初始化服务
 strategy_service = StrategyService()
+
+
+@router.get("/builtin", summary="列出内置策略")
+async def list_builtin_strategies():
+    """返回内置策略名称及描述"""
+    strategies = await strategy_service.list_builtin_strategies()
+    return success({"items": strategies, "total": len(strategies)})
 
 
 @router.post("", response_model=StrategyResponse, summary="创建策略")
