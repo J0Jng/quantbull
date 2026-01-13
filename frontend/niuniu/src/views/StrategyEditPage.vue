@@ -64,6 +64,15 @@
                 <input 
                   type="radio" 
                   v-model="strategyForm.status" 
+                  value="draft" 
+                  class="status-input"
+                />
+                <span class="status-label">草稿</span>
+              </label>
+              <label class="status-option">
+                <input 
+                  type="radio" 
+                  v-model="strategyForm.status" 
                   value="active" 
                   class="status-input"
                 />
@@ -73,10 +82,10 @@
                 <input 
                   type="radio" 
                   v-model="strategyForm.status" 
-                  value="inactive" 
+                  value="archived" 
                   class="status-input"
                 />
-                <span class="status-label">非活跃</span>
+                <span class="status-label">已归档</span>
               </label>
             </div>
           </div>
@@ -174,12 +183,12 @@
       <div class="form-actions">
         <button 
           class="btn-primary" 
-          @click="updateStrategy"
+          @click="saveStrategyUpdate"
           :disabled="submitting"
         >
           {{ submitting ? '更新中...' : '更新策略' }}
         </button>
-        <router-link :to="`/strategies/${strategyId}`" class="btn-secondary">
+        <router-link :to="`/strategies`" class="btn-secondary">
           取消
         </router-link>
       </div>
@@ -193,7 +202,7 @@
           <h3>{{ updateResult.title }}</h3>
           <p>{{ updateResult.message }}</p>
           <div class="result-actions">
-            <router-link :to="`/strategies/${strategyId}`" class="btn-primary">
+            <router-link :to="`/strategies`" class="btn-primary">
               查看策略详情
             </router-link>
             <router-link to="/strategies" class="btn-secondary">
@@ -209,6 +218,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { 
+  getStrategy, 
+  updateStrategy, 
+  validateStrategyCode 
+} from '@/services/strategyService'
 
 const route = useRoute()
 const router = useRouter()
@@ -296,48 +310,36 @@ const validateCode = async () => {
   validationResult.value = null
 
   try {
-    // 模拟API调用验证代码
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const response = await validateStrategyCode(strategyForm.value.code)
     
-    // 基础验证逻辑
-    const errors = []
-    
-    if (lineCount.value < 10) {
-      errors.push('代码行数不足10行')
-    }
-    
-    if (!hasRequiredClasses.value) {
-      errors.push('代码中缺少必要的类和函数定义')
-    }
-    
-    // 简单语法检查
-    try {
-      // 检查Python语法（简单版本）
-      if (strategyForm.value.code.includes('syntax error')) {
-        errors.push('检测到语法错误')
-      }
-    } catch (e) {
-      errors.push('Python语法检查失败: ' + e.message)
-    }
-    
-    if (errors.length === 0) {
+    if (response.success) {
+      const data = response.data?.data || response.data || {}
       validationResult.value = {
-        status: 'success',
-        message: '代码验证通过！策略代码语法正确且包含必要的基本结构。',
-        details: '策略类定义完成，包含必要的交易逻辑框架。'
+        valid: data.valid !== undefined ? data.valid : true,
+        status: data.valid ? 'success' : 'error',
+        message: data.message || '代码验证通过',
+        errors: data.errors || [],
+        warnings: data.warnings || [],
+        details: data.details || ''
       }
     } else {
       validationResult.value = {
+        valid: false,
         status: 'error',
-        message: '代码验证失败，请检查以下问题：',
-        details: errors.join('\n')
+        message: response.message || '代码验证失败',
+        errors: ['服务返回错误'],
+        warnings: [],
+        details: ''
       }
     }
   } catch (error) {
     validationResult.value = {
+      valid: false,
       status: 'error',
-      message: '验证服务暂时不可用，请稍后重试',
-      details: error.message
+      message: '验证服务暂时不可用',
+      errors: [error.message || '网络错误'],
+      warnings: [],
+      details: ''
     }
   } finally {
     validatingCode.value = false
@@ -383,7 +385,7 @@ const validateForm = () => {
   return formErrors.value.length === 0
 }
 
-const updateStrategy = async () => {
+const saveStrategyUpdate = async () => {
   if (!validateForm()) {
     return
   }
@@ -392,16 +394,34 @@ const updateStrategy = async () => {
   updateResult.value = null
   
   try {
-    // 模拟API调用更新策略
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // 模拟更新成功
-    updateResult.value = {
-      status: 'success',
-      title: '策略更新成功！',
-      message: `策略 "${strategyForm.value.name}" 已成功更新。`
+    const updateData = {
+      name: strategyForm.value.name,
+      description: strategyForm.value.description,
+      code: strategyForm.value.code,
+      parameters: JSON.parse(strategyForm.value.parameters),
+      status: strategyForm.value.status
     }
     
+    const response = await updateStrategy(strategyId.value, updateData)
+    
+    if (response.success) {
+      updateResult.value = {
+        status: 'success',
+        title: '策略更新成功！',
+        message: `策略 "${strategyForm.value.name}" 已成功更新。`
+      }
+      
+      // 2秒后跳转到详情页
+      setTimeout(() => {
+        router.push(`/strategies`)
+      }, 2000)
+    } else {
+      updateResult.value = {
+        status: 'error',
+        title: '更新失败',
+        message: response.message || '更新策略失败'
+      }
+    }
   } catch (error) {
     updateResult.value = {
       status: 'error',
@@ -421,41 +441,22 @@ onMounted(() => {
 
 const fetchStrategyData = async () => {
   try {
-    // 模拟API调用获取策略数据
-    await new Promise(resolve => setTimeout(resolve, 800))
+    const response = await getStrategy(strategyId.value)
     
-    // 模拟数据 - 实际项目中替换为真实API调用
-    strategyForm.value = {
-      id: strategyId.value,
-      name: '均线交叉策略',
-      description: '基于5日均线和20日均线交叉的简单交易策略',
-      status: 'active',
-      code: `import backtrader as bt
-
-class SimpleMovingAverage(bt.Strategy):
-    params = (
-        ('window', 20),
-    )
-    
-    def __init__(self):
-        self.sma = bt.indicators.SimpleMovingAverage(
-            self.datas[0], period=self.params.window
-        )
-    
-    def next(self):
-        if not self.position:
-            if self.data.close[0] > self.sma[0]:
-                self.buy()
-        else:
-            if self.data.close[0] < self.sma[0]:
-                self.sell()
-    
-    def stop(self):
-        self.log(f'最终资产: {self.broker.getvalue():.2f}')`,
-      parameters: '{"window": 20, "threshold": 0.01}'
+    if (response.success) {
+      const data = response.data?.data || response.data || {}
+      strategyForm.value = {
+        name: data.name || '',
+        description: data.description || '',
+        code: data.code || '',
+        parameters: JSON.stringify(data.parameters || {}, null, 2),
+        status: data.status || 'draft'
+      }
+    } else {
+      console.error('获取策略数据失败:', response.message)
     }
-  } catch (err) {
-    console.error('加载策略数据失败:', err)
+  } catch (error) {
+    console.error('获取策略数据失败:', error)
   }
 }
 </script>
