@@ -14,11 +14,12 @@
             <input 
               v-model="searchText" 
               type="text" 
-              placeholder="搜索策略名称..."
+              placeholder="搜索策略名称或描述..."
               class="search-input"
               @input="handleSearch"
+              @keyup.enter="handleSearch"
             />
-            <button class="search-btn">搜索</button>
+            <button class="search-btn" @click="handleSearch">搜索</button>
           </div>
           <div class="filter-group">
             <label for="status-filter">状态筛选:</label>
@@ -29,8 +30,9 @@
               @change="handleFilter"
             >
               <option value="all">全部</option>
+              <option value="draft">草稿</option>
               <option value="active">活跃</option>
-              <option value="inactive">非活跃</option>
+              <option value="archived">已归档</option>
             </select>
           </div>
           <router-link to="/strategies/create" class="btn-primary">
@@ -80,7 +82,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="strategy in paginatedStrategies" :key="strategy.id">
+              <tr v-for="strategy in strategies" :key="strategy.id">
                 <td class="strategy-id">{{ strategy.id }}</td>
                 <td class="strategy-name">
                   <router-link :to="`/strategies/${strategy.id}`" class="name-link">
@@ -99,13 +101,7 @@
                 <td class="strategy-updated">{{ formatDate(strategy.updated_at) }}</td>
                 <td class="strategy-actions">
                   <div class="action-buttons">
-                    <router-link 
-                      :to="`/strategies/${strategy.id}`" 
-                      class="btn-view"
-                      title="查看详情"
-                    >
-                      详情
-                    </router-link>
+                    
                     <router-link 
                       :to="`/strategies/${strategy.id}/edit`" 
                       class="btn-edit"
@@ -146,7 +142,7 @@
         </div>
 
         <!-- 分页控件 -->
-        <div v-if="strategies.length > 0" class="pagination">
+        <div v-if="totalCount > 0" class="pagination">
           <button 
             :disabled="currentPage === 1" 
             @click="changePage(currentPage - 1)"
@@ -154,7 +150,9 @@
           >
             上一页
           </button>
-          <span class="page-info">第 {{ currentPage }} 页，共 {{ totalPages }} 页</span>
+          <span class="page-info">
+            第 {{ currentPage }} 页，共 {{ totalPages }} 页 (共 {{ totalCount }} 条)
+          </span>
           <button 
             :disabled="currentPage >= totalPages" 
             @click="changePage(currentPage + 1)"
@@ -183,70 +181,63 @@ const loading = ref(false)
 const error = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+const totalCount = ref(0)
+let searchDebounceTimer = null
 
-// 获取策略列表
+// 获取策略列表（服务端分页 + 搜索）
 const fetchStrategies = async () => {
   loading.value = true
   error.value = ''
   
   try {
+    const offset = (currentPage.value - 1) * pageSize.value
     const response = await getStrategies({
       status: statusFilter.value === 'all' ? null : statusFilter.value,
-      search: searchText.value.trim() || null
+      search: searchText.value.trim() || null,
+      limit: pageSize.value,
+      offset: offset
     })
     
     if (response.success) {
       // 适配不同的返回格式
-      const data = response.data
-      strategies.value = data.strategies || data.items || data || []
+      const data = response.data?.data || response.data || {}
+      strategies.value = data.strategies || data.items || []
+      totalCount.value = data.total || 0
     } else {
       error.value = response.message || '获取策略列表失败'
+      strategies.value = []
+      totalCount.value = 0
     }
   } catch (err) {
     error.value = `获取策略列表失败: ${err.message}`
+    strategies.value = []
+    totalCount.value = 0
   } finally {
     loading.value = false
   }
 }
 
-// 计算属性
-const filteredStrategies = computed(() => {
-  let filtered = strategies.value
-  
-  // 状态筛选
-  if (statusFilter.value !== 'all') {
-    filtered = filtered.filter(strategy => strategy.status === statusFilter.value)
-  }
-  
-  // 搜索筛选
-  if (searchText.value.trim()) {
-    const searchTerm = searchText.value.toLowerCase()
-    filtered = filtered.filter(strategy => 
-      strategy.name.toLowerCase().includes(searchTerm) ||
-      strategy.description.toLowerCase().includes(searchTerm)
-    )
-  }
-  
-  return filtered
-})
-
+// 计算总页数
 const totalPages = computed(() => 
-  Math.ceil(filteredStrategies.value.length / pageSize.value)
+  Math.ceil(totalCount.value / pageSize.value)
 )
-
-const paginatedStrategies = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredStrategies.value.slice(start, end)
-})
 
 // 方法
 const handleSearch = () => {
-  currentPage.value = 1
+  // Debounce 搜索
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  
+  searchDebounceTimer = setTimeout(() => {
+    currentPage.value = 1
+    fetchStrategies()
+  }, 300)
 }
 
 const handleFilter = () => {
   currentPage.value = 1
+  fetchStrategies()
 }
 
 const refreshList = () => {
@@ -254,7 +245,9 @@ const refreshList = () => {
 }
 
 const changePage = (page) => {
+  if (page < 1 || page > totalPages.value) return
   currentPage.value = page
+  fetchStrategies()
 }
 
 const deleteStrategy = async (strategyId) => {
@@ -265,12 +258,12 @@ const deleteStrategy = async (strategyId) => {
       const response = await deleteStrategyApi(strategyId)
       
       if (response.success) {
-        strategies.value = strategies.value.filter(strategy => strategy.id !== strategyId)
-        
-        // 如果当前页没有数据，回到上一页
-        if (paginatedStrategies.value.length === 0 && currentPage.value > 1) {
+        // 删除成功，重新获取当前页数据
+        // 如果当前页没有数据了且不是第一页，回到上一页
+        if (strategies.value.length === 1 && currentPage.value > 1) {
           currentPage.value = currentPage.value - 1
         }
+        await fetchStrategies()
       } else {
         error.value = response.message || '删除策略失败'
       }
@@ -285,14 +278,16 @@ const deleteStrategy = async (strategyId) => {
 const getStatusClass = (status) => {
   return {
     'status-active': status === 'active',
-    'status-inactive': status === 'inactive'
+    'status-inactive': status === 'archived',
+    'status-draft': status === 'draft'
   }
 }
 
 const getStatusText = (status) => {
   const statusMap = {
     'active': '活跃',
-    'inactive': '非活跃'
+    'draft': '草稿',
+    'archived': '已归档'
   }
   return statusMap[status] || status
 }
@@ -556,6 +551,11 @@ onMounted(() => {
 
 .status-inactive {
   color: #f44336;
+  font-weight: bold;
+}
+
+.status-draft {
+  color: #ff9800;
   font-weight: bold;
 }
 

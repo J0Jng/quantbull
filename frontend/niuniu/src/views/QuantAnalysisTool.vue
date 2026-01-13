@@ -46,27 +46,23 @@
           <div class="form-group">
             <label for="strategy-mode">策略模式:</label>
             <select id="strategy-mode" v-model="backtestForm.strategy_mode" class="form-control">
-              <option value="custom">自定义策略 (AI生成)</option>
+              <option value="saved">已保存策略</option>
               <option value="builtin">内置策略</option>
             </select>
           </div>
           
-          <div v-if="backtestForm.strategy_mode === 'custom'" class="form-group">
-            <label for="strategy-description">策略描述 (用于AI生成):</label>
-            <textarea 
-              id="strategy-description" 
-              v-model="strategyDescription" 
-              placeholder="描述您的策略思路，例如：基于均线交叉的交易策略，在短期均线上穿长期均线时买入，下穿时卖出"
-              rows="4"
-              class="form-control"
-            ></textarea>
-            <button 
-              class="btn-secondary" 
-              :disabled="generatingStrategy" 
-              @click="generateStrategy"
-            >
-              {{ generatingStrategy ? '生成中...' : 'AI生成策略' }}
-            </button>
+          <div v-if="backtestForm.strategy_mode === 'saved'" class="form-group">
+            <label for="saved-strategy">选择策略:</label>
+            <select id="saved-strategy" v-model="backtestForm.strategy_id" class="form-control">
+              <option value="">请选择策略</option>
+              <option v-for="item in savedStrategies" :key="item.id" :value="item.id">
+                {{ item.name }}{{ item.description ? ' - ' + item.description : '' }}
+              </option>
+            </select>
+            <div v-if="loadingSavedStrategies" class="loading-indicator">加载策略列表...</div>
+            <div v-if="!loadingSavedStrategies && savedStrategies.length === 0" class="info-text">
+              暂无已保存的策略，请先<router-link to="/strategies/create">创建策略</router-link>
+            </div>
           </div>
           
           <div v-if="backtestForm.strategy_mode === 'builtin'" class="form-group">
@@ -362,18 +358,20 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { getBuiltinStrategies, generateStrategyCode } from '@/services/strategyService'
+import { useRouter, useRoute } from 'vue-router'
+import { getBuiltinStrategies, getStrategies, getStrategy } from '@/services/strategyService'
 import { runBacktest as runBacktestService, runBacktestAsync as runBacktestAsyncService, getBacktestResult, getBacktestList } from '@/services/backtestService'
 
 const router = useRouter()
+const route = useRoute()
 
 // 表单数据
 const backtestForm = reactive({
   stock_code: '',
   start_date: '',
   end_date: '',
-  strategy_mode: 'custom',
+  strategy_mode: 'saved',
+  strategy_id: '',
   strategy_code: null,
   strategy_name: null,
   initial_cash: 1000000,
@@ -382,9 +380,8 @@ const backtestForm = reactive({
 })
 
 // 状态变量
-const strategyDescription = ref('')
-const generatedStrategy = ref('')
-const generatingStrategy = ref(false)
+const savedStrategies = ref([])
+const loadingSavedStrategies = ref(false)
 const runningBacktest = ref(false)
 const backtestResult = ref(null)
 const error = ref('')
@@ -491,32 +488,41 @@ const fetchBuiltinStrategies = async () => {
   }
 }
 
-// AI生成策略
-const generateStrategy = async () => {
-  if (!strategyDescription.value.trim()) {
-    error.value = '请输入策略描述'
+// 加载已保存的策略列表
+const loadSavedStrategies = async () => {
+  loadingSavedStrategies.value = true
+  try {
+    const result = await getStrategies({ limit: 100, offset: 0 })
+    if (result.success) {
+      const data = result.data?.data || result.data || {}
+      savedStrategies.value = data.strategies || data.items || []
+    } else {
+      error.value = `加载策略列表失败: ${result.message}`
+    }
+  } catch (err) {
+    error.value = `加载策略列表失败: ${err.message}`
+  } finally {
+    loadingSavedStrategies.value = false
+  }
+}
+
+// 获取选中策略的代码
+const loadStrategyCode = async (strategyId) => {
+  if (!strategyId) {
+    backtestForm.strategy_code = null
     return
   }
   
-  generatingStrategy.value = true
-  error.value = ''
-  
   try {
-    const result = await generateStrategyCode({
-      user_description: strategyDescription.value,
-      framework: 'backtrader'
-    })
-    
+    const result = await getStrategy(strategyId)
     if (result.success) {
-      generatedStrategy.value = result.data?.strategy_code || result.data?.data?.strategy_code
-      backtestForm.strategy_code = generatedStrategy.value
+      const data = result.data?.data || result.data || {}
+      backtestForm.strategy_code = data.code
     } else {
-      error.value = `生成策略失败: ${result.message}`
+      error.value = `获取策略代码失败: ${result.message}`
     }
   } catch (err) {
-    error.value = `生成策略失败: ${err.message}`
-  } finally {
-    generatingStrategy.value = false
+    error.value = `获取策略代码失败: ${err.message}`
   }
 }
 
@@ -532,8 +538,13 @@ const runBacktest = async () => {
     return
   }
   
-  if (backtestForm.strategy_mode === 'custom' && !backtestForm.strategy_code) {
-    error.value = '请先生成策略代码或提供自定义策略'
+  if (backtestForm.strategy_mode === 'saved' && !backtestForm.strategy_id) {
+    error.value = '请选择一个策略'
+    return
+  }
+  
+  if (backtestForm.strategy_mode === 'saved' && !backtestForm.strategy_code) {
+    error.value = '策略代码加载失败，请重新选择'
     return
   }
   
@@ -550,19 +561,22 @@ const runBacktest = async () => {
   
   try {
     // 准备回测数据
+    // 前端使用 'saved' 模式，但后端 API 只接受 'custom' 或 'builtin'
+    // 需要将 'saved' 映射为 'custom'
     const backtestPayload = {
       stock_code: backtestForm.stock_code,
       start_date: backtestForm.start_date,
       end_date: backtestForm.end_date,
-      strategy_mode: backtestForm.strategy_mode,
+      strategy_mode: backtestForm.strategy_mode === 'saved' ? 'custom' : backtestForm.strategy_mode,
       initial_cash: backtestForm.initial_cash,
       commission: backtestForm.commission,
       slippage: backtestForm.slippage,
       enable_ai_review: true
     }
     
-    if (backtestForm.strategy_mode === 'custom') {
+    if (backtestForm.strategy_mode === 'saved') {
       backtestPayload.strategy_code = backtestForm.strategy_code
+      backtestPayload.strategy_id = backtestForm.strategy_id
     } else {
       backtestPayload.strategy_name = backtestForm.strategy_name
       const schema = currentParamSchema.value
@@ -863,14 +877,34 @@ const getTaskStatusText = (status) => {
   return statusMap[status] || '未知'
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchBuiltinStrategies()
+  
+  // 先加载已保存的策略列表
+  await loadSavedStrategies()
+  
+  // 检查 URL 参数，自动选择策略
+  const strategyId = route.query.strategy
+  if (strategyId) {
+    // 切换到已保存策略模式
+    backtestForm.strategy_mode = 'saved'
+    // 设置策略 ID（会触发 watch 自动加载代码）
+    backtestForm.strategy_id = strategyId
+  }
+  
   fetchHistoryRecords()
 })
 
 watch(() => backtestForm.strategy_name, (newVal) => {
   if (newVal) {
     resetBuiltinParams(newVal)
+  }
+})
+
+// 监听策略选择变化，自动加载策略代码
+watch(() => backtestForm.strategy_id, (newId) => {
+  if (newId && backtestForm.strategy_mode === 'saved') {
+    loadStrategyCode(newId)
   }
 })
 </script>
@@ -1175,6 +1209,13 @@ watch(() => backtestForm.strategy_name, (newVal) => {
   text-align: center;
   padding: 20px;
   color: #666;
+}
+
+.info-text {
+  text-align: center;
+  padding: 15px;
+  color: #999;
+  font-size: 0.95rem;
 }
 
 .table-container {

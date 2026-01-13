@@ -57,6 +57,14 @@ def _load_custom_strategy(
     使用 exec() 执行策略代码，不写文件、不访问网络
     """
     try:
+        # 修复常见的代码错误
+        # 1. bt.CrossOver -> bt.indicators.CrossOver
+        strategy_code = strategy_code.replace("bt.CrossOver(", "bt.indicators.CrossOver(")
+        # 2. bt.CrossUp -> bt.indicators.CrossUp
+        strategy_code = strategy_code.replace("bt.CrossUp(", "bt.indicators.CrossUp(")
+        # 3. bt.CrossDown -> bt.indicators.CrossDown
+        strategy_code = strategy_code.replace("bt.CrossDown(", "bt.indicators.CrossDown(")
+        
         # 创建安全的执行环境
         exec_globals = {
             "__builtins__": __builtins__,
