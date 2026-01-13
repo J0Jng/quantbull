@@ -216,6 +216,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { 
+  getStrategy, 
+  updateStrategy, 
+  deleteStrategy as deleteStrategyApi,
+  getStrategyBacktests 
+} from '@/services/strategyService'
 
 const route = useRoute()
 const router = useRouter()
@@ -272,8 +278,8 @@ const displayedCode = computed(() => {
 const getStatusText = (status) => {
   const statusMap = {
     'active': '活跃',
-    'inactive': '非活跃',
-    'draft': '草稿'
+    'draft': '草稿',
+    'archived': '已归档'
   }
   return statusMap[status] || status
 }
@@ -402,13 +408,20 @@ const deleteStrategy = async () => {
   }
   
   try {
-    // 模拟删除操作
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    loading.value = true
     
-    // 删除成功后返回到列表页面
-    router.push('/strategies')
+    const response = await deleteStrategyApi(strategyId.value)
+    
+    if (response.success) {
+      // 删除成功后返回到列表页面
+      router.push('/strategies')
+    } else {
+      error.value = response.message || '删除策略失败'
+    }
   } catch (err) {
     error.value = `删除策略失败: ${err.message}`
+  } finally {
+    loading.value = false
   }
 }
 
@@ -527,6 +540,11 @@ onMounted(() => {
 .status-draft {
   background: #fff3e0;
   color: #ff9800;
+}
+
+.status-archived {
+  background: #e0e0e0;
+  color: #616161;
 }
 
 .info-grid {

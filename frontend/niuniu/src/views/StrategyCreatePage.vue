@@ -59,6 +59,17 @@
           <div class="section-header">
             <h2 class="section-title">策略代码 <span class="required">*</span></h2>
             <div class="code-actions">
+              <select 
+                v-model="selectedExample" 
+                @change="insertExample"
+                class="example-select"
+                :disabled="loadingExamples"
+              >
+                <option value="">{{ loadingExamples ? '加载中...' : '插入示例代码' }}</option>
+                <option v-for="example in exampleStrategies" :key="example.id" :value="example.id">
+                  {{ example.name }}
+                </option>
+              </select>
               <button 
                 class="btn-secondary" 
                 @click="validateCode"
@@ -68,10 +79,11 @@
               </button>
               <button 
                 class="btn-secondary" 
-                @click="generateTemplate"
-                :disabled="generatingTemplate"
+                @click="showAIDialog = true"
+                :disabled="generatingStrategy"
+                title="使用AI生成策略代码"
               >
-                {{ generatingTemplate ? '生成中...' : '生成模板' }}
+                {{ generatingStrategy ? 'AI生成中...' : 'AI生成' }}
               </button>
             </div>
           </div>
@@ -112,18 +124,34 @@
           </div>
 
           <!-- 验证结果 -->
-          <div v-if="validationResult" class="validation-result" :class="validationResult.status">
+          <div v-if="validationResult" class="validation-result" :class="validationResult.valid ? 'success' : 'error'">
             <div class="validation-header">
               <span class="validation-icon">
-                {{ validationResult.status === 'success' ? '✓' : '✗' }}
+                {{ validationResult.valid ? '✓' : '✗' }}
               </span>
               <span class="validation-title">
-                {{ validationResult.status === 'success' ? '验证通过' : '验证失败' }}
+                {{ validationResult.message }}
               </span>
             </div>
-            <div class="validation-message">{{ validationResult.message }}</div>
-            <div v-if="validationResult.details" class="validation-details">
-              <pre>{{ validationResult.details }}</pre>
+            
+            <!-- 错误列表 -->
+            <div v-if="validationResult.errors && validationResult.errors.length > 0" class="validation-errors-list">
+              <h4 class="validation-subtitle">错误:</h4>
+              <ul>
+                <li v-for="(error, index) in validationResult.errors" :key="'error-' + index" class="error-item">
+                  {{ error }}
+                </li>
+              </ul>
+            </div>
+            
+            <!-- 警告列表 -->
+            <div v-if="validationResult.warnings && validationResult.warnings.length > 0" class="validation-warnings-list">
+              <h4 class="validation-subtitle">警告:</h4>
+              <ul>
+                <li v-for="(warning, index) in validationResult.warnings" :key="'warning-' + index" class="warning-item">
+                  {{ warning }}
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -192,12 +220,44 @@
         </div>
       </div>
     </div>
+    
+    <!-- AI 生成对话框 -->
+    <div v-if="showAIDialog" class="ai-dialog-overlay" @click="showAIDialog = false">
+      <div class="ai-dialog" @click.stop>
+        <div class="ai-dialog-header">
+          <h3>AI 生成策略代码</h3>
+          <button class="close-btn" @click="showAIDialog = false">×</button>
+        </div>
+        <div class="ai-dialog-body">
+          <label for="ai-description">策略描述:</label>
+          <textarea
+            id="ai-description"
+            v-model="aiDescription"
+            placeholder="请描述您想要的策略逻辑，例如：\n基于MACD指标的趋势跟踪策略，当MACD金叉时买入，死叉时卖出..."
+            rows="6"
+            class="ai-textarea"
+          ></textarea>
+        </div>
+        <div class="ai-dialog-footer">
+          <button class="btn-secondary" @click="showAIDialog = false">取消</button>
+          <button class="btn-primary" @click="generateWithAI" :disabled="!aiDescription.trim() || generatingStrategy">
+            {{ generatingStrategy ? '生成中...' : '生成策略' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { 
+  createStrategy as createStrategyApi, 
+  validateStrategyCode, 
+  getStrategyExamples,
+  generateStrategyCode 
+} from '@/services/strategyService'
 
 const router = useRouter()
 
@@ -206,16 +266,27 @@ const strategyForm = ref({
   name: '',
   description: '',
   code: '',
-  parameters: '{}'
+  parameters: '{}',
+  factor_ids: [],
+  status: 'draft'
 })
 
 const formErrors = ref([])
 const fieldErrors = ref({})
 const submitting = ref(false)
 const validatingCode = ref(false)
-const generatingTemplate = ref(false)
 const validationResult = ref(null)
 const creationResult = ref(null)
+
+// 示例代码相关
+const exampleStrategies = ref([])
+const selectedExample = ref('')
+const loadingExamples = ref(false)
+
+// AI 生成相关
+const showAIDialog = ref(false)
+const aiDescription = ref('')
+const generatingStrategy = ref(false)
 
 // 计算属性
 const lineCount = computed(() => {
@@ -285,75 +356,103 @@ const validateCode = async () => {
     const response = await validateStrategyCode(strategyForm.value.code)
     
     if (response.success) {
+      const data = response.data?.data || response.data || {}
       validationResult.value = {
-        status: 'success',
-        message: response.message || '代码验证通过！',
-        details: response.errors ? response.errors.join('\n') : '策略代码语法正确且包含必要的基本结构。'
+        valid: data.valid !== undefined ? data.valid : true,
+        message: data.message || '代码验证通过',
+        errors: data.errors || [],
+        warnings: data.warnings || []
       }
     } else {
       validationResult.value = {
-        status: 'error',
+        valid: false,
         message: response.message || '代码验证失败',
-        details: response.errors ? response.errors.join('\n') : '请检查代码问题'
+        errors: ['服务返回错误'],
+        warnings: []
       }
     }
   } catch (error) {
     validationResult.value = {
-      status: 'error',
-      message: '验证服务暂时不可用，请稍后重试',
-      details: error.message
+      valid: false,
+      message: '验证服务暂时不可用',
+      errors: [error.message || '网络错误'],
+      warnings: []
     }
   } finally {
     validatingCode.value = false
   }
 }
 
-const generateTemplate = async () => {
-  generatingTemplate.value = true
-  
+// 加载策略示例
+const loadExamples = async () => {
+  loadingExamples.value = true
   try {
-    // 模拟API调用生成模板
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const template = `import backtrader as bt
-
-class SimpleMovingAverage(bt.Strategy):
-    params = (
-        ('window', 20),
-    )
-    
-    def __init__(self):
-        self.sma = bt.indicators.SimpleMovingAverage(
-            self.datas[0], period=self.params.window
-        )
-    
-    def next(self):
-        if not self.position:
-            if self.data.close[0] > self.sma[0]:
-                self.buy()
-        else:
-            if self.data.close[0] < self.sma[0]:
-                self.sell()
-    
-    def stop(self):
-        self.log(f'最终资产: {self.broker.getvalue():.2f}')`
-    
-    strategyForm.value.code = template
-    strategyForm.value.parameters = '{"window": 20}'
-    
-    validationResult.value = {
-      status: 'success',
-      message: '模板生成成功！',
-      details: '已生成简单移动平均线策略模板，您可以根据需要修改参数和逻辑。'
+    const response = await getStrategyExamples()
+    if (response.success) {
+      const data = response.data?.data || response.data || {}
+      exampleStrategies.value = data.items || []
     }
   } catch (error) {
-    validationResult.value = {
-      status: 'error',
-      message: '模板生成失败',
-      details: error.message
-    }
+    console.error('加载示例失败:', error)
   } finally {
-    generatingTemplate.value = false
+    loadingExamples.value = false
+  }
+}
+
+// 插入示例代码
+const insertExample = () => {
+  if (!selectedExample.value) return
+  
+  const example = exampleStrategies.value.find(ex => ex.id === selectedExample.value)
+  if (example) {
+    strategyForm.value.code = example.code
+    strategyForm.value.parameters = JSON.stringify(example.default_parameters || {}, null, 2)
+    
+    // 自动触发验证
+    setTimeout(() => {
+      validateCode()
+    }, 100)
+  }
+  
+  // 重置选择
+  selectedExample.value = ''
+}
+
+// AI 生成策略代码
+const generateWithAI = async () => {
+  if (!aiDescription.value.trim()) return
+  
+  generatingStrategy.value = true
+  
+  try {
+    const response = await generateStrategyCode({
+      user_description: aiDescription.value,
+      framework: 'backtrader',
+      include_risk_control: true
+    })
+    
+    if (response.success) {
+      const data = response.data?.data || response.data || {}
+      strategyForm.value.code = data.strategy_code || data.code || ''
+      
+      if (data.parameters) {
+        strategyForm.value.parameters = JSON.stringify(data.parameters, null, 2)
+      }
+      
+      showAIDialog.value = false
+      aiDescription.value = ''
+      
+      // 自动验证生成的代码
+      setTimeout(() => {
+        validateCode()
+      }, 100)
+    } else {
+      alert('AI 生成失败: ' + (response.message || '未知错误'))
+    }
+  } catch (error) {
+    alert('AI 生成失败: ' + error.message)
+  } finally {
+    generatingStrategy.value = false
   }
 }
 
@@ -393,6 +492,11 @@ const validateForm = () => {
     formErrors.value.push('参数配置格式错误')
   }
   
+  // 检查代码验证状态
+  if (validationResult.value && !validationResult.value.valid) {
+    formErrors.value.push('策略代码验证未通过，请修正错误后再提交')
+  }
+  
   return formErrors.value.length === 0
 }
 
@@ -409,10 +513,12 @@ const createStrategy = async () => {
       name: strategyForm.value.name,
       description: strategyForm.value.description,
       code: strategyForm.value.code,
-      parameters: JSON.parse(strategyForm.value.parameters)
+      factor_ids: strategyForm.value.factor_ids.length > 0 ? strategyForm.value.factor_ids : ['default'],
+      parameters: JSON.parse(strategyForm.value.parameters),
+      status: strategyForm.value.status
     }
     
-    const response = await createStrategy(strategyData)
+    const response = await createStrategyApi(strategyData)
     
     if (response.success) {
       creationResult.value = {
@@ -468,7 +574,7 @@ const saveAsDraft = async () => {
 
 // 生命周期
 onMounted(() => {
-  // 可以在这里加载默认模板或恢复草稿
+  loadExamples()
 })
 </script>
 
@@ -615,6 +721,22 @@ onMounted(() => {
 .code-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.example-select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  min-width: 200px;
+}
+
+.example-select:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .btn-primary, .btn-secondary {
@@ -744,6 +866,113 @@ onMounted(() => {
 .validation-result.success {
   background: #e8f5e8;
   border-left-color: #4caf50;
+}
+
+.validation-result.error {
+  background: #ffebee;
+  border-left-color: #f44336;
+}
+
+.validation-errors-list,
+.validation-warnings-list {
+  margin-top: 10px;
+}
+
+.validation-subtitle {
+  margin: 10px 0 5px 0;
+  font-size: 0.95rem;
+  font-weight: bold;
+}
+
+.validation-errors-list ul,
+.validation-warnings-list ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.error-item {
+  color: #d32f2f;
+  margin: 5px 0;
+}
+
+.warning-item {
+  color: #f57c00;
+  margin: 5px 0;
+}
+
+.ai-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ai-dialog {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.ai-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.ai-dialog-header h3 {
+  margin: 0;
+  color: #ff7f00;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #666;
+  line-height: 1;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.ai-dialog-body {
+  margin-bottom: 20px;
+}
+
+.ai-dialog-body label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.ai-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.ai-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .validation-result.error {

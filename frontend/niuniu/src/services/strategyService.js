@@ -121,6 +121,14 @@ export const getBuiltinStrategies = async () => {
 }
 
 /**
+ * 获取策略示例代码
+ * GET /api/strategy/examples
+ */
+export const getStrategyExamples = async () => {
+  return handleRequest(() => http.get('/strategy/examples'))
+}
+
+/**
  * AI 生成策略代码
  * POST /api/ai/generate/strategy
  * @param {Object} data - 请求数据
