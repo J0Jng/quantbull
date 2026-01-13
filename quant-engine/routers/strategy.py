@@ -28,6 +28,25 @@ async def list_builtin_strategies():
     return success({"items": strategies, "total": len(strategies)})
 
 
+@router.get("/examples", summary="获取策略示例代码")
+async def get_strategy_examples():
+    """
+    获取离线可用的策略示例代码
+    
+    返回常用的 Backtrader 策略示例，包括：
+    - 双均线交叉策略
+    - RSI 超买超卖策略  
+    - 带止损止盈的趋势跟踪策略
+    - 仓位控制策略
+    """
+    try:
+        examples = await strategy_service.get_strategy_examples()
+        return success({"items": examples, "total": len(examples)})
+    except Exception as e:
+        logger.error(f"获取策略示例失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取策略示例失败: {str(e)}")
+
+
 @router.post("", response_model=StrategyResponse, summary="创建策略")
 async def create_strategy(request: StrategyCreateRequest) -> StrategyResponse:
     """
@@ -105,17 +124,23 @@ async def delete_strategy(strategy_id: str) -> dict:
 @router.get("", response_model=StrategyListResponse, summary="列出策略")
 async def list_strategies(
     status: Optional[str] = None,
+    search: Optional[str] = None,
     limit: int = 20,
     offset: int = 0
 ) -> StrategyListResponse:
     """
     列出所有策略
     
-    支持按状态过滤和分页
+    支持按状态过滤、搜索和分页
+    - status: 状态筛选（draft/active/archived）
+    - search: 搜索关键词（在名称和描述中搜索）
+    - limit: 每页数量
+    - offset: 偏移量
     """
     try:
         strategies, total = await strategy_service.list_strategies(
             status=status,
+            search=search,
             limit=limit,
             offset=offset
         )

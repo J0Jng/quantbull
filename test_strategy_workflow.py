@@ -30,7 +30,8 @@ class SimpleMovingAverageCrossover(bt.Strategy):
         self.slow_ma = bt.indicators.SimpleMovingAverage(
             self.data.close, period=self.params.slow_period
         )
-        self.signal = bt.CrossOver(self.fast_ma, self.slow_ma)
+        # 正确的写法：bt.indicators.CrossOver，不是 bt.CrossOver
+        self.signal = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)
     
     def next(self):
         if not self.position:
@@ -102,23 +103,58 @@ def test_login():
 def test_create_strategy():
     """测试创建策略"""
     print("=" * 60)
-    print("1. 测试创建策略")
+    print("1. 测试验证和创建策略")
     print("=" * 60)
     
+    headers = {
+        "Authorization": f"Bearer {AUTH_TOKEN}"
+    }
+    
+    # 先验证策略代码
+    print("\n验证策略代码...")
+    validate_payload = {
+        "code": SIMPLE_STRATEGY_CODE
+    }
+    
+    try:
+        response = requests.post(
+            f"{BASE_URL}/api/strategy/validate",
+            json=validate_payload,
+            headers=headers,
+            timeout=10
+        )
+        print(f"验证状态码: {response.status_code}")
+        result = response.json()
+        
+        if response.status_code == 200:
+            data = result.get("data", result)
+            valid = data.get("valid", False)
+            
+            if valid:
+                print(f"✅ 策略代码验证通过")
+            else:
+                print(f"❌ 策略代码验证失败:")
+                for error in data.get("errors", []):
+                    print(f"  - {error}")
+                print("终止创建流程")
+                return None
+        else:
+            print(f"⚠️ 验证请求失败，继续尝试创建")
+    except Exception as e:
+        print(f"⚠️ 验证错误: {e}，继续尝试创建")
+    
+    # 创建策略
+    print("\n创建策略...")
     payload = {
         "name": "简单均线交叉策略",
         "description": "10周期快线与30周期慢线交叉策略",
         "code": SIMPLE_STRATEGY_CODE,
-        "factor_ids": ["ma_10", "ma_30"],  # 假设这些因子存在
+        "factor_ids": ["default"],
         "parameters": {
             "fast_period": 10,
             "slow_period": 30
         },
-        "status": "active"
-    }
-    
-    headers = {
-        "Authorization": f"Bearer {AUTH_TOKEN}"
+        "status": "draft"
     }
     
     try:
