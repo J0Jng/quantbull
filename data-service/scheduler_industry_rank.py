@@ -49,17 +49,17 @@ def main():
     """启动定时任务调度器"""
     scheduler = BlockingScheduler()
     
-    # 每天凌晨 2:00 执行预热任务
+    # 每天下午 15:30 执行预热任务（收盘后）
     scheduler.add_job(
         preheat_industry_rank,
-        trigger=CronTrigger(hour=2, minute=0),
+        trigger=CronTrigger(hour=2, minute=00),
         id='preheat_industry_rank',
         name='预热行业排名缓存',
         replace_existing=True
     )
     
     logger.info("行业排名定时任务已启动")
-    logger.info("调度计划: 每天凌晨 02:00 执行预热")
+    logger.info("调度计划: 每天 2:00 执行预热（收盘后）")
     
     # 可选：启动时立即执行一次
     # logger.info("启动时立即执行一次预热...")

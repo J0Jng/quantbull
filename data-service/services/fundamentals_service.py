@@ -9,6 +9,7 @@ from core.database import SessionLocal
 from models.industry_rank import IndustryRank
 from models.sentiment_score import SentimentScore
 from models.hot_score import HotScore
+from models.stock_basic import StockBasic
 from schemas.fundamentals import (
     FundamentalsItem,
     IndustryRankItem,
@@ -404,6 +405,25 @@ class FundamentalsService:
         
         return st_set
     
+    def _build_industry_rank_result(self, industry_scores: List[Dict]) -> List[IndustryRankItem]:
+        """将行业分数字典列表转换为IndustryRankItem列表"""
+        # 按分数排序
+        sorted_scores = sorted(industry_scores, key=lambda x: x["score"], reverse=True)
+        
+        # 构建结果
+        result = []
+        for i, item in enumerate(sorted_scores):
+            result.append(IndustryRankItem(
+                industry=item["industry"],
+                rank=i + 1,
+                score=round(item["score"], 4),
+                avg_netprofit_yoy=round(item["avg_netprofit_yoy"], 2) if item["avg_netprofit_yoy"] else None,
+                avg_revenue_yoy=round(item["avg_revenue_yoy"], 2) if item["avg_revenue_yoy"] else None,
+                avg_roe_yoy=round(item["avg_roe_yoy"], 2) if item["avg_roe_yoy"] else None,
+                stock_count=item["stock_count"],
+            ))
+        return result
+
     def calculate_industry_rank(self, month: Optional[str] = None, force_recalculate: bool = False) -> List[IndustryRankItem]:
         """
         计算行业景气度排名
@@ -433,18 +453,23 @@ class FundamentalsService:
         logger.info(f"开始计算 {query_month} 的行业景气度排名...")
         
         try:
-            # 获取全部股票基础信息
-            stock_basic_list = self.tushare_service.fetch_stock_basic()
-            
-            # 按行业分组
-            industry_stocks: Dict[str, List[str]] = {}
-            for item in stock_basic_list:
-                industry = item.get("industry", "")
-                symbol = item.get("symbol", "")
-                if industry and symbol:
-                    if industry not in industry_stocks:
-                        industry_stocks[industry] = []
-                    industry_stocks[industry].append(symbol)
+            # 从数据库获取全部股票基础信息
+            session = SessionLocal()
+            try:
+                stmt = select(StockBasic)
+                stock_basic_list = session.execute(stmt).scalars().all()
+                
+                # 按行业分组
+                industry_stocks: Dict[str, List[str]] = {}
+                for stock in stock_basic_list:
+                    industry = stock.industry
+                    symbol = stock.symbol
+                    if industry and symbol:
+                        if industry not in industry_stocks:
+                            industry_stocks[industry] = []
+                        industry_stocks[industry].append(symbol)
+            finally:
+                session.close()
             
             # 计算每个行业的景气度
             industry_scores: List[Dict] = []
@@ -453,13 +478,13 @@ class FundamentalsService:
             # 遍历所有行业（不再限制数量，由定时任务慢慢执行）
             for idx, (industry, stocks) in enumerate(industry_stocks.items(), 1):
                 if len(stocks) < 3:  # 行业股票太少跳过
+                    logger.info(f"跳过行业 {industry}（仅{len(stocks)}只股票）")
                     continue
                 
-                # 采样部分股票计算（避免请求过多）
-                sample_stocks = stocks[:min(5, len(stocks))]  # 提高到10只获得更准确的结果
+                # 采样部分股票计算（避免请求过多），减少到3只提高速度
+                sample_stocks = stocks[:min(3, len(stocks))]
                 
-                if idx % 5 == 0:
-                    logger.info(f"处理进度: {idx}/{len(industry_stocks)} - {industry}")
+                logger.info(f"处理进度: {idx}/{len(industry_stocks)} - {industry} (共{len(stocks)}只股票，采样{len(sample_stocks)}只)")
                 
                 fina_dict = self._fetch_fina_indicator_batch(sample_stocks)
                 
@@ -495,26 +520,22 @@ class FundamentalsService:
                     "avg_roe_yoy": avg_roe,
                     "stock_count": len(stocks),
                 })
+                
+                # 每计算完10个行业就增量保存一次，避免数据丢失
+                if len(industry_scores) % 10 == 0:
+                    logger.info(f"已计算 {len(industry_scores)} 个行业，执行增量保存...")
+                    temp_result = self._build_industry_rank_result(industry_scores)
+                    self.save_industry_rank_to_db(query_month, temp_result)
             
             # 按分数排序
             industry_scores.sort(key=lambda x: x["score"], reverse=True)
             
-            # 构建结果
-            result = []
-            for i, item in enumerate(industry_scores):
-                result.append(IndustryRankItem(
-                    industry=item["industry"],
-                    rank=i + 1,
-                    score=round(item["score"], 4),
-                    avg_netprofit_yoy=round(item["avg_netprofit_yoy"], 2) if item["avg_netprofit_yoy"] else None,
-                    avg_revenue_yoy=round(item["avg_revenue_yoy"], 2) if item["avg_revenue_yoy"] else None,
-                    avg_roe_yoy=round(item["avg_roe_yoy"], 2) if item["avg_roe_yoy"] else None,
-                    stock_count=item["stock_count"],
-                ))
+            # 构建最终结果
+            result = self._build_industry_rank_result(industry_scores)
             
             logger.info(f"计算完成，共 {len(result)} 个行业")
             
-            # 3. 保存到数据库
+            # 最终保存完整数据到数据库
             self.save_industry_rank_to_db(query_month, result)
             
             return result
