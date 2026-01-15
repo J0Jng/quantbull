@@ -6,6 +6,7 @@ import QuantAnalysisTool from '@/views/QuantAnalysisTool.vue'
 import BacktestDetailPage from '@/views/BacktestDetailPage.vue'
 import NewsDetailPage from '@/views/NewsDetailPage.vue'
 import CompanyResearchPage from '@/views/CompanyResearchPage.vue'
+import CompanyResearchDetail from '@/views/CompanyResearchDetail.vue'
 import ResearchDetailPage from '@/views/ResearchDetailPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
@@ -69,6 +70,12 @@ const routes = [
     path: '/company-research',
     name: 'CompanyResearch',
     component: CompanyResearchPage
+  },
+  {
+    path: '/company-research/:id',
+    name: 'CompanyResearchDetail',
+    component: CompanyResearchDetail,
+    props: true
   },
   {
     path: '/company-research/research-detail/:id',

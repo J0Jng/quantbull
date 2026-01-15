@@ -63,6 +63,9 @@ def get_db() -> Session:
 def init_db() -> None:
     """初始化数据库（创建表）"""
     try:
+        # 导入所有模型以确保它们被注册到 Base.metadata
+        from models import CompanyResearchReport  # noqa: F401
+        
         Base.metadata.create_all(bind=engine)
         db_type_name = {
             "postgresql": "PostgreSQL",

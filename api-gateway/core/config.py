@@ -53,6 +53,7 @@ class Settings(BaseSettings):
         # daily-report
         "/report": "daily_report_url",
         "/daily-report": "daily_report_url",
+        "/company-research": "daily_report_url",
 
         # task-service
         "/tasks": "task_service_url",

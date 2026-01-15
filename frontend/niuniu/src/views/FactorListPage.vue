@@ -110,19 +110,35 @@
                       详情
                     </router-link>
                     <router-link 
+                      v-if="!isBuiltinFactor(factor.id)"
                       :to="`/factors/${factor.id}/edit`" 
                       class="btn-edit"
                       title="编辑因子"
                     >
                       编辑
                     </router-link>
+                    <span 
+                      v-else
+                      class="btn-edit disabled"
+                      title="内置因子不可编辑"
+                    >
+                      编辑
+                    </span>
                     <button 
+                      v-if="!isBuiltinFactor(factor.id)"
                       @click="deleteFactor(factor.id)" 
                       class="btn-delete"
                       title="删除因子"
                     >
                       删除
                     </button>
+                    <span 
+                      v-else
+                      class="btn-delete disabled"
+                      title="内置因子不可删除"
+                    >
+                      删除
+                    </span>
                     <router-link 
                       :to="`/factors/${factor.id}`" 
                       class="btn-calculate"
@@ -148,7 +164,8 @@
         </div>
 
         <!-- 分页控件 -->
-        <div v-if="factors.length > 0" class="pagination">
+        <div v-if="totalItems > 0" class="pagination">
+          <span class="total-info">共 {{ totalItems }} 个因子</span>
           <button 
             :disabled="currentPage === 1" 
             @click="changePage(currentPage - 1)"
@@ -171,7 +188,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFactorStore } from '@/stores/factor'
 
@@ -186,22 +203,30 @@ const loading = ref(false)
 const error = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+const totalItems = ref(0)
 
-// 获取因子列表
+// 防抖搜索定时器
+let searchDebounceTimer = null
+
+// 获取因子列表（服务端分页）
 const fetchFactors = async () => {
   loading.value = true
   error.value = ''
   
   try {
+    const offset = (currentPage.value - 1) * pageSize.value
     const response = await factorStore.fetchFactors({
       category: categoryFilter.value === 'all' ? null : categoryFilter.value,
-      search: searchText.value.trim() || null
+      search: searchText.value.trim() || null,
+      limit: pageSize.value,
+      offset: offset
     })
     
     if (factorStore.error) {
       error.value = factorStore.error
     } else {
       factors.value = factorStore.factors || []
+      totalItems.value = factorStore.total || 0
     }
   } catch (err) {
     error.value = `获取因子列表失败: ${err.message}`
@@ -210,42 +235,24 @@ const fetchFactors = async () => {
   }
 }
 
-// 计算属性
-const filteredFactors = computed(() => {
-  let filtered = factors.value
-  
-  // 类别筛选
-  if (categoryFilter.value !== 'all') {
-    filtered = filtered.filter(factor => factor.category === categoryFilter.value)
-  }
-  
-  // 搜索筛选
-  if (searchText.value.trim()) {
-    const searchTerm = searchText.value.toLowerCase()
-    filtered = filtered.filter(factor => 
-      factor.name.toLowerCase().includes(searchTerm) ||
-      factor.code.toLowerCase().includes(searchTerm) ||
-      factor.description.toLowerCase().includes(searchTerm)
-    )
-  }
-  
-  return filtered
-})
-
+// 计算属性 - 使用服务端分页，不再进行前端过滤
 const totalPages = computed(() => 
-  Math.ceil(filteredFactors.value.length / pageSize.value)
+  Math.ceil(totalItems.value / pageSize.value) || 1
 )
 
-const paginatedFactors = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredFactors.value.slice(start, end)
-})
+// 服务端分页后，paginatedFactors 直接返回 factors
+const paginatedFactors = computed(() => factors.value)
 
 // 方法
 const handleSearch = () => {
-  currentPage.value = 1
-  fetchFactors()
+  // 防抖处理
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = setTimeout(() => {
+    currentPage.value = 1
+    fetchFactors()
+  }, 300)
 }
 
 const handleFilter = () => {
@@ -259,6 +266,7 @@ const refreshList = () => {
 
 const changePage = (page) => {
   currentPage.value = page
+  fetchFactors()
 }
 
 const deleteFactor = async (factorId) => {
@@ -270,11 +278,13 @@ const deleteFactor = async (factorId) => {
       if (factorStore.error) {
         error.value = factorStore.error
       } else {
-        factors.value = factors.value.filter(factor => factor.id !== factorId)
+        // 重新获取当前页数据
+        await fetchFactors()
         
         // 如果当前页没有数据，回到上一页
-        if (paginatedFactors.value.length === 0 && currentPage.value > 1) {
+        if (factors.value.length === 0 && currentPage.value > 1) {
           currentPage.value = currentPage.value - 1
+          await fetchFactors()
         }
       }
     } catch (err) {
@@ -300,6 +310,11 @@ const getCategoryText = (category) => {
     'macro': '宏观因子'
   }
   return categoryMap[category] || category
+}
+
+// 判断是否为内置因子（不可编辑/删除）
+const isBuiltinFactor = (factorId) => {
+  return factorId && factorId.startsWith('builtin')
 }
 
 const formatDate = (dateString) => {
@@ -624,6 +639,20 @@ onMounted(() => {
 .btn-edit:hover { background-color: #f57c00; }
 .btn-delete:hover { background-color: #d32f2f; }
 .btn-calculate:hover { background-color: #1976d2; }
+
+/* 禁用状态的按钮样式 */
+.btn-edit.disabled,
+.btn-delete.disabled {
+  background-color: #ccc;
+  color: #888;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-edit.disabled:hover,
+.btn-delete.disabled:hover {
+  background-color: #ccc;
+}
 
 .empty-state {
   text-align: center;

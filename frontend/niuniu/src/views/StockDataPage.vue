@@ -80,7 +80,7 @@
 
         <!-- 个股数据表格 -->
         <div class="stock-table-wrap">
-          <div class="table-title">个股行情（实时更新）</div>
+          <div class="table-title">个股行情</div>
           <table class="stock-table">
             <thead>
               <tr>
@@ -98,8 +98,13 @@
               </tr>
             </thead>
             <tbody>
+              <tr v-if="filteredStockData.length === 0">
+                <td colspan="11" style="text-align: center; padding: 20px; color: #999;">
+                  {{ rawStockData.length === 0 ? '暂无数据' : '无符合条件的股票' }}
+                </td>
+              </tr>
               <tr 
-                v-for="stock in stockData" 
+                v-for="stock in filteredStockData" 
                 :key="stock.code"
                 @click="selectStockForKline(stock.code, stock.name)"
                 style="cursor: pointer;"
@@ -113,12 +118,12 @@
                 <td :class="stock.pct_change >= 0 ? 'rise' : 'fall'">
                   {{ stock.pct_change >= 0 ? '+' : '' }}{{ (stock.price * stock.pct_change / 100).toFixed(2) }}
                 </td>
-                <td>{{ (stock.price * (1 - stock.pct_change / 100 * 0.5)).toFixed(2) }}</td>
-                <td>{{ (stock.price * (1 + Math.abs(stock.pct_change) / 100 * 0.3)).toFixed(2) }}</td>
-                <td>{{ (stock.price * (1 - Math.abs(stock.pct_change) / 100 * 0.3)).toFixed(2) }}</td>
-                <td>{{ Math.floor(stock.turnover / stock.price / 100).toLocaleString() }}</td>
+                <td>{{ stock.open ? stock.open.toFixed(2) : (stock.price * (1 - stock.pct_change / 100 * 0.5)).toFixed(2) }}<span v-if="!stock.open" style="color: #999; font-size: 10px;">*</span></td>
+                <td>{{ stock.high ? stock.high.toFixed(2) : (stock.price * (1 + Math.abs(stock.pct_change) / 100 * 0.3)).toFixed(2) }}<span v-if="!stock.high" style="color: #999; font-size: 10px;">*</span></td>
+                <td>{{ stock.low ? stock.low.toFixed(2) : (stock.price * (1 - Math.abs(stock.pct_change) / 100 * 0.3)).toFixed(2) }}<span v-if="!stock.low" style="color: #999; font-size: 10px;">*</span></td>
+                <td>{{ stock.vol ? stock.vol.toLocaleString() : Math.floor(stock.turnover / stock.price / 100).toLocaleString() }}<span v-if="!stock.vol" style="color: #999; font-size: 10px;">*</span></td>
                 <td>{{ (stock.turnover / 10000).toFixed(2) }}</td>
-                <td>{{ (Math.random() * 2).toFixed(2) }}%</td>
+                <td>{{ stock.turnover_rate ? stock.turnover_rate.toFixed(2) + '%' : '--' }}</td>
               </tr>
             </tbody>
           </table>
@@ -163,31 +168,21 @@
         <!-- 热门板块 -->
         <div class="hot-sector">
           <div class="sector-title">热门板块</div>
-          <div class="sector-list">
-            <div class="sector-item">
-              <div class="sector-name">新能源汽车</div>
-              <div class="sector-change rise">+3.25%</div>
-              <div class="index-change">领涨：比亚迪、宁德时代</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">半导体</div>
-              <div class="sector-change rise">+2.88%</div>
-              <div class="index-change">领涨：中芯国际、北方华创</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">白酒</div>
-              <div class="sector-change fall">-0.95%</div>
-              <div class="index-change">领跌：贵州茅台、五粮液</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">银行</div>
-              <div class="sector-change rise">+1.85%</div>
-              <div class="index-change">领涨：平安银行、招商银行</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">光伏</div>
-              <div class="sector-change rise">+2.56%</div>
-              <div class="index-change">领涨：隆基绿能、通威股份</div>
+          <div v-if="sectorsLoading" class="loading" style="padding: 20px; text-align: center;">
+            加载中...
+          </div>
+          <div v-else-if="sectorsError || hotSectors.length === 0" class="data-missing">
+            ⚠️ 行业数据暂无
+          </div>
+          <div v-else class="sector-list">
+            <div v-for="sector in hotSectors" :key="sector.name" class="sector-item">
+              <div class="sector-name">{{ sector.name }}</div>
+              <div class="sector-change" :class="sector.change >= 0 ? 'rise' : 'fall'">
+                {{ sector.change >= 0 ? '+' : '' }}{{ sector.change.toFixed(2) }}%
+              </div>
+              <div class="index-change">
+                {{ sector.change >= 0 ? '领涨' : '领跌' }}：{{ sector.leaders }}
+              </div>
             </div>
           </div>
         </div>
@@ -195,40 +190,45 @@
         <!-- 涨跌分布 -->
         <div class="rise-fall-dist">
           <div class="dist-title">涨跌分布</div>
-          <div class="dist-item">
-            <span class="dist-label">涨停</span>
-            <div class="dist-bar">
-              <div class="dist-rise-bar" style="width: 8%;"></div>
-            </div>
-            <span class="dist-num">86家</span>
+          <div v-if="statsError || marketStats.total === 0" class="data-missing">
+            ⚠️ 统计数据加载中...
           </div>
-          <div class="dist-item">
-            <span class="dist-label">上涨</span>
-            <div class="dist-bar">
-              <div class="dist-rise-bar" style="width: 65%;"></div>
+          <div v-else>
+            <div class="dist-item">
+              <span class="dist-label">涨停</span>
+              <div class="dist-bar">
+                <div class="dist-rise-bar" :style="`width: ${statsPercentages.upLimit}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.upLimit }}家</span>
             </div>
-            <span class="dist-num">3256家</span>
-          </div>
-          <div class="dist-item">
-            <span class="dist-label">平盘</span>
-            <div class="dist-bar">
-              <div class="dist-rise-bar" style="width: 5%;"></div>
+            <div class="dist-item">
+              <span class="dist-label">上涨</span>
+              <div class="dist-bar">
+                <div class="dist-rise-bar" :style="`width: ${statsPercentages.up}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.up }}家</span>
             </div>
-            <span class="dist-num">258家</span>
-          </div>
-          <div class="dist-item">
-            <span class="dist-label">下跌</span>
-            <div class="dist-bar">
-              <div class="dist-fall-bar" style="width: 22%;"></div>
+            <div class="dist-item">
+              <span class="dist-label">平盘</span>
+              <div class="dist-bar">
+                <div class="dist-rise-bar" :style="`width: ${statsPercentages.flat}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.flat }}家</span>
             </div>
-            <span class="dist-num">1125家</span>
-          </div>
-          <div class="dist-item">
-            <span class="dist-label">跌停</span>
-            <div class="dist-bar">
-              <div class="dist-fall-bar" style="width: 2%;"></div>
+            <div class="dist-item">
+              <span class="dist-label">下跌</span>
+              <div class="dist-bar">
+                <div class="dist-fall-bar" :style="`width: ${statsPercentages.down}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.down }}家</span>
             </div>
-            <span class="dist-num">21家</span>
+            <div class="dist-item">
+              <span class="dist-label">跌停</span>
+              <div class="dist-bar">
+                <div class="dist-fall-bar" :style="`width: ${statsPercentages.downLimit}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.downLimit }}家</span>
+            </div>
           </div>
         </div>
       </div>
@@ -237,10 +237,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 import { getRealtimeQuotes, getDailyQuotes } from '@/services/marketService';
+import { getIndustryRank } from '@/services/fundamentalsService';
 
 // 使用全局认证
 const { logged, userText, openLoginModal, logout } = useAuth()
@@ -268,10 +269,28 @@ const showUserMenu = ref(false);
 // 响应式数据
 const marketIndexes = ref([]);
 const stockData = ref([]);
+const rawStockData = ref([]); // 原始股票数据（用于筛选）
 const klineData = ref([]);
 const selectedStockCode = ref('002594');
 const selectedStockName = ref('比亚迪');
 const klineLoading = ref(false);
+
+// 热门板块数据
+const hotSectors = ref([]);
+const sectorsLoading = ref(false);
+const sectorsError = ref(false);
+
+// 涨跌分布数据
+const marketStats = ref({
+  upLimit: 0,
+  up: 0,
+  flat: 0,
+  down: 0,
+  downLimit: 0,
+  total: 0
+});
+const statsLoading = ref(false);
+const statsError = ref(false);
 
 // 筛选条件
 const selectedMarket = ref('all');
@@ -314,6 +333,64 @@ const ma20Value = computed(() => {
   return 0;
 });
 
+// 筛选后的股票数据
+const filteredStockData = computed(() => {
+  let result = [...rawStockData.value];
+  
+  // 市场筛选
+  if (selectedMarket.value !== 'all') {
+    result = result.filter(stock => {
+      const code = stock.code;
+      switch (selectedMarket.value) {
+        case 'sh': return code.startsWith('60');
+        case 'sz': return code.startsWith('00') && !code.startsWith('300');
+        case 'cyb': return code.startsWith('300');
+        case 'kcb': return code.startsWith('688');
+        default: return true;
+      }
+    });
+  }
+  
+  // 涨跌幅筛选
+  if (selectedChange.value !== 'all') {
+    result = result.filter(stock => {
+      const pct = stock.pct_change;
+      switch (selectedChange.value) {
+        case 'gt5': return pct > 5;
+        case 'bt0-5': return pct >= 0 && pct <= 5;
+        case 'bt-5-0': return pct >= -5 && pct < 0;
+        case 'lt-5': return pct < -5;
+        default: return true;
+      }
+    });
+  }
+  
+  // 排序
+  result.sort((a, b) => {
+    switch (selectedSort.value) {
+      case 'rise': return b.pct_change - a.pct_change;
+      case 'fall': return a.pct_change - b.pct_change;
+      case 'volume': return (b.vol || 0) - (a.vol || 0);
+      case 'amount': return b.turnover - a.turnover;
+      default: return 0;
+    }
+  });
+  
+  return result;
+});
+
+// 涨跌分布统计计算属性
+const statsPercentages = computed(() => {
+  const total = marketStats.value.total || 1;
+  return {
+    upLimit: Math.round((marketStats.value.upLimit / total) * 100),
+    up: Math.round((marketStats.value.up / total) * 100),
+    flat: Math.round((marketStats.value.flat / total) * 100),
+    down: Math.round((marketStats.value.down / total) * 100),
+    downLimit: Math.round((marketStats.value.downLimit / total) * 100)
+  };
+});
+
 // 加载大盘指数概览
 const loadMarketOverview = async () => {
   const indexCodes = Object.keys(INDEX_CODES);
@@ -339,6 +416,113 @@ const loadMarketOverview = async () => {
   }
 };
 
+// 加载热门板块数据
+const loadHotSectors = async () => {
+  sectorsLoading.value = true;
+  sectorsError.value = false;
+  
+  try {
+    const result = await getIndustryRank(null, false);
+    
+    if (result.success && result.data?.data && result.data.data.length > 0) {
+      // 取前5个行业
+      const industries = result.data.data.slice(0, 5);
+      
+      // 为每个行业获取行业内股票数据计算涨跌幅
+      const sectorsWithData = await Promise.all(
+        industries.map(async (industry) => {
+          try {
+            // 获取行业内的股票数据
+            const industryStocks = rawStockData.value.filter(stock => 
+              stock.name && industry.industry_name && 
+              (stock.industry === industry.industry_name || 
+               stock.name.includes(industry.industry_name.substring(0, 2)))
+            );
+            
+            if (industryStocks.length > 0) {
+              // 计算平均涨跌幅
+              const avgChange = industryStocks.reduce((sum, s) => sum + s.pct_change, 0) / industryStocks.length;
+              
+              // 找出涨幅最大的两只股票
+              const topStocks = industryStocks
+                .sort((a, b) => b.pct_change - a.pct_change)
+                .slice(0, 2)
+                .map(s => s.name);
+              
+              return {
+                name: industry.industry_name,
+                change: avgChange,
+                leaders: topStocks.join('、') || '暂无数据'
+              };
+            }
+            
+            return {
+              name: industry.industry_name,
+              change: 0,
+              leaders: '暂无数据'
+            };
+          } catch (err) {
+            console.error(`处理行业 ${industry.industry_name} 数据失败:`, err);
+            return {
+              name: industry.industry_name,
+              change: 0,
+              leaders: '数据缺失'
+            };
+          }
+        })
+      );
+      
+      hotSectors.value = sectorsWithData;
+    } else {
+      // 使用默认数据
+      hotSectors.value = [];
+      sectorsError.value = true;
+      console.warn('行业排名数据为空');
+    }
+  } catch (error) {
+    console.error('加载热门板块失败:', error);
+    sectorsError.value = true;
+    hotSectors.value = [];
+  } finally {
+    sectorsLoading.value = false;
+  }
+};
+
+// 计算涨跌分布统计
+const calculateMarketStats = (stockList) => {
+  if (!stockList || stockList.length === 0) {
+    statsError.value = true;
+    return;
+  }
+  
+  statsError.value = false;
+  const stats = {
+    upLimit: 0,
+    up: 0,
+    flat: 0,
+    down: 0,
+    downLimit: 0,
+    total: stockList.length
+  };
+  
+  stockList.forEach(stock => {
+    const pct = stock.pct_change;
+    if (pct >= 9.9) {
+      stats.upLimit++;
+    } else if (pct > 0.1) {
+      stats.up++;
+    } else if (pct >= -0.1 && pct <= 0.1) {
+      stats.flat++;
+    } else if (pct > -9.9) {
+      stats.down++;
+    } else {
+      stats.downLimit++;
+    }
+  });
+  
+  marketStats.value = stats;
+};
+
 // 加载股票数据
 const loadStockData = async (codes = DEFAULT_STOCK_CODES) => {
   try {
@@ -346,7 +530,10 @@ const loadStockData = async (codes = DEFAULT_STOCK_CODES) => {
     
     if (result.success && result.data) {
       const data = result.data.data || result.data;
-      stockData.value = data || [];
+      rawStockData.value = data || [];
+      
+      // 计算涨跌分布
+      calculateMarketStats(rawStockData.value);
       
       // 如果有失败的代码，显示提示
       const failedCodes = result.data.failed_codes;
@@ -355,9 +542,11 @@ const loadStockData = async (codes = DEFAULT_STOCK_CODES) => {
       }
     } else {
       console.error('加载股票数据失败:', result.message);
+      rawStockData.value = [];
     }
   } catch (error) {
     console.error('加载股票数据失败:', error);
+    rawStockData.value = [];
   }
 };
 
@@ -403,9 +592,11 @@ const selectStockForKline = (code, name) => {
 };
 
 // 刷新数据
-const refreshData = () => {
-  loadMarketOverview();
-  loadStockData();
+const refreshData = async () => {
+  await loadMarketOverview();
+  await loadStockData();
+  // 股票数据加载完成后再加载板块数据
+  await loadHotSectors();
   loadKlineData(selectedStockCode.value, selectedStockName.value);
 };
 
@@ -501,9 +692,14 @@ function goToUserProfile() {
 }
 
 // 页面加载时初始化数据
-onMounted(() => {
-  loadMarketOverview();
-  loadStockData();
+onMounted(async () => {
+  await loadMarketOverview();
+  await loadStockData();
+  
+  // 股票数据加载完成后再加载板块数据
+  setTimeout(async () => {
+    await loadHotSectors();
+  }, 500);
   
   // 页面加载时加载默认K线图
   setTimeout(() => {
@@ -991,6 +1187,13 @@ onMounted(() => {
   border-radius: 4px;
   margin: 10px 0;
   border: 1px solid #ff7f24;
+}
+
+.data-missing {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-size: 14px;
 }
 
 /* 响应式适配 */

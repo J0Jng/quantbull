@@ -120,16 +120,28 @@ def test_create_factors():
     
     factors = [
         {
-            "name": "10日均线",
-            "description": "简单移动平均线（10日）",
+            "name": "10日均线偏离度",
+            "description": "收盘价相对10日均线的偏离程度",
+            "expression": "(close - MA_10) / MA_10",
+            "data_source": "tushare",
             "category": "technical",
             "parameters": {"period": 10}
         },
         {
-            "name": "30日均线",
-            "description": "简单移动平均线（30日）",
+            "name": "30日均线偏离度",
+            "description": "收盘价相对30日均线的偏离程度",
+            "expression": "(close - MA_60) / MA_60",
+            "data_source": "tushare",
             "category": "technical",
             "parameters": {"period": 30}
+        },
+        {
+            "name": "RSI超卖指标",
+            "description": "14日RSI指标",
+            "expression": "RSI_14",
+            "data_source": "tushare",
+            "category": "technical",
+            "parameters": {}
         }
     ]
     
@@ -208,6 +220,69 @@ def test_validate_strategy():
     except Exception as e:
         print(f"❌ 验证错误: {e}")
         return False
+
+
+def test_validate_factor_expression():
+    """测试因子表达式验证"""
+    print("\n" + "=" * 60)
+    print("1.6. 测试因子表达式验证")
+    print("=" * 60)
+    
+    headers = {
+        "Authorization": f"Bearer {AUTH_TOKEN}"
+    }
+    
+    # 测试用例：有效表达式
+    valid_expressions = [
+        "(close - MA_20) / MA_20",
+        "RSI_14",
+        "MACD - MACD_signal",
+        "(close - BOLL_lower) / (BOLL_upper - BOLL_lower)"
+    ]
+    
+    # 测试用例：无效表达式
+    invalid_expressions = [
+        "import os; os.system('rm -rf /')",  # 危险代码
+        "unknown_column + close",  # 未知列名
+        "(close - MA_20",  # 括号不匹配
+    ]
+    
+    print("\n测试有效表达式:")
+    for expr in valid_expressions:
+        try:
+            response = requests.post(
+                f"{BASE_URL}/api/factor/validate",
+                json={"expression": expr},
+                headers=headers,
+                timeout=10
+            )
+            result = response.json()
+            data = result.get("data", result)
+            valid = data.get("valid", False)
+            print(f"  表达式: {expr[:40]}... => {'✅ 有效' if valid else '❌ 无效'}")
+        except Exception as e:
+            print(f"  ❌ 错误: {e}")
+    
+    print("\n测试无效表达式:")
+    for expr in invalid_expressions:
+        try:
+            response = requests.post(
+                f"{BASE_URL}/api/factor/validate",
+                json={"expression": expr},
+                headers=headers,
+                timeout=10
+            )
+            result = response.json()
+            data = result.get("data", result)
+            valid = data.get("valid", False)
+            errors = data.get("errors", [])
+            print(f"  表达式: {expr[:40]}... => {'❌ 应该无效但通过' if valid else '✅ 正确识别无效'}")
+            if errors:
+                print(f"    错误: {errors[0]}")
+        except Exception as e:
+            print(f"  ❌ 错误: {e}")
+    
+    return True
 
 
 def test_create_strategy(factor_ids):
@@ -436,6 +511,9 @@ def main():
     # 1.5. 验证策略代码
     if not test_validate_strategy():
         print("\n⚠️ 策略代码验证未通过，但继续测试流程")
+    
+    # 1.6. 验证因子表达式
+    test_validate_factor_expression()
     
     # 2. 创建策略
     strategy_id = test_create_strategy(factor_ids)

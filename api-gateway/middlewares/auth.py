@@ -31,6 +31,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/docs",
         r"^/openapi",
         r"^/redoc",
+        r"^/api/company-research",  # 公司研报接口不需要认证
+        r"^/api/market/overview",  # 市场概览不需要认证
     ]
     
     def __init__(self, app):
