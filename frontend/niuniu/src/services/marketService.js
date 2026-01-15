@@ -76,6 +76,20 @@ export const getStockList = async (params = {}) => {
 }
 
 /**
+ * 获取股票快照列表（聚合接口，DB 侧整合）
+ * GET /api/stock/snapshot
+ * @param {Object} params - 查询参数
+ * @param {string} params.date - 交易日期 YYYY-MM-DD（可选）
+ * @param {number} params.limit - 返回数量（默认 200）
+ * @param {number} params.min_turnover - 最小成交额（元）
+ * @param {string} params.sort - 排序方式：rise/fall/amount/volume
+ * @param {boolean} params.refresh - 是否触发数据刷新
+ */
+export const getStockSnapshotList = async (params = {}) => {
+  return handleRequest(() => http.get('/stock/snapshot', { params }))
+}
+
+/**
  * 批量获取股票基本面数据
  * POST /api/fundamentals/batch
  * @param {Object} data - 请求数据
