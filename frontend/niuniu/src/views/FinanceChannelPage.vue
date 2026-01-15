@@ -26,7 +26,6 @@
     <div class="category-nav">
       <a href="#finance-news" class="category-item" :class="{ active: activeCategory==='finance-news' }" @click.prevent="go('finance-news')">财经资讯</a>
       <a href="#market-data" class="category-item" :class="{ active: activeCategory==='market-data' }" @click.prevent="go('market-data')">市场数据</a>
-      <a href="#company-research" class="category-item" :class="{ active: activeCategory==='company-research' }" @click.prevent="go('company-research')">公司研报</a>
       <a href="#financial-calendar" class="category-item" :class="{ active: activeCategory==='financial-calendar' }" @click.prevent="go('financial-calendar')">财经日历</a>
       <a href="#investment-ideas" class="category-item" :class="{ active: activeCategory==='investment-ideas' }" @click.prevent="go('investment-ideas')">投资观点</a>
       <a href="#policy-regulation" class="category-item" :class="{ active: activeCategory==='policy-regulation' }" @click.prevent="go('policy-regulation')">政策法规</a>
@@ -61,20 +60,6 @@
           </div>
           <div class="data-chart">
             <img :src="item.chart" alt="数据图表" />
-          </div>
-        </div>
-      </div>
-
-      <!-- 公司研报 -->
-      <h2 class="section-title" id="company-research">公司研报</h2>
-      <div class="research-grid">
-        <div class="research-card" v-for="(item, i) in researchItems" :key="'research'+i">
-          <div class="research-title">{{ item.title }}</div>
-          <div class="research-company">{{ item.company }}</div>
-          <div class="research-content">{{ item.content }}</div>
-          <div class="research-meta">
-            <span class="research-date">{{ item.date }}</span>
-            <span class="research-author">{{ item.author }}</span>
           </div>
         </div>
       </div>

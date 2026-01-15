@@ -131,10 +131,11 @@
             <div class="expression-hint">
               <p><strong>表达式提示:</strong></p>
               <ul>
-                <li>可以使用基本的数学运算符：+ - * /</li>
-                <li>支持常见函数：log、exp、sqrt、abs等</li>
-                <li>可引用价格数据：open、high、low、close、volume</li>
-                <li>可使用技术指标：MA、RSI、MACD等</li>
+                <li>支持基本数学运算符：+ - * / ( )</li>
+                <li>可用价格列：open, high, low, close, volume</li>
+                <li>可用技术指标：MA_5, MA_10, MA_20, MA_60, RSI_14, MACD, MACD_signal 等</li>
+                <li>示例: <code>(close - MA_20) / MA_20</code>  表示收盘价偏离20日均线的百分比</li>
+                <li>示例: <code>RSI_14</code>  表示14日RSI指标</li>
               </ul>
             </div>
           </div>
@@ -335,17 +336,33 @@ const validateExpression = async () => {
   try {
     const response = await factorStore.validateExpression(factorForm.value.expression)
     
-    if (response.success) {
-      validationResult.value = {
-        status: 'success',
-        message: response.message || '表达式验证通过！',
-        details: response.errors ? response.errors.join('\n') : '表达式语法正确且格式规范。'
+    if (response.success && response.data) {
+      // 后端返回格式: { valid, expression, errors, warnings, suggested_fix }
+      const data = response.data
+      if (data.valid) {
+        validationResult.value = {
+          status: 'success',
+          message: '表达式验证通过！',
+          details: data.warnings && data.warnings.length > 0 
+            ? '提示: ' + data.warnings.join('\n') 
+            : '表达式语法正确且格式规范。'
+        }
+      } else {
+        validationResult.value = {
+          status: 'error',
+          message: '表达式验证失败',
+          details: data.errors ? data.errors.join('\n') : '请检查表达式问题'
+        }
+        // 如果有修复建议，显示它
+        if (data.suggested_fix) {
+          validationResult.value.details += '\n\n建议修复: ' + data.suggested_fix
+        }
       }
     } else {
       validationResult.value = {
         status: 'error',
         message: response.message || '表达式验证失败',
-        details: response.errors ? response.errors.join('\n') : '请检查表达式问题'
+        details: '请检查表达式语法'
       }
     }
   } catch (error) {
@@ -363,33 +380,30 @@ const applyExpressionTemplate = () => {
   applyingTemplate.value = true
   
   try {
+    // 表达式模板使用 pandas.eval 兼容的格式
+    // 只支持列名和数学运算，不支持 Python 语句
     const templates = {
-      technical: `# 移动平均线因子示例
-close_price = close
-ma_20 = MA(close, 20)
-factor_value = (close_price - ma_20) / ma_20`,
-      fundamental: `# 市盈率因子示例
-eps = earnings_per_share
-price = close
-pe_ratio = price / eps if eps > 0 else None
-factor_value = 1 / pe_ratio if pe_ratio else None`,
-      macro: `# 宏观经济因子示例
-gdp_growth = gdp_data.growth_rate
-inflation_rate = macro_data.inflation
-factor_value = gdp_growth - inflation_rate`
+      technical: `(close - MA_20) / MA_20`,
+      fundamental: `close / EPS`,
+      macro: `GDP_GROWTH - INFLATION`
     }
     
-    const template = templates[factorForm.value.category] || `# ${factorForm.value.category} 因子模板
-# 请在此处编写因子表达式
-factor_value = close`
+    const descriptions = {
+      technical: '技术指标因子：(收盘价 - 20日均线) / 20日均线',
+      fundamental: '基本面因子：市盈率倒数',
+      macro: '宏观因子：GDP增速 - 通胀率'
+    }
+    
+    const category = factorForm.value.category || 'technical'
+    const template = templates[category] || templates.technical
     
     factorForm.value.expression = template
-    factorForm.value.parameters = '{"window": 20, "threshold": 0.1}'
+    factorForm.value.parameters = '{}'
     
     validationResult.value = {
       status: 'success',
       message: '模板应用成功！',
-      details: `已应用${factorForm.value.category}因子模板，请根据需要进行修改。`
+      details: descriptions[category] || '请根据需要修改表达式'
     }
   } catch (error) {
     validationResult.value = {

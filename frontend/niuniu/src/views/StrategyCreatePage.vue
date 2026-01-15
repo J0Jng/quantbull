@@ -156,6 +156,74 @@
           </div>
         </div>
 
+        <!-- 因子选择 -->
+        <div class="form-section">
+          <h2 class="section-title">关联因子（可选）</h2>
+          <div class="factor-selection">
+            <div class="selected-factors" v-if="selectedFactors.length > 0">
+              <h4>已选择的因子:</h4>
+              <div class="selected-factor-list">
+                <div 
+                  v-for="factor in selectedFactors" 
+                  :key="factor.id" 
+                  class="selected-factor-item"
+                >
+                  <span class="factor-name">{{ factor.name }}</span>
+                  <span class="factor-code">({{ factor.code }})</span>
+                  <button 
+                    class="remove-factor-btn" 
+                    @click="removeSelectedFactor(factor.id)"
+                    title="移除因子"
+                  >×</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="factor-picker">
+              <div class="factor-picker-header">
+                <label>选择因子:</label>
+                <select 
+                  v-model="factorCategoryFilter" 
+                  class="factor-category-select"
+                >
+                  <option value="">全部类别</option>
+                  <option value="technical">技术指标</option>
+                  <option value="fundamental">基本面因子</option>
+                  <option value="macro">宏观因子</option>
+                </select>
+              </div>
+              
+              <div v-if="loadingFactors" class="factor-loading">
+                加载因子列表中...
+              </div>
+              
+              <div v-else class="available-factors">
+                <div 
+                  v-for="factor in availableFactors" 
+                  :key="factor.id" 
+                  class="available-factor-item"
+                  :class="{ 'selected': isFactorSelected(factor.id) }"
+                  @click="toggleFactor(factor)"
+                >
+                  <span class="factor-checkbox">{{ isFactorSelected(factor.id) ? '☑' : '☐' }}</span>
+                  <span class="factor-name">{{ factor.name }}</span>
+                  <span class="factor-code">({{ factor.code }})</span>
+                  <span :class="['factor-category-badge', `category-${factor.category}`]">
+                    {{ getCategoryText(factor.category) }}
+                  </span>
+                </div>
+                <div v-if="availableFactors.length === 0" class="no-factors">
+                  暂无可用因子，<router-link to="/factors/create">创建因子</router-link>
+                </div>
+              </div>
+            </div>
+            
+            <div class="factor-hint">
+              <p>提示：选择因子后，策略回测时可以使用这些因子的计算结果作为信号输入。</p>
+            </div>
+          </div>
+        </div>
+
         <!-- 策略参数配置 -->
         <div class="form-section">
           <h2 class="section-title">策略参数配置</h2>
@@ -258,8 +326,10 @@ import {
   getStrategyExamples,
   generateStrategyCode 
 } from '@/services/strategyService'
+import { useFactorStore } from '@/stores/factor'
 
 const router = useRouter()
+const factorStore = useFactorStore()
 
 // 响应式数据
 const strategyForm = ref({
@@ -287,6 +357,65 @@ const loadingExamples = ref(false)
 const showAIDialog = ref(false)
 const aiDescription = ref('')
 const generatingStrategy = ref(false)
+
+// 因子选择相关
+const loadingFactors = ref(false)
+const allFactors = ref([])
+const selectedFactors = ref([])
+const factorCategoryFilter = ref('')
+
+// 因子相关计算属性
+const availableFactors = computed(() => {
+  let factors = allFactors.value
+  if (factorCategoryFilter.value) {
+    factors = factors.filter(f => f.category === factorCategoryFilter.value)
+  }
+  return factors
+})
+
+// 因子相关方法
+const fetchFactors = async () => {
+  loadingFactors.value = true
+  try {
+    await factorStore.fetchFactors({ limit: 100, offset: 0 })
+    allFactors.value = factorStore.factors || []
+  } catch (error) {
+    console.error('加载因子列表失败:', error)
+  } finally {
+    loadingFactors.value = false
+  }
+}
+
+const isFactorSelected = (factorId) => {
+  return strategyForm.value.factor_ids.includes(factorId)
+}
+
+const toggleFactor = (factor) => {
+  const index = strategyForm.value.factor_ids.indexOf(factor.id)
+  if (index >= 0) {
+    // 移除
+    strategyForm.value.factor_ids.splice(index, 1)
+    selectedFactors.value = selectedFactors.value.filter(f => f.id !== factor.id)
+  } else {
+    // 添加
+    strategyForm.value.factor_ids.push(factor.id)
+    selectedFactors.value.push(factor)
+  }
+}
+
+const removeSelectedFactor = (factorId) => {
+  strategyForm.value.factor_ids = strategyForm.value.factor_ids.filter(id => id !== factorId)
+  selectedFactors.value = selectedFactors.value.filter(f => f.id !== factorId)
+}
+
+const getCategoryText = (category) => {
+  const categoryMap = {
+    'technical': '技术指标',
+    'fundamental': '基本面',
+    'macro': '宏观'
+  }
+  return categoryMap[category] || category
+}
 
 // 计算属性
 const lineCount = computed(() => {
@@ -575,6 +704,7 @@ const saveAsDraft = async () => {
 // 生命周期
 onMounted(() => {
   loadExamples()
+  fetchFactors()
 })
 </script>
 
@@ -1089,6 +1219,165 @@ onMounted(() => {
 
 .validation-errors li {
   color: #c62828;
+}
+
+/* 因子选择样式 */
+.factor-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.selected-factors h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.selected-factor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selected-factor-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+.selected-factor-item .factor-name {
+  color: #1565c0;
+  font-weight: 500;
+}
+
+.selected-factor-item .factor-code {
+  color: #666;
+  font-size: 12px;
+}
+
+.remove-factor-btn {
+  background: none;
+  border: none;
+  color: #f44336;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 0 0 5px;
+}
+
+.factor-picker-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.factor-category-select {
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.factor-loading {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+}
+
+.available-factors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.available-factor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.available-factor-item:hover {
+  background: #e3f2fd;
+  border-color: #90caf9;
+}
+
+.available-factor-item.selected {
+  background: #e3f2fd;
+  border-color: #1976d2;
+}
+
+.factor-checkbox {
+  color: #1976d2;
+}
+
+.available-factor-item .factor-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.available-factor-item .factor-code {
+  color: #888;
+  font-size: 12px;
+}
+
+.factor-category-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.factor-category-badge.category-technical {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.factor-category-badge.category-fundamental {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.factor-category-badge.category-macro {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.no-factors {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+}
+
+.no-factors a {
+  color: #ff7f00;
+}
+
+.factor-hint {
+  font-size: 13px;
+  color: #888;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.factor-hint p {
+  margin: 0;
 }
 
 @media (max-width: 768px) {

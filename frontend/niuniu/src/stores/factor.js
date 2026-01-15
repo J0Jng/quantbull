@@ -12,31 +12,66 @@ import {
 export const useFactorStore = defineStore('factor', {
   state: () => ({
     factors: [],
+    total: 0,
     currentFactor: null,
     calculationResults: [],
     loading: false,
     error: null,
-    validationResult: null
+    validationResult: null,
+    pagination: {
+      page: 1,
+      pageSize: 20
+    },
+    filters: {
+      category: '',
+      search: ''
+    }
   }),
 
   actions: {
-    // 获取因子列表
+    // 获取因子列表（支持分页和过滤）
     async fetchFactors(params = {}) {
       this.loading = true
       this.error = null
       
       try {
-        const response = await getFactors(params)
+        // 合并过滤条件和分页
+        const queryParams = {
+          limit: params.limit ?? this.pagination.pageSize,
+          offset: params.offset ?? (this.pagination.page - 1) * this.pagination.pageSize,
+          ...(this.filters.category && { category: this.filters.category }),
+          ...(this.filters.search && { search: this.filters.search }),
+          ...params
+        }
+        
+        const response = await getFactors(queryParams)
         if (response.success) {
-          this.factors = response.data
+          // 后端响应格式: { code, message, data: { total, factors } }
+          // handleRequest 包装后: { success, data: { code, message, data: { total, factors } } }
+          const responseData = response.data?.data || response.data || {}
+          this.factors = responseData.factors || []
+          this.total = responseData.total || 0
+          return { factors: this.factors, total: this.total }
         } else {
           throw new Error(response.message)
         }
       } catch (error) {
         this.error = error.message
+        return null
       } finally {
         this.loading = false
       }
+    },
+
+    // 设置过滤条件
+    setFilters(filters) {
+      this.filters = { ...this.filters, ...filters }
+      this.pagination.page = 1 // 重置到第一页
+    },
+
+    // 设置分页
+    setPagination(pagination) {
+      this.pagination = { ...this.pagination, ...pagination }
     },
 
     // 获取因子详情
@@ -48,7 +83,8 @@ export const useFactorStore = defineStore('factor', {
       try {
         const response = await getFactor(id)
         if (response.success) {
-          this.currentFactor = response.data
+          // 后端响应格式: { code, message, data: {...} }
+          this.currentFactor = response.data?.data || response.data
         } else {
           throw new Error(response.message)
         }
@@ -67,8 +103,10 @@ export const useFactorStore = defineStore('factor', {
       try {
         const response = await createFactor(factorData)
         if (response.success) {
-          this.factors.unshift(response.data)
-          return response.data
+          // 后端响应格式: { code, message, data: {...} }
+          const newFactor = response.data?.data || response.data
+          this.factors.unshift(newFactor)
+          return newFactor
         } else {
           throw new Error(response.message)
         }
@@ -88,18 +126,21 @@ export const useFactorStore = defineStore('factor', {
       try {
         const response = await updateFactor(id, updateData)
         if (response.success) {
+          // 后端响应格式: { code, message, data: {...} }
+          const updatedFactor = response.data?.data || response.data
+          
           // 更新列表中的因子
           const index = this.factors.findIndex(f => f.id === id)
           if (index !== -1) {
-            this.factors[index] = response.data
+            this.factors[index] = updatedFactor
           }
           
           // 更新当前因子
           if (this.currentFactor && this.currentFactor.id === id) {
-            this.currentFactor = response.data
+            this.currentFactor = updatedFactor
           }
           
-          return response.data
+          return updatedFactor
         } else {
           throw new Error(response.message)
         }
@@ -142,11 +183,14 @@ export const useFactorStore = defineStore('factor', {
       this.error = null
       
       try {
-        const response = await calculateFactor(factorId, calculationParams)
+        // 直接传递完整参数，不再拆分 factorId
+        const response = await calculateFactor(calculationParams)
         if (response.success) {
+          // 后端响应格式: { code, message, data: {...} }
+          const result = response.data?.data || response.data
           // 添加计算结果记录
-          this.calculationResults.unshift(response.data)
-          return response.data
+          this.calculationResults.unshift(result)
+          return result
         } else {
           throw new Error(response.message)
         }
@@ -164,12 +208,32 @@ export const useFactorStore = defineStore('factor', {
       
       try {
         const response = await validateFactorExpression(expression)
-        this.validationResult = response
-        return response
+        // 后端响应格式: { code, message, data: { valid, expression, errors, warnings, suggested_fix } }
+        if (response.success) {
+          const data = response.data?.data || response.data
+          this.validationResult = {
+            success: data.valid,
+            valid: data.valid,
+            errors: data.errors || [],
+            warnings: data.warnings || [],
+            suggested_fix: data.suggested_fix,
+            message: data.valid ? '表达式验证通过' : '表达式验证失败'
+          }
+        } else {
+          this.validationResult = {
+            success: false,
+            valid: false,
+            message: response.message || '验证失败',
+            errors: [response.message]
+          }
+        }
+        return this.validationResult
       } catch (error) {
         this.validationResult = {
           success: false,
-          message: '验证服务错误: ' + error.message
+          valid: false,
+          message: '验证服务错误: ' + error.message,
+          errors: [error.message]
         }
         return this.validationResult
       }

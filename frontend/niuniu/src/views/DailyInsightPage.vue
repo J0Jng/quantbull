@@ -48,63 +48,34 @@
           <span class="title-icon">📊</span>
           市场概览
         </h2>
-        <div class="market-stats" v-if="marketOverview">
-          <div class="stat-card" v-if="marketOverview.sh_index">
-            <div class="stat-icon">📈</div>
-            <div class="stat-info">
-              <div class="stat-value">{{ marketOverview.sh_index.value || '-' }}</div>
-              <div class="stat-label">上证指数</div>
-              <div class="stat-change" :class="(marketOverview.sh_index.change || 0) >= 0 ? 'positive' : 'negative'">
-                {{ (marketOverview.sh_index.change || 0) >= 0 ? '+' : '' }}{{ marketOverview.sh_index.change || 0 }}%
-              </div>
-            </div>
+        <!-- 市场情绪分析 -->
+        <div class="market-sentiment">
+          <h3>市场情绪分析</h3>
+          <div class="sentiment-content">
+            <p>{{ marketSentiment }}</p>
           </div>
-          <div class="stat-card" v-if="marketOverview.sz_index">
-            <div class="stat-icon">📉</div>
-            <div class="stat-info">
-              <div class="stat-value">{{ marketOverview.sz_index.value || '-' }}</div>
-              <div class="stat-label">深证成指</div>
-              <div class="stat-change" :class="(marketOverview.sz_index.change || 0) >= 0 ? 'positive' : 'negative'">
-                {{ (marketOverview.sz_index.change || 0) >= 0 ? '+' : '' }}{{ marketOverview.sz_index.change || 0 }}%
-              </div>
-            </div>
-          </div>
-          <div class="stat-card" v-if="marketOverview.cyb_index">
-            <div class="stat-icon">🔬</div>
-            <div class="stat-info">
-              <div class="stat-value">{{ marketOverview.cyb_index.value || '-' }}</div>
-              <div class="stat-label">创业板指</div>
-              <div class="stat-change" :class="(marketOverview.cyb_index.change || 0) >= 0 ? 'positive' : 'negative'">
-                {{ (marketOverview.cyb_index.change || 0) >= 0 ? '+' : '' }}{{ marketOverview.cyb_index.change || 0 }}%
-              </div>
-            </div>
-          </div>
-          <div class="stat-card" v-if="marketOverview.north_flow">
-            <div class="stat-icon">💧</div>
-            <div class="stat-info">
-              <div class="stat-value">{{ marketOverview.north_flow.value || '-' }}</div>
-              <div class="stat-label">北向资金</div>
-              <div class="stat-change" :class="(marketOverview.north_flow.amount || 0) >= 0 ? 'positive' : 'negative'">
-                {{ (marketOverview.north_flow.amount || 0) >= 0 ? '净流入' : '净流出' }}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="market-stats" v-else>
-          <p class="no-data">暂无市场概览数据</p>
         </div>
 
-        <!-- 行业板块表现 -->
-        <div class="sector-performance" v-if="sectorPerformance.length > 0">
-          <h3>行业板块表现</h3>
-          <div class="sector-list">
-            <div class="sector-item" v-for="sector in sectorPerformance" :key="sector.name">
-              <span class="sector-name">{{ sector.name }}</span>
-              <span class="sector-change" :class="{ positive: sector.change > 0, negative: sector.change < 0 }">
-                {{ sector.change > 0 ? '+' : '' }}{{ sector.change }}%
-              </span>
+        <!-- ETF推荐 -->
+        <div class="etf-recommendations" v-if="etfRecommendations.length > 0">
+          <h3>ETF推荐</h3>
+          <div class="etf-list">
+            <div class="etf-card" v-for="etf in etfRecommendations" :key="etf.code">
+              <div class="etf-header">
+                <div class="etf-basic">
+                  <div class="etf-name">{{ etf.name }}</div>
+                  <div class="etf-code">{{ etf.code }}</div>
+                </div>
+                <div class="etf-category">{{ etf.category }}</div>
+              </div>
+              <div class="etf-reasoning">
+                <p>{{ etf.reasoning }}</p>
+              </div>
             </div>
           </div>
+        </div>
+        <div v-else>
+          <p class="no-data">暂无ETF推荐</p>
         </div>
       </section>
 
@@ -115,32 +86,18 @@
           重点关注
         </h2>
         <div class="focus-content">
-          <div class="focus-item" v-if="todayEvents.length > 0">
-            <h3>今日重要财经事件</h3>
-            <ul>
-              <li v-for="event in todayEvents" :key="event.id || event.time">
-                <span class="event-time">{{ event.time }}</span>
-                <span class="event-content">{{ event.content }}</span>
-              </li>
-            </ul>
-          </div>
-          <div class="focus-item" v-if="policyAnalysis.content">
-            <h3>重大政策解读</h3>
-            <div class="policy-analysis">
-              <p>{{ policyAnalysis.content }}</p>
-              <div class="policy-impact" v-if="policyAnalysis.impact">
-                <strong>影响评估：</strong> {{ policyAnalysis.impact }}
-              </div>
+          <div class="focus-item">
+            <h3>文章要点</h3>
+            <div v-if="articleSections.length > 0">
+              <ul class="article-sections">
+                <li v-for="(section, index) in articleSections" :key="index" class="section-item">
+                  <span class="section-index">{{ index + 1 }}.</span>
+                  <span class="section-content">{{ section }}</span>
+                </li>
+              </ul>
             </div>
-          </div>
-          <div class="focus-item" v-if="institutionViews.length > 0">
-            <h3>机构观点汇总</h3>
-            <div class="institution-views">
-              <div class="view-card" v-for="view in institutionViews" :key="view.institution">
-                <div class="institution-name">{{ view.institution }}</div>
-                <div class="view-content">{{ view.content }}</div>
-                <div class="view-rating">{{ view.rating }}</div>
-              </div>
+            <div v-else class="no-content">
+              <p>暂无内容要点</p>
             </div>
           </div>
         </div>
@@ -159,25 +116,27 @@
                 <div class="stock-name">{{ stock.name }}</div>
                 <div class="stock-code">{{ stock.code }}</div>
               </div>
-              <div class="stock-recommendation" :class="stock.recommendation.toLowerCase()">
+              <div class="stock-recommendation recommend">
                 {{ stock.recommendation }}
               </div>
             </div>
-            <div class="stock-price">
-              <div class="current-price">{{ stock.currentPrice }}</div>
-              <div class="price-change" :class="{ positive: stock.change > 0, negative: stock.change < 0 }">
-                {{ stock.change > 0 ? '+' : '' }}{{ stock.change }}%
+            <!-- 因子评分 -->
+            <div class="factor-scores" v-if="Object.keys(stock.factorScores).length > 0">
+              <h4>因子评分</h4>
+              <div class="score-tags">
+                <span 
+                  v-for="(score, factor) in stock.factorScores" 
+                  :key="factor" 
+                  class="score-tag"
+                >
+                  {{ factor }}: {{ typeof score === 'number' ? score.toFixed(1) : score }}
+                </span>
               </div>
             </div>
+            <!-- AI分析 -->
             <div class="stock-analysis">
-              <h4>技术面分析</h4>
-              <p>{{ stock.technicalAnalysis }}</p>
-              <h4>基本面解读</h4>
-              <p>{{ stock.fundamentalAnalysis }}</p>
-            </div>
-            <div class="stock-target">
-              <div class="target-price">目标价位：{{ stock.targetPrice }}</div>
-              <div class="upside-potential">上涨空间：{{ stock.upside }}%</div>
+              <h4>AI分析</h4>
+              <p>{{ stock.aiAnalysis }}</p>
             </div>
           </div>
         </div>
@@ -190,30 +149,10 @@
           风险提示
         </h2>
         <div class="risk-content">
-          <div class="risk-item" v-if="marketRisks.length > 0">
-            <h3>当前市场风险因素</h3>
-            <ul>
-              <li v-for="risk in marketRisks" :key="risk.id">{{ risk.content }}</li>
-            </ul>
-          </div>
-          <div class="risk-item" v-if="investmentTips.length > 0">
-            <h3>投资注意事项</h3>
-            <div class="investment-tips">
-              <p v-for="(tip, index) in investmentTips" :key="index">{{ tip }}</p>
+          <div class="risk-item">
+            <div class="risk-warning-content">
+              <p>{{ riskWarning }}</p>
             </div>
-          </div>
-          <div class="risk-item" v-if="riskControls.length > 0">
-            <h3>风险控制建议</h3>
-            <div class="risk-control">
-              <div class="control-item" v-for="(control, index) in riskControls" :key="index">
-                <span class="control-icon">✅</span>
-                <span>{{ control }}</span>
-              </div>
-            </div>
-          </div>
-          <!-- 默认风险提示 -->
-          <div class="risk-item" v-if="marketRisks.length === 0 && investmentTips.length === 0">
-            <p class="default-risk">投资有风险，入市需谨慎。请根据自身风险承受能力合理配置资产。</p>
           </div>
         </div>
       </section>
@@ -229,6 +168,13 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { getDailyReportByDate, getLatestDailyReport } from '@/services/dailyReportService'
+import {
+  canAccessTodayReport,
+  getTodayString,
+  getYesterdayString,
+  getAccessDeniedMessage,
+  isToday
+} from '@/utils/accessControl'
 
 const router = useRouter()
 
@@ -238,86 +184,54 @@ const error = ref('')
 const selectedDate = ref(new Date().toISOString().split('T')[0])
 const reportData = ref(null)
 
-// 市场概览数据（从 API 获取或使用默认值）
-const marketOverview = computed(() => {
-  if (reportData.value?.market_overview) {
-    return reportData.value.market_overview
-  }
-  return null
+// 市场情绪（从 market_sentiment 获取）
+const marketSentiment = computed(() => {
+  return reportData.value?.market_sentiment || '暂无市场情绪分析'
 })
 
-// 行业板块表现
-const sectorPerformance = computed(() => {
-  if (reportData.value?.sector_performance) {
-    return reportData.value.sector_performance
-  }
-  return []
-})
-
-// 重点关注 - 今日事件
-const todayEvents = computed(() => {
-  if (reportData.value?.key_events) {
-    return reportData.value.key_events
+// ETF 推荐
+const etfRecommendations = computed(() => {
+  if (reportData.value?.etf_recommendations && Array.isArray(reportData.value.etf_recommendations)) {
+    return reportData.value.etf_recommendations.map(etf => ({
+      code: etf.code || '',
+      name: etf.name || '',
+      category: etf.category || '',
+      reasoning: etf.reasoning || '暂无推荐理由'
+    }))
   }
   return []
 })
 
-// 政策分析
-const policyAnalysis = computed(() => {
-  if (reportData.value?.policy_analysis) {
-    return reportData.value.policy_analysis
-  }
-  return { content: '暂无政策分析', impact: '' }
-})
-
-// 机构观点
-const institutionViews = computed(() => {
-  if (reportData.value?.institution_views) {
-    return reportData.value.institution_views
+// 重点关注 - 文章大纲
+const articleSections = computed(() => {
+  if (reportData.value?.article_outline?.sections && Array.isArray(reportData.value.article_outline.sections)) {
+    return reportData.value.article_outline.sections
   }
   return []
 })
 
 // 个股分析（从 stock_recommendations 映射）
 const stockAnalysis = computed(() => {
-  if (reportData.value?.stock_recommendations) {
+  if (reportData.value?.stock_recommendations && Array.isArray(reportData.value.stock_recommendations)) {
     return reportData.value.stock_recommendations.map(stock => ({
-      code: stock.stock_code || stock.code,
-      name: stock.stock_name || stock.name,
-      recommendation: stock.rating || stock.recommendation || '持有',
-      currentPrice: stock.current_price || stock.price || '-',
-      change: stock.change_pct || stock.change || 0,
-      technicalAnalysis: stock.technical_analysis || stock.reason || '',
-      fundamentalAnalysis: stock.fundamental_analysis || '',
-      targetPrice: stock.target_price || '-',
-      upside: stock.upside_potential || stock.upside || 0
+      code: stock.code || '',
+      name: stock.name || '',
+      recommendation: '推荐',  // 简化推荐级别
+      factorScores: stock.factor_scores || {},
+      aiAnalysis: stock.ai_analysis || '暂无分析',
+      // 简化其他字段以匹配后端
+      currentPrice: '-',
+      change: 0,
+      targetPrice: '-',
+      upside: 0
     }))
   }
   return []
 })
 
-// 风险提示
-const marketRisks = computed(() => {
-  if (reportData.value?.risk_warnings) {
-    return reportData.value.risk_warnings.map((content, id) => ({ id, content }))
-  }
-  return []
-})
-
-// 投资建议
-const investmentTips = computed(() => {
-  if (reportData.value?.investment_tips) {
-    return reportData.value.investment_tips
-  }
-  return []
-})
-
-// 风险控制
-const riskControls = computed(() => {
-  if (reportData.value?.risk_controls) {
-    return reportData.value.risk_controls
-  }
-  return []
+// 风险提示（从 risk_warning 获取）
+const riskWarning = computed(() => {
+  return reportData.value?.risk_warning || '投资有风险，入市需谨慎。请根据自身风险承受能力合理配置资产。'
 })
 
 // 方法
@@ -340,7 +254,15 @@ const previousDay = () => {
 const nextDay = () => {
   const date = new Date(selectedDate.value)
   date.setDate(date.getDate() + 1)
-  selectedDate.value = date.toISOString().split('T')[0]
+  const nextDateStr = date.toISOString().split('T')[0]
+  
+  // 检查是否要切换到今天
+  if (isToday(nextDateStr) && !canAccessTodayReport()) {
+    alert(getAccessDeniedMessage())
+    return
+  }
+  
+  selectedDate.value = nextDateStr
   loadDailyData()
 }
 
@@ -349,27 +271,50 @@ const loadDailyData = async () => {
   error.value = ''
   
   try {
+    // 检查是否试图访问今天的报告
+    if (isToday(selectedDate.value) && !canAccessTodayReport()) {
+      // 16:00 前不允许访问今天，自动回退到昨天
+      error.value = getAccessDeniedMessage()
+      selectedDate.value = getYesterdayString()
+      // 继续加载昨天的数据
+    }
+    
     const result = await getDailyReportByDate(selectedDate.value)
+    console.log('getDailyReportByDate响应:', result)
     
     if (result.success && result.data) {
-      reportData.value = result.data
-    } else {
-      // 如果指定日期没有报告，尝试获取最新报告
-      const latestResult = await getLatestDailyReport()
-      if (latestResult.success && latestResult.data) {
-        reportData.value = latestResult.data
-        // 更新日期为实际报告日期
-        if (latestResult.data.report_date) {
-          selectedDate.value = latestResult.data.report_date
-        }
-      } else {
-        error.value = result.message || '暂无数据'
-        reportData.value = null
+      // 提取真正的报告数据
+      let data = result.data
+      if (data.data && data.code === 0) {
+        data = data.data
       }
+      
+      if (data.id && data.report_date) {
+        reportData.value = data
+        error.value = '' // 清除错误信息
+        console.log('报告数据加载成功:', data)
+      } else {
+        throw new Error('数据格式异常')
+      }
+    } else {
+      // 指定日期没有报告，显示空状态，保持用户选择的日期
+      console.log(`${selectedDate.value} 日期无数据`)
+      error.value = `${formatDate(selectedDate.value)} 暂无内参数据`
+      reportData.value = null
     }
   } catch (e) {
-    error.value = '加载数据失败，请稍后重试'
+    // 处理 403 错误（后端返回的门禁拒绝）
+    if (e.status === 403) {
+      error.value = getAccessDeniedMessage()
+      // 自动回退到昨天
+      selectedDate.value = getYesterdayString()
+      // 重新加载昨天的数据
+      setTimeout(() => loadDailyData(), 100)
+    } else {
+      error.value = '加载数据失败，请稍后重试'
+    }
     console.error('加载每日内参失败:', e)
+    reportData.value = null
   } finally {
     loading.value = false
   }
@@ -544,6 +489,164 @@ onMounted(() => {
 
 .title-icon {
   font-size: 24px;
+}
+
+/* 市场情绪样式 */
+.market-sentiment {
+  margin-bottom: 20px;
+}
+
+.market-sentiment h3 {
+  color: #ff7f00;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.sentiment-content {
+  background: #fff6ee;
+  padding: 15px;
+  border-radius: 6px;
+  line-height: 1.6;
+}
+
+/* ETF推荐样式 */
+.etf-recommendations h3 {
+  color: #ff7f00;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.etf-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 15px;
+}
+
+.etf-card {
+  border: 2px solid #ffb380;
+  border-radius: 8px;
+  padding: 15px;
+  background: #fff;
+}
+
+.etf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.etf-basic .etf-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+}
+
+.etf-basic .etf-code {
+  font-size: 12px;
+  color: #666;
+}
+
+.etf-category {
+  background: #ff7f00;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.etf-reasoning p {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* 文章要点样式 */
+.article-sections {
+  list-style: none;
+  padding: 0;
+}
+
+.section-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.section-item:last-child {
+  border-bottom: none;
+}
+
+.section-index {
+  color: #ff7f00;
+  font-weight: bold;
+  margin-right: 10px;
+  min-width: 20px;
+}
+
+.section-content {
+  flex: 1;
+  color: #333;
+  line-height: 1.5;
+}
+
+.no-content {
+  text-align: center;
+  color: #999;
+  padding: 20px 0;
+}
+
+/* 因子评分样式 */
+.factor-scores {
+  margin-bottom: 15px;
+}
+
+.factor-scores h4 {
+  color: #333;
+  margin: 10px 0 8px;
+  font-size: 14px;
+}
+
+.score-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.score-tag {
+  background: #f0f8ff;
+  color: #333;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  border: 1px solid #d0e7ff;
+}
+
+/* 推荐级别样式 */
+.stock-recommendation.recommend {
+  background: #4CAF50;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* 风险提示样式 */
+.risk-warning-content {
+  background: #fff5f5;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #ff4444;
+  line-height: 1.6;
+}
+
+.risk-warning-content p {
+  margin: 0;
+  color: #333;
 }
 
 /* 市场概览样式 */

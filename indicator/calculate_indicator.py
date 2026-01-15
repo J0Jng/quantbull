@@ -23,6 +23,12 @@ def get_indicators(data, end_date=None, threshold=120, calc_threshold=None):
 
         if isCopy:
             data = data.copy()
+        
+        # 确保所有数值列为 float64 类型（TA-Lib 要求）
+        numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount', 'p_change']
+        for col in numeric_cols:
+            if col in data.columns:
+                data[col] = data[col].astype(np.float64)
 
         # import stockstats
         # test = data.copy()
@@ -87,12 +93,12 @@ def get_indicators(data, end_date=None, threshold=120, calc_threshold=None):
             data['rsi_24'].values[np.isnan(data['rsi_24'].values)] = 0.0
 
             # vr
-            data.loc[:, 'av'] = np.where(data['p_change'].values > 0, data['volume'].values, 0)
-            data.loc[:, 'avs'] = tl.SUM(data['av'].values, timeperiod=26)
-            data.loc[:, 'bv'] = np.where(data['p_change'].values < 0, data['volume'].values, 0)
-            data.loc[:, 'bvs'] = tl.SUM(data['bv'].values, timeperiod=26)
-            data.loc[:, 'cv'] = np.where(data['p_change'].values == 0, data['volume'].values, 0)
-            data.loc[:, 'cvs'] = tl.SUM(data['cv'].values, timeperiod=26)
+            data.loc[:, 'av'] = np.where(data['p_change'].values > 0, data['volume'].values.astype(np.float64), 0.0)
+            data.loc[:, 'avs'] = tl.SUM(data['av'].values.astype(np.float64), timeperiod=26)
+            data.loc[:, 'bv'] = np.where(data['p_change'].values < 0, data['volume'].values.astype(np.float64), 0.0)
+            data.loc[:, 'bvs'] = tl.SUM(data['bv'].values.astype(np.float64), timeperiod=26)
+            data.loc[:, 'cv'] = np.where(data['p_change'].values == 0, data['volume'].values.astype(np.float64), 0.0)
+            data.loc[:, 'cvs'] = tl.SUM(data['cv'].values.astype(np.float64), timeperiod=26)
             data.loc[:, 'vr'] = (data['avs'].values + data['cvs'].values / 2) / (data['bvs'].values + data['cvs'].values / 2)
             data['vr'].values[np.isnan(data['vr'].values)] = 0.0
             data['vr'].values[np.isinf(data['vr'].values)] = 0.0
@@ -402,12 +408,60 @@ def get_indicators(data, end_date=None, threshold=120, calc_threshold=None):
             data['ma20'].values[np.isnan(data['ma20'].values)] = 0.0
             data.loc[:, 'ma200'] = tl.MA(data['close'].values, timeperiod=200)
             data['ma200'].values[np.isnan(data['ma200'].values)] = 0.0
+            
+            # 添加更多常用 MA 周期（支持大写格式 MA_N）
+            data.loc[:, 'ma5'] = tl.MA(data['close'].values, timeperiod=5)
+            data['ma5'].values[np.isnan(data['ma5'].values)] = 0.0
+            data.loc[:, 'ma30'] = tl.MA(data['close'].values, timeperiod=30)
+            data['ma30'].values[np.isnan(data['ma30'].values)] = 0.0
+            data.loc[:, 'ma60'] = tl.MA(data['close'].values, timeperiod=60)
+            data['ma60'].values[np.isnan(data['ma60'].values)] = 0.0
+            data.loc[:, 'ma120'] = tl.MA(data['close'].values, timeperiod=120)
+            data['ma120'].values[np.isnan(data['ma120'].values)] = 0.0
+            data.loc[:, 'ma250'] = tl.MA(data['close'].values, timeperiod=250)
+            data['ma250'].values[np.isnan(data['ma250'].values)] = 0.0
+            
+            # 大写格式 MA_N 的别名（兼容用户习惯）
+            data.loc[:, 'MA_5'] = data['ma5']
+            data.loc[:, 'MA_10'] = data['ma10']
+            data.loc[:, 'MA_20'] = data['ma20']
+            data.loc[:, 'MA_30'] = data['ma30']
+            data.loc[:, 'MA_60'] = data['ma60']
+            data.loc[:, 'MA_120'] = data['ma120']
+            data.loc[:, 'MA_200'] = data['ma200']
+            data.loc[:, 'MA_250'] = data['ma250']
+            
+            # EMA
+            data.loc[:, 'ema5'] = tl.EMA(data['close'].values, timeperiod=5)
+            data['ema5'].values[np.isnan(data['ema5'].values)] = 0.0
+            data.loc[:, 'ema10'] = tl.EMA(data['close'].values, timeperiod=10)
+            data['ema10'].values[np.isnan(data['ema10'].values)] = 0.0
+            data.loc[:, 'ema12'] = tl.EMA(data['close'].values, timeperiod=12)
+            data['ema12'].values[np.isnan(data['ema12'].values)] = 0.0
+            data.loc[:, 'ema20'] = tl.EMA(data['close'].values, timeperiod=20)
+            data['ema20'].values[np.isnan(data['ema20'].values)] = 0.0
+            data.loc[:, 'ema26'] = tl.EMA(data['close'].values, timeperiod=26)
+            data['ema26'].values[np.isnan(data['ema26'].values)] = 0.0
+            data.loc[:, 'ema60'] = tl.EMA(data['close'].values, timeperiod=60)
+            data['ema60'].values[np.isnan(data['ema60'].values)] = 0.0
+            
+            # 大写格式 EMA_N 的别名
+            data.loc[:, 'EMA_5'] = data['ema5']
+            data.loc[:, 'EMA_10'] = data['ema10']
+            data.loc[:, 'EMA_12'] = data['ema12']
+            data.loc[:, 'EMA_20'] = data['ema20']
+            data.loc[:, 'EMA_26'] = data['ema26']
+            data.loc[:, 'EMA_60'] = data['ema60']
 
         if threshold is not None:
             data = data.tail(n=threshold).copy()
         return data
     except Exception as e:
-        logging.error(f"calculate_indicator.get_indicators处理异常：{data['code']}代码{e}")
+        code_info = data.get('code', data.get('date', ['unknown']))
+        if isinstance(code_info, pd.Series):
+            code_info = code_info.iloc[0] if len(code_info) > 0 else 'unknown'
+        logging.error(f"calculate_indicator.get_indicators处理异常：{code_info} {e}")
+        raise e  # 重新抛出异常，不要吞掉
     return None
 
 
