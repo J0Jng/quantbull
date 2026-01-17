@@ -52,6 +52,7 @@ POSTGRES_PORT=5432
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=quantbull
+POSTGRES_SCHEMA=public
 ```
 
 ### 3. 配置环境变量（可选）
@@ -65,6 +66,37 @@ python main.py
 ```
 
 服务将在 `http://localhost:8004` 启动。
+
+---
+
+## 🐳 Docker + PostgreSQL 持久化（推荐）
+
+在 Docker Compose 环境下，`daily-report` 可以与 `data-service` 共用同一个 PostgreSQL 实例。
+为了隔离数据，`daily-report` 使用独立的 schema/user（默认 `daily_report` / `daily_report_user`）。
+
+⚠️ **注意**：初始化 SQL 只在 PostgreSQL 数据卷首次创建时执行。如果你的 `pgdata` 已存在，
+需要手动创建 schema/user 或谨慎清空卷后重启。
+
+### 验证表与数据
+
+1) 验证表在 `daily_report` schema 下：
+
+```bash
+psql -h localhost -U daily_report_user -d quantbull_db \
+  -c "\dt daily_report.*"
+```
+
+应能看到：
+
+- `daily_report.company_research_reports`
+- `daily_report.daily_investment_reports`
+
+2) 生成一份报告后验证数据写入：
+
+```bash
+psql -h localhost -U daily_report_user -d quantbull_db \
+  -c "SELECT id, report_date, status FROM daily_report.daily_investment_reports ORDER BY created_at DESC LIMIT 5;"
+```
 
 ---
 
