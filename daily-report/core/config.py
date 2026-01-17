@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
     postgres_db: str = "quantbull"
+    postgres_schema: str = "public"
     sqlite_path: str = "daily_report.db"  # SQLite 数据库文件路径（相对路径或绝对路径）
     
     # Redis 配置
