@@ -6,20 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from core.config import settings
-from models import auth_engine, init_db, seed_admin_user
+from models import auth_engine, init_db, seed_admin_user, seed_products
 from auth.jwt import hash_password
 from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.ai_tokens import router as ai_tokens_router
+from routers.products import router as products_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_db()
-    # 迁移：确保 role 列存在
-    from models import migrate_add_role_column, migrate_add_ai_tokens_column
+    # 迁移：确保所有必要的列存在
+    from models import migrate_add_role_column, migrate_add_ai_tokens_column, migrate_product_detail_columns
     migrate_add_role_column()
     migrate_add_ai_tokens_column()
+    migrate_product_detail_columns()
     
     with Session(auth_engine) as session:
         seed_admin_user(
@@ -27,6 +29,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             username=settings.admin_username,
             password_hash=hash_password(settings.admin_password),
         )
+        # 初始化商品种子数据
+        seed_products(session)
     yield
 
 
@@ -48,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(admin_router)
     app.include_router(ai_tokens_router)
+    app.include_router(products_router)
 
     return app
 

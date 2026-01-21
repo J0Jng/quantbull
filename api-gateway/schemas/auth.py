@@ -19,3 +19,4 @@ class TokenData(BaseModel):
     """Token 数据"""
     username: Optional[str] = None
     user_id: Optional[int] = None
+    role: Optional[str] = None

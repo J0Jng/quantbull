@@ -4,7 +4,10 @@
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛商店</div>
       <div class="header-opt">
-        
+        <!-- 管理员按钮 -->
+        <a href="#" v-if="isAdmin" @click.prevent="showAddProductModal = true" class="admin-btn">
+          ➕ 新增商品
+        </a>
         <a href="#" @click.prevent="goToOrders">我的订单</a>
         <a href="#" @click.prevent="goToCart" class="cart-link">
           购物车
@@ -22,8 +25,8 @@
 
     <!-- 搜索栏 -->
     <div class="search-bar">
-      <input v-model="searchQuery" type="text" placeholder="搜索因子、策略、课程、书籍等" />
-      <button class="search-btn">搜索</button>
+      <input v-model="searchQuery" type="text" placeholder="搜索因子、策略、课程、书籍等" @keyup.enter="performSearch" />
+      <button class="search-btn" @click="performSearch">搜索</button>
     </div>
 
     <!-- 分类导航 -->
@@ -37,21 +40,31 @@
       <a href="#talent" class="category-item" :class="{ active: activeCategory==='talent' }" @click.prevent="go('talent')">人才</a>
     </div>
 
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>加载商品中...</p>
+    </div>
+
     <!-- 主容器 -->
-    <div class="container" id="goodsContainer" :class="{ 'show-price': logged }">
+    <div class="container" id="goodsContainer" :class="{ 'show-price': logged }" v-else>
       <!-- 因子分类 -->
       <h2 class="section-title" id="factor">量化因子</h2>
       <div class="goods-grid">
-        <div class="goods-card" v-for="(item,i) in factorItems" :key="'f'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in factorItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">因子</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ item.price }}</div>
-          <div class="goods-btn">
-            <button class="buy-btn" @click="addToCart(item, 'factor')">加入购物车</button>
-            <button class="detail-btn" @click="goToGoodsDetail('factor', i)">详情</button>
-          </div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
+            <div class="goods-btn">
+              <button class="buy-btn" @click="addToCart(item)">加入购物车</button>
+            </div>
+            <!-- 管理员操作按钮 -->
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
+            </div>
           </div>
         </div>
       </div>
@@ -59,16 +72,19 @@
       <!-- 策略分类 -->
       <h2 class="section-title" id="strategy">量化策略</h2>
       <div class="goods-grid">
-        <div class="goods-card" v-for="(item,i) in strategyItems" :key="'s'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in strategyItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">策略</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ item.price }}</div>
-          <div class="goods-btn">
-            <button class="buy-btn" @click="addToCart(item, 'strategy')">加入购物车</button>
-            <button class="detail-btn" @click="goToGoodsDetail('strategy', i)">详情</button>
-          </div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
+            <div class="goods-btn">
+              <button class="buy-btn" @click="addToCart(item)">加入购物车</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
+            </div>
           </div>
         </div>
       </div>
@@ -76,15 +92,18 @@
       <!-- 基金分类（默认隐藏，登录后显示） -->
       <h2 class="section-title" id="fund" v-show="showFund">专属基金</h2>
       <div class="goods-grid" v-show="showFund">
-        <div class="goods-card" v-for="(item,i) in fundItems" :key="'fund'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in fundItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">基金</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ (logged && isQualifiedInvestor) ? item.price : '*****' }}</div>
+            <div class="goods-price">{{ (logged && isQualifiedInvestor) ? formatPrice(item.price) : '*****' }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="addToCart(item, 'fund')">预约认购</button>
-              <button class="detail-btn" @click="goToGoodsDetail('fund')">详情</button>
+              <button class="buy-btn" @click="addToCart(item)">预约认购</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
             </div>
           </div>
         </div>
@@ -93,32 +112,39 @@
       <!-- 投顾分类 -->
       <h2 class="section-title" id="advisor">专业投顾</h2>
       <div class="goods-grid">
-        <div class="goods-card" v-for="(item,i) in advisorItems" :key="'a'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in advisorItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">投顾</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ (logged && isQualifiedInvestor) ? item.price : '*****' }}</div>
+            <div class="goods-price">{{ (logged && isQualifiedInvestor) ? formatPrice(item.price) : '*****' }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="addToCart(item, 'advisor')">加入购物车</button>
-              <button class="detail-btn" @click="goToGoodsDetail('advisor')">详情</button>
+              <button class="buy-btn" @click="addToCart(item)">加入购物车</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 课程分类 -->
+      <!-- 课程分类（课程有详情页） -->
       <h2 class="section-title" id="course">精品课程</h2>
       <div class="goods-grid">
-        <div class="goods-card" v-for="(item,i) in courseItems" :key="'c'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in courseItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">课程</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ item.price }}</div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="addToCart(item, 'course')">加入购物车</button>
-              <button class="detail-btn" @click="goToGoodsDetail('course')">详情</button>
+              <button class="buy-btn" @click="addToCart(item)">加入购物车</button>
+              <button class="detail-btn" @click="goToGoodsDetail(item)">课程详情</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
             </div>
           </div>
         </div>
@@ -127,15 +153,18 @@
       <!-- 书籍分类 -->
       <h2 class="section-title" id="book">专业书籍</h2>
       <div class="goods-grid">
-        <div class="goods-card" v-for="(item,i) in bookItems" :key="'b'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in bookItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">书籍</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ item.price }}</div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="addToCart(item, 'book')">加入购物车</button>
-              <button class="detail-btn" @click="goToGoodsDetail('book')">详情</button>
+              <button class="buy-btn" @click="addToCart(item)">加入购物车</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
             </div>
           </div>
         </div>
@@ -144,21 +173,138 @@
       <!-- 人才分类 -->
       <h2 class="section-title" id="talent">量化人才</h2>
       <div class="goods-grid">
-        <div class="goods-card" v-for="(item,i) in talentItems" :key="'t'+i">
-          <img :src="item.img" alt="" class="goods-img" loading="lazy">
+        <div class="goods-card" v-for="item in talentItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
           <div class="goods-info">
             <span class="goods-tag">人才</span>
             <div class="goods-name">{{ item.name }}</div>
-            <div class="goods-price">{{ item.price }}</div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
             <div class="goods-btn">
-              <button class="buy-btn" @click="addToCart(item, 'talent')">咨询对接</button>
-              <button class="detail-btn" @click="goToGoodsDetail('talent')">详情</button>
+              <button class="buy-btn" @click="addToCart(item)">咨询对接</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
             </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- 其余分类省略为简洁（可按需扩展） -->
+    <!-- 新增/编辑商品弹窗 -->
+    <div class="product-modal" v-if="showAddProductModal || showEditProductModal">
+      <div class="product-modal-box">
+        <span class="close-modal" @click="closeProductModal">×</span>
+        <h2 class="modal-title">{{ showEditProductModal ? '编辑商品' : '新增商品' }}</h2>
+        <form class="product-form" @submit.prevent="submitProduct">
+          <!-- 基础信息 -->
+          <div class="form-section">
+            <div class="section-title">基础信息</div>
+            <div class="form-group">
+              <label>商品类型 *</label>
+              <select v-model="productForm.type" required>
+                <option value="">请选择类型</option>
+                <option value="factor">因子</option>
+                <option value="strategy">策略</option>
+                <option value="fund">基金</option>
+                <option value="advisor">投顾</option>
+                <option value="course">课程</option>
+                <option value="book">书籍</option>
+                <option value="talent">人才</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>商品名称 *</label>
+              <input type="text" v-model="productForm.name" placeholder="请输入商品名称" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>售价 *</label>
+                <input type="number" v-model.number="productForm.price" placeholder="售价" step="0.01" min="0" required />
+              </div>
+              <div class="form-group">
+                <label>原价</label>
+                <input type="number" v-model.number="productForm.original_price" placeholder="原价（可选）" step="0.01" min="0" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>图片URL</label>
+              <input type="text" v-model="productForm.img" placeholder="请输入图片URL（可选）" />
+            </div>
+            <div class="form-group">
+              <label>商品描述</label>
+              <textarea v-model="productForm.description" placeholder="请输入商品描述（可选）" rows="3"></textarea>
+            </div>
+          </div>
+
+          <!-- 课程详情信息（仅课程类型显示） -->
+          <div class="form-section" v-if="productForm.type === 'course'">
+            <div class="section-title">课程详情信息（可选）</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>课时/时长</label>
+                <input type="text" v-model="productForm.duration" placeholder="如：12课时（每课时45分钟）" />
+              </div>
+              <div class="form-group">
+                <label>讲师</label>
+                <input type="text" v-model="productForm.instructor" placeholder="如：张老师（10年经验）" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>适合人群</label>
+              <input type="text" v-model="productForm.target_audience" placeholder="如：零基础新手、上班族、投资爱好者" />
+            </div>
+            <div class="form-group">
+              <label>学习方式</label>
+              <input type="text" v-model="productForm.learning_method" placeholder="如：录播视频（永久回放）+ 在线答疑" />
+            </div>
+            <div class="form-group">
+              <label>开课时间</label>
+              <input type="text" v-model="productForm.start_time" placeholder="如：购买后立即开课" />
+            </div>
+            <div class="form-group">
+              <label>课程大纲 <span class="hint">（JSON格式，每项包含 title 和 items 数组）</span></label>
+              <textarea v-model="productForm.outline" placeholder='[{"title":"第1章：入门","items":["1.1 基础概念","1.2 实操练习"]}]' rows="4"></textarea>
+            </div>
+            <div class="form-group">
+              <label>课程详细介绍</label>
+              <textarea v-model="productForm.detail_content" placeholder="详细的课程介绍文字（支持纯文本）" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+              <label>常见问题 <span class="hint">（JSON格式，问答对数组）</span></label>
+              <textarea v-model="productForm.faq" placeholder='[{"q":"需要什么基础？","a":"零基础即可"},{"q":"有效期多长？","a":"永久有效"}]' rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" v-model="productForm.is_active" />
+              上架状态
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="cancel-btn" @click="closeProductModal">取消</button>
+            <button type="submit" class="submit-btn" :disabled="productSubmitting">
+              {{ productSubmitting ? '提交中...' : (showEditProductModal ? '保存修改' : '创建商品') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div class="confirm-modal" v-if="showDeleteConfirm">
+      <div class="confirm-box">
+        <h3>确认删除</h3>
+        <p>确定要删除商品 "{{ deleteTargetProduct?.name }}" 吗？</p>
+        <p class="delete-hint">（商品将被下架，不会物理删除）</p>
+        <div class="confirm-actions">
+          <button class="cancel-btn" @click="showDeleteConfirm = false">取消</button>
+          <button class="delete-confirm-btn" @click="doDeleteProduct" :disabled="deleting">
+            {{ deleting ? '删除中...' : '确认删除' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -169,14 +315,36 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart.js'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { useAuth } from '@/composables/useAuth'
+import { 
+  getProducts, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct,
+  formatPrice as serviceFormatPrice,
+  ProductTypeName
+} from '@/services/productService'
 
 // 使用全局认证
-const { logged, userText, isQualifiedInvestor, openLoginModal, logout, requireAuth } = useAuth()
+const { logged, userText, isQualifiedInvestor, isAdmin, openLoginModal, logout, requireAuth, initAuth } = useAuth()
 
 const showFund = ref(false)
 const showUserMenu = ref(false)
 const searchQuery = ref('')
 const activeCategory = ref('factor')
+const loading = ref(true)
+const defaultImg = 'https://picsum.photos/400/300?random=0'
+
+// 商品数据（从后端获取）
+const allProducts = ref([])
+
+// 按类型过滤商品
+const factorItems = computed(() => allProducts.value.filter(p => p.type === 'factor'))
+const strategyItems = computed(() => allProducts.value.filter(p => p.type === 'strategy'))
+const fundItems = computed(() => allProducts.value.filter(p => p.type === 'fund'))
+const advisorItems = computed(() => allProducts.value.filter(p => p.type === 'advisor'))
+const courseItems = computed(() => allProducts.value.filter(p => p.type === 'course'))
+const bookItems = computed(() => allProducts.value.filter(p => p.type === 'book'))
+const talentItems = computed(() => allProducts.value.filter(p => p.type === 'talent'))
   
 // 购物车徽章显示
 const cartBadgeCount = computed(() => cartStore.totalItems)
@@ -184,9 +352,74 @@ const cartBadgeCount = computed(() => cartStore.totalItems)
 const router = useRouter()
 const cartStore = useCartStore()
 
+// 管理员相关状态
+const showAddProductModal = ref(false)
+const showEditProductModal = ref(false)
+const showDeleteConfirm = ref(false)
+const productSubmitting = ref(false)
+const deleting = ref(false)
+const editingProductId = ref(null)
+const deleteTargetProduct = ref(null)
+
+// 商品表单
+const productForm = ref({
+  type: '',
+  name: '',
+  price: 0,
+  original_price: null,
+  img: '',
+  description: '',
+  duration: '',
+  target_audience: '',
+  learning_method: '',
+  start_time: '',
+  instructor: '',
+  outline: '',
+  detail_content: '',
+  faq: '',
+  is_active: true
+})
+
+// 格式化价格
+function formatPrice(price) {
+  return serviceFormatPrice(price)
+}
+
+// 加载商品数据
+async function loadProducts() {
+  loading.value = true
+  try {
+    // 默认只加载上架商品（管理员也一样，删除即不显示）
+    const result = await getProducts()
+    if (result.success && result.data) {
+      allProducts.value = result.data
+    } else {
+      console.error('Failed to load products:', result.message)
+    }
+  } catch (error) {
+    console.error('Error loading products:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 搜索功能
+function performSearch() {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) {
+    loadProducts()
+    return
+  }
+  // 本地过滤
+  allProducts.value = allProducts.value.filter(p => 
+    p.name.toLowerCase().includes(query) || 
+    (p.description && p.description.toLowerCase().includes(query))
+  )
+}
+
 function goHome() { router.push('/') }
 
-function goToGoodsDetail(category = 'general', itemIndex) {
+function goToGoodsDetail(item) {
   // 首先检查用户是否已登录
   if (!requireAuth()) {
     alert('请先登录后再查看商品详情和购买。')
@@ -194,106 +427,170 @@ function goToGoodsDetail(category = 'general', itemIndex) {
   }
   
   // 如果是基金或投顾分类，需要检查合格投资者认证
-  if ((category === 'fund' || category === 'advisor') && !isQualifiedInvestor.value) {
+  if ((item.type === 'fund' || item.type === 'advisor') && !isQualifiedInvestor.value) {
     alert('该产品仅对合格投资者开放，请先前往个人主页完成合格投资者认证。')
     return
   }
   
-  // 生成商品ID，格式为：category-index
-  const goodsId = `${category}-${itemIndex || 0}`
-  router.push(`/shop/goods-detail/${goodsId}`)
+  router.push(`/shop/goods-detail/${item.id}`)
 }
 
-const factorItems = ref([
-  { img: 'https://picsum.photos/400/300?random=1', name: '量价因子合集 - 超100个经典A股量价因子（可直接回测）', price: '¥1,299.00' },
-  { img: 'https://picsum.photos/400/300?random=2', name: '基本面因子库 - 财务/估值/成长类因子（附计算代码）', price: '¥999.00' },
-  { img: 'https://picsum.photos/400/300?random=3', name: '另类因子 - 舆情/资金流/产业链因子（实时更新）', price: '¥1,599.00' },
-  { img: 'https://picsum.photos/400/300?random=4', name: '因子挖掘工具 - 自动化因子生成与有效性检验平台', price: '¥2,999.00' }
-])
+// 添加商品到购物车
+function addToCart(item) {
+  if (!requireAuth()) {
+    alert('请先登录后再添加商品到购物车')
+    return
+  }
+  
+  // 如果是基金或投顾产品，检查合格投资者认证
+  if ((item.type === 'fund' || item.type === 'advisor') && !isQualifiedInvestor.value) {
+    alert('该产品仅对合格投资者开放，请先前往个人主页完成合格投资者认证。')
+    return
+  }
+  
+  // 创建购物车商品对象
+  const cartItem = {
+    id: item.id,
+    name: item.name,
+    price: formatPrice(item.price),
+    rawPrice: item.price,
+    img: item.img || defaultImg,
+    type: item.type
+  }
+  
+  cartStore.addToCart(cartItem)
+  
+  const productTypeName = ProductTypeName[item.type] || '商品'
+  alert(`已成功添加 ${productTypeName} 产品到购物车！`)
+}
 
-const strategyItems = ref([
-  { img: 'https://picsum.photos/400/300?random=5', name: '双均线择时策略 - 年化收益25%+（附Python源码）', price: '¥699.00' },
-  { img: 'https://picsum.photos/400/300?random=6', name: '多因子选股策略 - 沪深300增强（回测胜率78%）', price: '¥1,899.00' },
-  { img: 'https://picsum.photos/400/300?random=7', name: 'ETF套利策略 - 无风险套利（日内交易版）', price: '¥1,499.00' },
-  { img: 'https://picsum.photos/400/300?random=8', name: '商品CTA策略 - 趋势跟踪（适配期货市场）', price: '¥2,499.00' }
-])
+// ============ 管理员功能 ============
 
-const fundItems = ref([
-  { img: 'https://picsum.photos/400/300?random=9', name: '量化增强专户基金 - 最低起投100万', price: '¥1,000,000.00' },
-  { img: 'https://picsum.photos/400/300?random=10', name: '量化FOF基金 - 多策略组合（年化18%）', price: '¥500,000.00' }
-])
+function resetProductForm() {
+  productForm.value = {
+    type: '',
+    name: '',
+    price: 0,
+    original_price: null,
+    img: '',
+    description: '',
+    duration: '',
+    target_audience: '',
+    learning_method: '',
+    start_time: '',
+    instructor: '',
+    outline: '',
+    detail_content: '',
+    faq: '',
+    is_active: true
+  }
+}
 
-const advisorItems = ref([
-  { img: 'https://picsum.photos/400/300?random=11', name: '1v1量化投顾服务 - 定制化资产配置方案（月付）', price: '¥3,999.00/月' },
-  { img: 'https://picsum.photos/400/300?random=12', name: '量化组合投顾 - 季度调仓（年付优惠）', price: '¥19,999.00/年' },
-  { img: 'https://picsum.photos/400/300?random=13', name: '个性化策略定制 - 按需开发量化模型', price: '¥50,000.00起' },
-  { img: 'https://picsum.photos/400/300?random=14', name: '量化风控咨询 - 策略风险评估与优化', price: '¥8,999.00/次' }
-])
+function closeProductModal() {
+  showAddProductModal.value = false
+  showEditProductModal.value = false
+  editingProductId.value = null
+  resetProductForm()
+}
 
-const courseItems = ref([
-  { img: 'https://picsum.photos/400/300?random=15', name: 'Python量化入门到精通 - 零基础学量化交易', price: '¥599.00' },
-  { img: 'https://picsum.photos/400/300?random=16', name: '量化因子开发实战 - 从0到1构建有效因子', price: '¥899.00' },
-  { img: 'https://picsum.photos/400/300?random=17', name: '量化策略回测实战 - 避免过拟合（附案例）', price: '¥799.00' },
-  { img: 'https://picsum.photos/400/300?random=18', name: '量化策略实盘部署 - 自动交易对接教程', price: '¥1,299.00' }
-])
+function openEditModal(item) {
+  editingProductId.value = item.id
+  productForm.value = {
+    type: item.type,
+    name: item.name,
+    price: item.price,
+    original_price: item.original_price || null,
+    img: item.img || '',
+    description: item.description || '',
+    duration: item.duration || '',
+    target_audience: item.target_audience || '',
+    learning_method: item.learning_method || '',
+    start_time: item.start_time || '',
+    instructor: item.instructor || '',
+    outline: item.outline || '',
+    detail_content: item.detail_content || '',
+    faq: item.faq || '',
+    is_active: item.is_active
+  }
+  showEditProductModal.value = true
+}
 
-const bookItems = ref([
-  { img: 'https://picsum.photos/400/300?random=19', name: '《量化投资分析（原书第3版）》- 精装版+配套源码', price: '¥168.00' },
-  { img: 'https://picsum.photos/400/300?random=20', name: '《Python量化交易实战》- 进阶版（附实战案例）', price: '¥128.00' },
-  { img: 'https://picsum.photos/400/300?random=21', name: '《因子投资：方法与实践》- 业内经典教材', price: '¥148.00' },
-  { img: 'https://picsum.photos/400/300?random=22', name: '《量化风控：模型与实践》- 金融机构内部教材', price: '¥188.00' }
-])
-
-const talentItems = ref([
-  { img: 'https://picsum.photos/400/300?random=23', name: '量化研究员推荐 - 头部券商背景（全职/兼职）', price: '¥5,000.00/人（服务费）' },
-  { img: 'https://picsum.photos/400/300?random=24', name: '量化人才猎头服务 - 定向猎聘量化总监/工程师', price: '¥30,000.00/单' },
-  { img: 'https://picsum.photos/400/300?random=25', name: '企业量化人才内训 - 定制化培训方案', price: '¥50,000.00/场' },
-  { img: 'https://picsum.photos/400/300?random=26', name: '量化实习推荐 - 公募/私募/券商实习岗位', price: '¥1,999.00/人' }
-])
-
-  // 添加商品到购物车
-  function addToCart(item, type) {
-    if (!requireAuth()) {
-      alert('请先登录后再添加商品到购物车')
-      return
-    }
-    
-    // 如果是基金或投顾产品，检查合格投资者认证
-    if ((type === 'fund' || type === 'advisor') && !isQualifiedInvestor.value) {
-      alert('该产品仅对合格投资者开放，请先前往个人主页完成合格投资者认证。')
-      return
-    }
-    
-    // 创建购物车商品对象
-    const cartItem = {
-      id: `${type}-${item.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
-      name: item.name,
-      price: item.price,
-      img: item.img,
-      type: type
-    }
-    
-    cartStore.addToCart(cartItem)
-    
-    // 显示添加成功提示
-    const productTypeName = type === 'factor' ? '因子' : 
-                            type === 'strategy' ? '策略' : 
-                            type === 'fund' ? '基金' : 
-                            type === 'advisor' ? '投顾' : 
-                            type === 'course' ? '课程' : 
-                            type === 'book' ? '书籍' : '人才'
-    
-    alert(`已成功添加 ${productTypeName} 产品到购物车！`)
+async function submitProduct() {
+  if (!productForm.value.type || !productForm.value.name || productForm.value.price <= 0) {
+    alert('请填写完整的商品信息')
+    return
   }
 
-onMounted(() => {
+  productSubmitting.value = true
+  try {
+    if (showEditProductModal.value && editingProductId.value) {
+      // 更新商品
+      const result = await updateProduct(editingProductId.value, productForm.value)
+      if (result.success) {
+        alert('商品更新成功！')
+        closeProductModal()
+        await loadProducts()
+      } else {
+        alert('更新失败: ' + (result.message || '未知错误'))
+      }
+    } else {
+      // 创建商品
+      const result = await createProduct(productForm.value)
+      if (result.success) {
+        alert('商品创建成功！')
+        closeProductModal()
+        await loadProducts()
+      } else {
+        alert('创建失败: ' + (result.message || '未知错误'))
+      }
+    }
+  } catch (error) {
+    console.error('Submit product error:', error)
+    alert('操作失败，请稍后重试')
+  } finally {
+    productSubmitting.value = false
+  }
+}
+
+function confirmDelete(item) {
+  deleteTargetProduct.value = item
+  showDeleteConfirm.value = true
+}
+
+async function doDeleteProduct() {
+  if (!deleteTargetProduct.value) return
+  
+  deleting.value = true
+  try {
+    const result = await deleteProduct(deleteTargetProduct.value.id)
+    if (result.success) {
+      alert('商品已删除（下架）')
+      // 从本地列表中移除该商品，避免重新加载后仍显示
+      const deletedId = deleteTargetProduct.value.id
+      allProducts.value = allProducts.value.filter(p => p.id !== deletedId)
+      showDeleteConfirm.value = false
+      deleteTargetProduct.value = null
+    } else {
+      alert('删除失败: ' + (result.message || '未知错误'))
+    }
+  } catch (error) {
+    console.error('Delete product error:', error)
+    alert('删除失败，请稍后重试')
+  } finally {
+    deleting.value = false
+  }
+}
+
+// ============ 生命周期 ============
+
+onMounted(async () => {
+  await initAuth()
+  
   if (logged.value) {
     showFund.value = true
   }
-  // lazy set loading attribute for any images already rendered (redundant with loading attr)
-  try {
-    document.querySelectorAll('.goods-img').forEach(img => img.setAttribute('loading', 'lazy'))
-  } catch (e) {}
+  
+  await loadProducts()
 })
 
 let menuTimeout = null
@@ -304,7 +601,7 @@ function onMenuEnter() {
   clearTimeout(hideTimeout)
   menuTimeout = setTimeout(() => {
     showUserMenu.value = true
-  }, 300) // 300ms延迟显示
+  }, 300)
 }
 
 function onMenuLeave() {
@@ -313,7 +610,7 @@ function onMenuLeave() {
     if (showUserMenu.value) {
       showUserMenu.value = false
     }
-  }, 200) // 200ms延迟隐藏
+  }, 200)
 }
 
 function onDropdownEnter() {
@@ -323,7 +620,7 @@ function onDropdownEnter() {
 function onDropdownLeave() {
   hideTimeout = setTimeout(() => {
     showUserMenu.value = false
-  }, 200) // 200ms延迟隐藏
+  }, 200)
 }
 
 function toggleUserMenu() { 
@@ -341,6 +638,7 @@ function handleLogout() {
   logout()
   showFund.value = false
   showUserMenu.value = false
+  loadProducts() // 重新加载（隐藏下架商品）
 }
 
 function goToUserProfile() {
@@ -529,6 +827,305 @@ body{background-color:#fff8f0;color:#333}
 /* 购物车链接悬停效果 */
 .cart-link:hover {
   opacity: 0.8;
+}
+
+/* 加载状态 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #ff7f24;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #ffb380;
+  border-top-color: #ff7f24;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 管理员按钮 */
+.admin-btn {
+  background-color: #52c41a;
+  color: white !important;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.admin-btn:hover {
+  background-color: #389e0d;
+}
+
+/* 管理员操作按钮 */
+.admin-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #ddd;
+}
+
+.edit-btn, .delete-btn {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+}
+
+.edit-btn {
+  background-color: #1890ff;
+  color: white;
+}
+
+.edit-btn:hover {
+  background-color: #096dd9;
+}
+
+.delete-btn {
+  background-color: #ff4d4f;
+  color: white;
+}
+
+.delete-btn:hover {
+  background-color: #cf1322;
+}
+
+/* 商品弹窗 */
+.product-modal, .confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.product-modal-box {
+  width: 90%;
+  max-width: 500px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.close-modal {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-size: 28px;
+  color: #999;
+  cursor: pointer;
+}
+
+.close-modal:hover {
+  color: #ff7f24;
+}
+
+.modal-title {
+  font-size: 22px;
+  color: #ff7f24;
+  text-align: center;
+  margin-bottom: 25px;
+  font-weight: bold;
+}
+
+.product-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: #ff7f24;
+}
+
+.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.cancel-btn, .submit-btn {
+  flex: 1;
+  padding: 12px 0;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+  font-weight: 500;
+}
+
+.cancel-btn {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.cancel-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.submit-btn {
+  background-color: #ff7f24;
+  color: white;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background-color: #ff6a00;
+}
+
+.submit-btn:disabled {
+  background-color: #ffb380;
+  cursor: not-allowed;
+}
+
+/* 表单分区样式 */
+.form-section {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed #eee;
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+}
+
+.section-title {
+  font-size: 14px;
+  color: #ff7f24;
+  font-weight: 600;
+  margin-bottom: 15px;
+  padding-left: 8px;
+  border-left: 3px solid #ff7f24;
+}
+
+.form-row {
+  display: flex;
+  gap: 15px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.form-group .hint {
+  font-size: 11px;
+  color: #999;
+  font-weight: normal;
+}
+
+/* 删除确认弹窗 */
+.confirm-box {
+  width: 90%;
+  max-width: 400px;
+  background: white;
+  border-radius: 10px;
+  padding: 30px;
+  text-align: center;
+}
+
+.confirm-box h3 {
+  font-size: 20px;
+  color: #ff4d4f;
+  margin-bottom: 15px;
+}
+
+.confirm-box p {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.delete-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.delete-confirm-btn {
+  flex: 1;
+  padding: 12px 0;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+  background-color: #ff4d4f;
+  color: white;
+}
+
+.delete-confirm-btn:hover:not(:disabled) {
+  background-color: #cf1322;
+}
+
+.delete-confirm-btn:disabled {
+  background-color: #ffccc7;
+  cursor: not-allowed;
 }
 
 </style>

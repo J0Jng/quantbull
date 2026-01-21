@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, AliasChoices
 
 
 class Settings(BaseSettings):
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     
     # 数据库配置
+    database_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("DATABASE_URL", "QUANT_ENGINE_DATABASE_URL"),
+        description="SQLAlchemy URL for PostgreSQL",
+    )
     postgres_host: str = ""
     postgres_port: int = 5432
     postgres_user: str = ""
