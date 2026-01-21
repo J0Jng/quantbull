@@ -28,3 +28,6 @@ export * from './marketService'
 
 // AI 服务
 export * from './aiService'
+
+// 商品服务
+export * from './productService'

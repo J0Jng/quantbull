@@ -43,7 +43,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             for prefix in settings.route_mapping.keys()
         )
     
-    def is_whitelisted(self, path: str) -> bool:
+    def is_whitelisted(self, path: str, method: str) -> bool:
         """检查路径是否在白名单中"""
         if path in self.WHITELIST_PATHS:
             return True
@@ -51,6 +51,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         for pattern in self.whitelist_patterns:
             if pattern.match(path):
                 return True
+        
+        # 特殊处理：/api/news/headlines 仅 GET 放行
+        if path.startswith("/api/news/headlines") and method.upper() == "GET":
+            return True
         
         return False
 
@@ -65,7 +69,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 检查是否在白名单中
-        if self.is_whitelisted(request.url.path):
+        if self.is_whitelisted(request.url.path, request.method):
             return await call_next(request)
 
         # 仅保护指定的业务前缀

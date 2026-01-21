@@ -44,6 +44,8 @@ class Settings(BaseSettings):
         "/etf": "data_service_url",
         "/stock": "data_service_url",
         "/fundamentals": "data_service_url",
+        "/news": "data_service_url",  # 新增：微博财经媒体新闻
+        "/finance-channel": "data_service_url",  # 新增：财经频道聚合
 
         # quant-engine（下游首段：backtest/strategy/factor）
         "/backtest": "quant_engine_url",
@@ -62,6 +64,7 @@ class Settings(BaseSettings):
         "/auth": "user_service_url",
         "/admin": "user_service_url",
         "/tokens": "user_service_url",
+        "/products": "user_service_url",
     }
     
     # 鉴权配置

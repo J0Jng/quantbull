@@ -44,7 +44,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         )
     return {
         "username": token_data.username,
-        "user_id": token_data.user_id
+        "user_id": token_data.user_id,
+        "role": token_data.role or "user"
     }
 
 

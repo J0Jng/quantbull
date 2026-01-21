@@ -82,6 +82,9 @@ class ProxyService:
         if user and getattr(user, "user_id", None) is not None:
             headers["X-User-Id"] = str(user.user_id)
             headers["X-Username"] = getattr(user, "username", "")
+            # 传递用户角色给下游服务
+            if hasattr(user, "role"):
+                headers["X-User-Role"] = str(user.role)
         
         # 获取请求体
         body = None

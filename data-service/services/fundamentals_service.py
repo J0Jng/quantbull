@@ -1,9 +1,11 @@
 """基本面数据服务"""
 import logging
+import math
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
 from sqlmodel import Session, select
+from sqlalchemy import delete
 
 from core.database import SessionLocal
 from models.industry_rank import IndustryRank
@@ -43,6 +45,18 @@ def _get_cache(key: str) -> Any:
     return _cache.get(key)
 
 
+def _is_finite_number(value: Any) -> bool:
+    """判断数值是否为有限数（过滤 NaN/Inf）"""
+    return isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def _safe_round(value: Optional[float], digits: int) -> Optional[float]:
+    """安全四舍五入，遇到 NaN/Inf 返回 None"""
+    if value is None or not _is_finite_number(value):
+        return None
+    return round(value, digits)
+
+
 class FundamentalsService:
     """基本面数据服务"""
     
@@ -64,10 +78,10 @@ class FundamentalsService:
                     IndustryRankItem(
                         industry=row.industry,
                         rank=row.rank,
-                        score=row.score,
-                        avg_netprofit_yoy=row.avg_netprofit_yoy,
-                        avg_revenue_yoy=row.avg_revenue_yoy,
-                        avg_roe_yoy=row.avg_roe_yoy,
+                        score=row.score if _is_finite_number(row.score) else 0.0,
+                        avg_netprofit_yoy=row.avg_netprofit_yoy if _is_finite_number(row.avg_netprofit_yoy) else None,
+                        avg_revenue_yoy=row.avg_revenue_yoy if _is_finite_number(row.avg_revenue_yoy) else None,
+                        avg_roe_yoy=row.avg_roe_yoy if _is_finite_number(row.avg_roe_yoy) else None,
                         stock_count=row.stock_count,
                     )
                     for row in results
@@ -82,11 +96,9 @@ class FundamentalsService:
         """保存行业排名数据到数据库（upsert）"""
         try:
             with SessionLocal() as session:
-                # 先删除该月份的旧数据
-                statement = select(IndustryRank).where(IndustryRank.month == month)
-                old_records = session.execute(statement).scalars().all()
-                for record in old_records:
-                    session.delete(record)
+                # 先删除该月份的旧数据（先 flush，避免唯一约束冲突）
+                session.execute(delete(IndustryRank).where(IndustryRank.month == month))
+                session.flush()
                 
                 # 插入新数据
                 for item in items:
@@ -413,13 +425,16 @@ class FundamentalsService:
         # 构建结果
         result = []
         for i, item in enumerate(sorted_scores):
+            score_value = item.get("score", 0.0)
+            if not _is_finite_number(score_value):
+                score_value = 0.0
             result.append(IndustryRankItem(
                 industry=item["industry"],
                 rank=i + 1,
-                score=round(item["score"], 4),
-                avg_netprofit_yoy=round(item["avg_netprofit_yoy"], 2) if item["avg_netprofit_yoy"] else None,
-                avg_revenue_yoy=round(item["avg_revenue_yoy"], 2) if item["avg_revenue_yoy"] else None,
-                avg_roe_yoy=round(item["avg_roe_yoy"], 2) if item["avg_roe_yoy"] else None,
+                score=round(score_value, 4),
+                avg_netprofit_yoy=_safe_round(item.get("avg_netprofit_yoy"), 2),
+                avg_revenue_yoy=_safe_round(item.get("avg_revenue_yoy"), 2),
+                avg_roe_yoy=_safe_round(item.get("avg_roe_yoy"), 2),
                 stock_count=item["stock_count"],
             ))
         return result
@@ -497,12 +512,15 @@ class FundamentalsService:
                 roe_yoys = []
                 
                 for code, fina in fina_dict.items():
-                    if fina.get("netprofit_yoy") is not None:
-                        netprofit_yoys.append(fina["netprofit_yoy"])
-                    if fina.get("or_yoy") is not None:
-                        revenue_yoys.append(fina["or_yoy"])
-                    if fina.get("roe_yoy") is not None:
-                        roe_yoys.append(fina["roe_yoy"])
+                    netprofit_yoy = fina.get("netprofit_yoy")
+                    if netprofit_yoy is not None and _is_finite_number(netprofit_yoy):
+                        netprofit_yoys.append(netprofit_yoy)
+                    or_yoy = fina.get("or_yoy")
+                    if or_yoy is not None and _is_finite_number(or_yoy):
+                        revenue_yoys.append(or_yoy)
+                    roe_yoy = fina.get("roe_yoy")
+                    if roe_yoy is not None and _is_finite_number(roe_yoy):
+                        roe_yoys.append(roe_yoy)
                 
                 avg_netprofit = sum(netprofit_yoys) / len(netprofit_yoys) if netprofit_yoys else 0
                 avg_revenue = sum(revenue_yoys) / len(revenue_yoys) if revenue_yoys else 0
@@ -511,6 +529,8 @@ class FundamentalsService:
                 # 综合分数 = (净利润yoy + 营收yoy + ROE yoy) / 3，归一化到 [-1, 1]
                 raw_score = (avg_netprofit + avg_revenue + avg_roe) / 3
                 score = max(-1.0, min(1.0, raw_score / 100))
+                if not _is_finite_number(score):
+                    score = 0.0
                 
                 industry_scores.append({
                     "industry": industry,

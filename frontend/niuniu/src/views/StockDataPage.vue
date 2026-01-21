@@ -215,11 +215,18 @@
           <div v-else class="sector-list">
             <div v-for="sector in hotSectors" :key="sector.name" class="sector-item">
               <div class="sector-name">{{ sector.name }}</div>
-              <div class="sector-change" :class="sector.change >= 0 ? 'rise' : 'fall'">
-                {{ sector.change >= 0 ? '+' : '' }}{{ sector.change.toFixed(2) }}%
+              <div class="sector-change" :class="sector.change !== null && sector.change >= 0 ? 'rise' : 'fall'">
+                {{ sector.change !== null ? (sector.change >= 0 ? '+' : '') + sector.change.toFixed(2) + '%' : '--' }}
               </div>
               <div class="sector-leaders">
-                {{ sector.change >= 0 ? '领涨' : '领跌' }}：{{ sector.leaders }}
+                指标：{{ sector.leaders }}
+              </div>
+              <div class="sector-metrics">
+                <span>分数：{{ formatMetric(sector.score, 4) }}</span>
+                <span>净利YoY：{{ formatMetric(sector.avg_netprofit_yoy, 2, '%') }}</span>
+                <span>营收YoY：{{ formatMetric(sector.avg_revenue_yoy, 2, '%') }}</span>
+                <span>ROE YoY：{{ formatMetric(sector.avg_roe_yoy, 2, '%') }}</span>
+                <span>样本：{{ sector.stock_count }}只</span>
               </div>
             </div>
           </div>
@@ -370,6 +377,13 @@ const ma20Value = computed(() => {
   }
   return 0;
 });
+
+const formatMetric = (value, digits, suffix = '') => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '--';
+  }
+  return `${Number(value).toFixed(digits)}${suffix}`;
+};
 
 // 筛选后的股票数据
 const filteredStockData = computed(() => {
@@ -543,47 +557,25 @@ const loadHotSectors = async () => {
   sectorsError.value = false;
   
   try {
-    const result = await getIndustryRank(null, false);
+    const result = await getIndustryRank(null, true);
     
     if (result.success) {
       const data = getEnvelopeData(result.data);
       const industries = data?.data || [];
       
       if (industries.length > 0) {
-        // 取前10个行业
-        const topIndustries = industries.slice(0, 10);
-        
-        // 为每个行业计算涨跌幅和领涨股
-        const sectorsWithData = topIndustries.map(industry => {
-          // 使用真实的 industry 字段进行匹配
-          const industryName = industry.industry;
-          
-          // 从股票列表中筛选出该行业的股票（严格匹配）
-          const industryStocks = rawStockData.value.filter(stock => 
-            stock.industry === industryName
-          );
-          
-          if (industryStocks.length > 0) {
-            // 计算平均涨跌幅
-            const avgChange = industryStocks.reduce((sum, s) => sum + s.pct_change, 0) / industryStocks.length;
-            
-            // 找出涨幅最大的前2只股票
-            const topStocks = [...industryStocks]
-              .sort((a, b) => b.pct_change - a.pct_change)
-              .slice(0, 2)
-              .map(s => s.name);
-            
-            return {
-              name: industryName,
-              change: avgChange,
-              leaders: topStocks.join('、') || '暂无数据'
-            };
-          }
-          
+        // 使用行业排名数据直接展示（不依赖股票列表）
+        const sectorsWithData = industries.map(industry => {
+          const score = industry.score ?? null;
           return {
-            name: industryName,
-            change: 0,
-            leaders: '暂无数据'
+          name: industry.industry,
+          change: score === null ? null : score * 100,
+          leaders: '行业强度',
+          score,
+          avg_netprofit_yoy: industry.avg_netprofit_yoy ?? null,
+          avg_revenue_yoy: industry.avg_revenue_yoy ?? null,
+          avg_roe_yoy: industry.avg_roe_yoy ?? null,
+          stock_count: industry.stock_count ?? 0
           };
         });
         
@@ -1523,6 +1515,15 @@ onUnmounted(() => {
   font-size: 12px;
   color: #666;
   margin-top: 5px;
+}
+
+.sector-metrics {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  font-size: 12px;
+  color: #666;
 }
 
 .rise-fall-dist {

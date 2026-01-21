@@ -71,22 +71,29 @@
         <h2 class="section-title">财经头条</h2>
         <router-link to="/news-list" class="more-link" style="float:right;margin-top:12px;font-size:14px;">更多&gt;</router-link>
         <section class="news-section">
-          <div class="news-banner">
-            <img src="/1.png" alt="财经头条主图" />
-            <div class="banner-mask" @click="goToNewsDetail(1)">
-              <h3 class="mask-title">央行：将再降准0.5个百分点 释放资金约1万亿元</h3>
-              <p class="mask-desc">本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。</p>
+          <!-- 加载状态 -->
+          <div v-if="newsLoading && !bannerNews" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载财经新闻...</p>
+          </div>
+          
+          <!-- 新闻内容 -->
+          <template v-else>
+            <div class="news-banner">
+              <img :src="bannerNews?.img || '/1.png'" alt="财经头条主图" />
+              <div class="banner-mask" @click="goToNewsDetail(bannerNews?.id || 1)">
+                <h3 class="mask-title">{{ bannerNews?.title || '央行：将再降准0.5个百分点 释放资金约1万亿元' }}</h3>
+                <p class="mask-desc">{{ bannerNews?.summary || '本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。' }}</p>
+              </div>
             </div>
-          </div>
-          <div class="news-list">
-            <ul>
-              <li><a href="#" @click.prevent="goToNewsDetail(2)">24H：A三大集团集体高开 宁德时代涨5.1%</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(3)">国际油价涨超1% 报103美元/桶 WTI升4%</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(4)">房地产"超预期政策"密集发布 多家房企发公告</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(5)">人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(6)">工信部：加快推进新能源汽车充电桩建设 年内新增超20万个</a></li>
-            </ul>
-          </div>
+            <div class="news-list">
+              <ul>
+                <li v-for="news in newsList" :key="news.id">
+                  <a href="#" @click.prevent="goToNewsDetail(news.id)">{{ news.title }}</a>
+                </li>
+              </ul>
+            </div>
+          </template>
         </section>
 
         <!-- 广告横幅 -->
@@ -342,29 +349,41 @@
         <h2 class="section-title">商城</h2>
           <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
         <section class="mall-section">
-          <div class="mall-cards">
-            <div class="mall-card">
-                <div class="card-icon">
-                <img src="/4.png" alt="基金图标" />
+          <!-- 加载状态 -->
+          <div v-if="mallProductsLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载商品...</p>
+          </div>
+          
+          <!-- 商品卡片 -->
+          <div v-else class="mall-cards">
+            <div class="mall-card" v-for="product in mallProducts" :key="product.id">
+              <div class="card-icon">
+                <img :src="product.img || defaultProductImg" :alt="product.name" />
               </div>
               <div class="card-info">
-                <h4>黄金理财组合</h4>
-                <p>黄金定投收益稳，年化收益可达6.5%</p>
-                <p class="price">¥8,800</p>
+                <span class="product-type-tag">{{ getProductTypeName(product.type) }}</span>
+                <h4>{{ product.name }}</h4>
+                <p>{{ product.description || '精选商品，品质保证' }}</p>
+                <p class="price">{{ formatPrice(product.price) }}</p>
               </div>
               <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
             </div>
-            <div class="mall-card">
+            
+            <!-- 无商品时显示默认 -->
+            <template v-if="mallProducts.length === 0">
+              <div class="mall-card">
                 <div class="card-icon">
-                <img src="/5.png" alt="AI图标" />
+                  <img src="/4.png" alt="商品图标" />
+                </div>
+                <div class="card-info">
+                  <h4>更多商品</h4>
+                  <p>精选量化工具和服务，助力投资决策</p>
+                  <p class="price">敬请期待</p>
+                </div>
+                <button class="buy-btn" @click="router.push('/shop')">查看商城</button>
               </div>
-              <div class="card-info">
-                <h4>AI智能选股</h4>
-                <p>人工智能驱动的个性化选股组合服务</p>
-                <p class="price">¥15,000/年</p>
-              </div>
-              <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
-            </div>
+            </template>
           </div>
         </section>
 
@@ -623,6 +642,8 @@ import { getTopListSummary, getMarketOverview, getRealtimeQuotes } from '@/servi
 import { generateNewsAnalysis, generateStrategy as generateStrategyApi, generateSummary as generateSummaryApi, generateReport as generateReportApi } from '@/services/aiService'
 import { getLatestDailyReport, getDailyReportList } from '@/services/dailyReportService'
 import { getCompanyResearchList } from '@/services/companyResearchService'
+import { getProducts, formatPrice as serviceFormatPrice } from '@/services/productService'
+import { getEastmoneyLatestNews } from '@/services/newsService'
 import http from '@/services/http'
 import { useAuth } from '@/composables/useAuth'
 import chatService from '@/services/chatService'
@@ -655,6 +676,17 @@ const dailyReportHistory = ref([])
 const companyReportsLoading = ref(false)
 const companyReportsError = ref('')
 const companyReportsData = ref([])
+
+// 商城商品数据状态
+const mallProducts = ref([])
+const mallProductsLoading = ref(false)
+const defaultProductImg = 'https://picsum.photos/400/300?random=0'
+
+// 财经新闻数据状态
+const newsLoading = ref(false)
+const newsError = ref('')
+const newsList = ref([])
+const bannerNews = ref(null)
 
 // 用户菜单相关状态
 const showUserMenu = ref(false)
@@ -722,10 +754,108 @@ const goToNewsDetail = (id) => {
   router.push(`/news-detail/${id}`)
 }
 
+// 加载财经新闻数据
+const loadNews = async () => {
+  try {
+    newsLoading.value = true
+    newsError.value = ''
+    const result = await getEastmoneyLatestNews({ limit: 6 })
+    
+    if (result.success && result.data?.data?.items) {
+      const items = result.data.data.items
+      if (items.length > 0) {
+        // 第一条作为banner
+        bannerNews.value = {
+          id: items[0].id || 1,
+          title: items[0].title || '暂无标题',
+          summary: items[0].summary || '暂无摘要',
+          img: items[0].img || '/1.png'
+        }
+        // 其余作为列表
+        newsList.value = items.slice(1, 6).map((item, index) => ({
+          id: item.id || (index + 2),
+          title: item.title || '暂无标题'
+        }))
+      }
+    } else {
+      // 使用占位数据
+      bannerNews.value = {
+        id: 1,
+        title: '央行：将再降准0.5个百分点 释放资金约1万亿元',
+        summary: '本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。',
+        img: '/1.png'
+      }
+      newsList.value = [
+        { id: 2, title: '24H：A三大集团集体高开 宁德时代涨5.1%' },
+        { id: 3, title: '国际油价涨超1% 报103美元/桶 WTI升4%' },
+        { id: 4, title: '房地产"超预期政策"密集发布 多家房企发公告' },
+        { id: 5, title: '人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口' },
+        { id: 6, title: '工信部：加快推进新能源汽车充电桩建设 年内新增超20万个' }
+      ]
+    }
+  } catch (e) {
+    console.error('加载财经新闻失败:', e)
+    newsError.value = '加载失败'
+    // 使用占位数据
+    bannerNews.value = {
+      id: 1,
+      title: '央行：将再降准0.5个百分点 释放资金约1万亿元',
+      summary: '本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。',
+      img: '/1.png'
+    }
+    newsList.value = [
+      { id: 2, title: '24H：A三大集团集体高开 宁德时代涨5.1%' },
+      { id: 3, title: '国际油价涨超1% 报103美元/桶 WTI升4%' },
+      { id: 4, title: '房地产"超预期政策"密集发布 多家房企发公告' },
+      { id: 5, title: '人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口' },
+      { id: 6, title: '工信部：加快推进新能源汽车充电桩建设 年内新增超20万个' }
+    ]
+  } finally {
+    newsLoading.value = false
+  }
+}
+
+// 加载商城商品数据
+const loadMallProducts = async () => {
+  mallProductsLoading.value = true
+  try {
+    const result = await getProducts({ limit: 4 })
+    if (result.success && result.data) {
+      // 直接取前2个商品显示
+      mallProducts.value = result.data.slice(0, 2)
+    }
+  } catch (error) {
+    console.error('Failed to load mall products:', error)
+  } finally {
+    mallProductsLoading.value = false
+  }
+}
+
+// 格式化价格
+const formatPrice = (price) => {
+  return serviceFormatPrice(price)
+}
+
+// 获取商品类型中文名
+const getProductTypeName = (type) => {
+  const typeMap = {
+    'course': '课程',
+    'factor': '因子',
+    'strategy': '策略',
+    'fund': '基金',
+    'advisor': '投顾',
+    'book': '书籍',
+    'talent': '人才'
+  }
+  return typeMap[type] || '商品'
+}
+
 // 页面加载时的初始化（认证状态已在 App.vue 中初始化）
 onMounted(() => {
   // 认证状态已由 useAuth 全局管理，不需要在这里重复初始化
+  loadNews()
   loadCompanyReports()
+  loadMallProducts()
 })
 
 // AI服务相关状态
@@ -1878,6 +2008,18 @@ const funds = [
   border-radius: 4px;
   font-weight: bold;
   white-space: nowrap;
+}
+
+/* 商品类型标签样式 */
+.product-type-tag {
+  display: inline-block;
+  background: linear-gradient(to right, #ff7f24, #ff9933);
+  color: white;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  margin-bottom: 8px;
+  font-weight: 500;
 }
 
 /* 响应式设计 */

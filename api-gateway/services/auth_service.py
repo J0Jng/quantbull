@@ -49,11 +49,12 @@ class AuthService:
         data = payload.get("data") or {}
         user_id = data.get("user_id")
         username = data.get("username")
+        role = data.get("role", "user")
         if payload.get("code") != 0 or user_id is None or not isinstance(username, str):
             return None
 
         try:
-            return TokenData(username=username, user_id=int(user_id))
+            return TokenData(username=username, user_id=int(user_id), role=role)
         except (TypeError, ValueError):
             return None
 
