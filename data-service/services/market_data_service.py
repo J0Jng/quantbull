@@ -5,6 +5,7 @@
 import asyncio
 import hashlib
 import logging
+import random
 import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
@@ -55,7 +56,60 @@ class MarketDataAggregator:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'http://quote.eastmoney.com/',
+            'Accept': 'application/json, text/plain, */*',
         }
+
+        # 502/503 等短暂故障重试配置
+        self.retry_statuses = {429, 502, 503, 504}
+        self.max_retries = 3
+        self.base_backoff = 0.5
+
+    async def _request_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        params: Dict[str, str]
+    ) -> httpx.Response:
+        """
+        带重试的请求（指数退避+抖动）
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=self.headers,
+                    timeout=self.timeout,
+                    follow_redirects=True,
+                )
+                if response.status_code in self.retry_statuses:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable status {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
+                response.raise_for_status()
+                return response
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                last_exc = e
+                if attempt < self.max_retries:
+                    backoff = self.base_backoff * (2 ** (attempt - 1))
+                    backoff += random.uniform(0, 0.2)
+                    await asyncio.sleep(backoff)
+                    continue
+                raise
+            except Exception as e:
+                last_exc = e
+                if attempt < self.max_retries:
+                    backoff = self.base_backoff * (2 ** (attempt - 1))
+                    backoff += random.uniform(0, 0.2)
+                    await asyncio.sleep(backoff)
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        raise httpx.HTTPError("Unknown request failure")
     
     async def fetch_quote(self, quote_config: Dict[str, str], client: httpx.AsyncClient) -> Optional[Dict[str, Any]]:
         """
@@ -73,16 +127,29 @@ class MarketDataAggregator:
         url_code = quote_config.get("url_code", "")
         
         try:
-            # 东方财富网实时行情接口
-            url = f"http://push2.eastmoney.com/api/qt/stock/get"
+            # 东方财富网实时行情接口（优先 HTTPS，失败再降级 HTTP）
+            urls = [
+                "https://push2.eastmoney.com/api/qt/stock/get",
+                "http://push2.eastmoney.com/api/qt/stock/get",
+            ]
             params = {
                 "secid": code,
                 "fields": "f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f57,f58,f60,f107,f152,f169,f170,f171",
                 "ut": "fa5fd1943c7b386f172d6893dbfba10b",
             }
-            
-            response = await client.get(url, params=params, headers=self.headers, timeout=self.timeout)
-            response.raise_for_status()
+
+            response = None
+            last_error: Optional[Exception] = None
+            for url in urls:
+                try:
+                    response = await self._request_with_retry(client, url, params)
+                    break
+                except Exception as e:
+                    last_error = e
+                    continue
+
+            if response is None:
+                raise last_error or httpx.HTTPError("Failed to fetch quote")
             
             data = response.json()
             if not data or data.get("rc") != 0:

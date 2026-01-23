@@ -10,12 +10,14 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 from urllib.parse import urljoin
 
+import html as html_lib
 import httpx
 from lxml import html
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.finance_channel_cache import FinanceChannelCache
+from models.policy_regulation import PolicyRegulation
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +49,32 @@ class PolicyAggregator:
         
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://www.gov.cn/',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         }
+
+        self.policy_keywords = [
+            "金融", "银行", "证券", "基金", "期货", "保险", "外汇", "债券", "资本市场",
+            "支付", "反洗钱", "监管", "法规", "条例", "办法", "规定", "通知", "意见", "规则",
+            "合规", "审慎", "风险", "宏观审慎"
+        ]
 
     @staticmethod
     def _clean_text(value: str) -> str:
-        text = re.sub(r"\s+", " ", value or "").strip()
+        text = value or ""
+        text = html_lib.unescape(text)
+        # 移除 CSS 规则、花括号内容等
+        text = re.sub(r"\.[A-Za-z0-9_-]+\s*[A-Za-z0-9_-]*\s*\{[^}]*\}", " ", text)
+        text = re.sub(r"\{[^}]*\}", " ", text)
+        text = re.sub(r"TRS_Editor|font-size|line-height|margin-bottom|padding", " ", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s+", " ", text).strip()
         return text
+
+    @staticmethod
+    def _contains_garbage(text: str) -> bool:
+        if not text:
+            return False
+        return bool(re.search(r"TRS_Editor|font-size|line-height|margin-bottom|\.TRS_Editor\s*P\s*\{", text, re.IGNORECASE))
 
     @staticmethod
     def _normalize_date(value: Optional[str]) -> Optional[str]:
@@ -75,6 +97,16 @@ class PolicyAggregator:
     @staticmethod
     def _extract_date(text: str) -> Optional[str]:
         return PolicyAggregator._normalize_date(text)
+
+    @staticmethod
+    def _extract_date_from_url(url: str) -> Optional[str]:
+        if not url:
+            return None
+        match = re.search(r"(20\d{2})[/-]?(\d{2})[/-]?(\d{2})", url)
+        if match:
+            y, m, d = match.groups()
+            return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        return None
 
     @staticmethod
     def _generate_id(source: str, title: str, date: str, url: Optional[str]) -> str:
@@ -111,6 +143,11 @@ class PolicyAggregator:
             doc = html.fromstring(html_text)
         except Exception:
             return None
+        for node in doc.xpath("//style|//script"):
+            try:
+                node.drop_tree()
+            except Exception:
+                continue
         candidates = doc.xpath(
             "//div[contains(@class,'TRS_Editor') or contains(@class,'content') or contains(@class,'article') or contains(@id,'content') or contains(@id,'zoom')]"
         )
@@ -124,13 +161,71 @@ class PolicyAggregator:
         if not texts:
             return None
         content = max(texts, key=len)
+        content = self._clean_text(content)
+        if self._contains_garbage(content):
+            return None
         return content[:150]
+
+    async def _save_to_database(self, items: List[Dict[str, Any]]) -> None:
+        """
+        将政策法规保存到数据库（upsert）
+        """
+        if not self.db_session or not items:
+            return
+
+        try:
+            saved_count = 0
+            updated_count = 0
+
+            for item in items:
+                policy_id = item.get("id") or self._generate_id(
+                    item.get("source", "official"),
+                    item.get("title", ""),
+                    item.get("date", ""),
+                    item.get("url"),
+                )
+
+                stmt = select(PolicyRegulation).where(PolicyRegulation.policy_id == policy_id)
+                result = await self.db_session.execute(stmt)
+                existing = result.scalar_one_or_none()
+
+                if existing:
+                    existing.title = item.get("title", existing.title)
+                    existing.summary = item.get("summary", existing.summary)
+                    existing.source = item.get("source", existing.source)
+                    existing.publish_date = item.get("date", existing.publish_date)
+                    existing.url = item.get("url", existing.url)
+                    existing.updated_at = datetime.now()
+                    updated_count += 1
+                else:
+                    record = PolicyRegulation(
+                        policy_id=policy_id,
+                        title=item.get("title", ""),
+                        summary=item.get("summary", ""),
+                        source=item.get("source", "official"),
+                        publish_date=item.get("date", ""),
+                        url=item.get("url"),
+                    )
+                    self.db_session.add(record)
+                    saved_count += 1
+
+            await self.db_session.commit()
+            logger.info(f"政策法规入库完成：新增 {saved_count} 条，更新 {updated_count} 条")
+
+        except Exception as e:
+            logger.error(f"政策法规入库失败：{e}", exc_info=True)
+            await self.db_session.rollback()
 
     def _extract_items_from_html(self, html_text: str, list_url: str, source_name: str) -> List[Dict[str, Any]]:
         try:
             doc = html.fromstring(html_text)
         except Exception:
             return []
+        for node in doc.xpath("//style|//script"):
+            try:
+                node.drop_tree()
+            except Exception:
+                continue
         anchors = doc.xpath("//a[@href and normalize-space(string()) != '']")
         ignore_titles = {"更多", "下一页", "上一页", "首页", "尾页"}
         items: List[Dict[str, Any]] = []
@@ -138,6 +233,8 @@ class PolicyAggregator:
         for anchor in anchors:
             title = self._clean_text(anchor.text_content())
             if not title or title in ignore_titles or len(title) < 6:
+                continue
+            if re.search(r"TRS_Editor|font-|line-height|margin|padding", title, re.IGNORECASE):
                 continue
             href = anchor.get("href")
             if not href:
@@ -152,6 +249,8 @@ class PolicyAggregator:
                 if anchor.getparent() is not None:
                     sibling_text = self._clean_text(" ".join(anchor.getparent().xpath("./span/text()|./em/text()|./p/text()")))
                 date_value = self._extract_date(sibling_text)
+            if not date_value:
+                date_value = self._extract_date_from_url(url)
             if not date_value:
                 continue
             items.append({
@@ -178,6 +277,12 @@ class PolicyAggregator:
         try:
             sources = [
                 {
+                    "name": "国务院",
+                    "list_urls": [
+                        "https://www.gov.cn/zhengce/zuixin.htm"
+                    ]
+                },
+                {
                     "name": "中国证监会",
                     "list_urls": [
                         "http://www.csrc.gov.cn/csrc/c100028/common_list.shtml"
@@ -187,6 +292,12 @@ class PolicyAggregator:
                     "name": "中国人民银行",
                     "list_urls": [
                         "http://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html"
+                    ]
+                },
+                {
+                    "name": "财政部",
+                    "list_urls": [
+                        "http://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/"
                     ]
                 }
             ]
@@ -233,6 +344,8 @@ class PolicyAggregator:
                 for item in items:
                     if not item.get("summary"):
                         item["summary"] = item.get("title", "")[:120]
+                    item["title"] = self._clean_text(item.get("title", ""))
+                    item["summary"] = self._clean_text(item.get("summary", ""))
                     item["id"] = self._generate_id(item["source"], item["title"], item["date"], item.get("url"))
 
                 if keyword:
@@ -241,6 +354,15 @@ class PolicyAggregator:
                         item for item in items
                         if keyword_lower in item["title"].lower() or keyword_lower in item["summary"].lower()
                     ]
+                else:
+                    keyword_list = [k.lower() for k in self.policy_keywords]
+                    filtered = []
+                    for item in items:
+                        title_lower = item.get("title", "").lower()
+                        summary_lower = item.get("summary", "").lower()
+                        if any(k in title_lower or k in summary_lower for k in keyword_list):
+                            filtered.append(item)
+                    items = filtered
 
                 items = items[:limit]
 
@@ -359,10 +481,14 @@ class PolicyAggregator:
             cached_data = await self.get_from_cache(keyword, cache_limit=cache_limit)
             
             if cached_data and not cached_data["stale"]:
-                # 缓存有效，直接返回
-                logger.info(f"使用有效缓存的政策数据（keyword={keyword}）")
-                cached_data["items"] = cached_data.get("items", [])[:limit]
-                return cached_data
+                # 若缓存含乱码则强制刷新
+                cached_items = cached_data.get("items", [])
+                if any(self._contains_garbage(item.get("title", "")) or self._contains_garbage(item.get("summary", "")) for item in cached_items):
+                    logger.warning("检测到缓存含乱码，触发重新抓取")
+                else:
+                    logger.info(f"使用有效缓存的政策数据（keyword={keyword}）")
+                    cached_data["items"] = cached_items[:limit]
+                    return cached_data
             
             # 2. 缓存过期或不存在，重新抓取
             logger.info(f"缓存过期或不存在，重新抓取政策数据（keyword={keyword}）")
@@ -385,6 +511,7 @@ class PolicyAggregator:
                     }
             
             # 3. 保存到缓存
+            await self._save_to_database(items)
             await self.save_to_cache(items, keyword=keyword, source="official", cache_limit=cache_limit)
             
             # 4. 返回新数据

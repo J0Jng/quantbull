@@ -25,27 +25,6 @@ class MarketDataResponse(BaseModel):
     updated_at: str = Field(..., description="数据更新时间")
 
 
-# ==================== 财经日历 ====================
-
-class CalendarItem(BaseModel):
-    """财经日历条目"""
-    date: str = Field(..., description="日期（YYYY-MM-DD）")
-    event: str = Field(..., description="事件描述")
-    importance: int = Field(..., ge=1, le=5, description="重要性等级（1-5）")
-    importance_text: str = Field(..., description="重要性文本（低/中/高/极高）")
-    source: Optional[str] = Field(None, description="数据源")
-    url: Optional[str] = Field(None, description="详情链接")
-
-
-class CalendarResponse(BaseModel):
-    """财经日历响应"""
-    items: List[CalendarItem] = Field(..., description="日历事件列表")
-    cached: bool = Field(..., description="是否来自缓存")
-    stale: bool = Field(..., description="缓存是否过期")
-    source: str = Field(..., description="数据源")
-    updated_at: str = Field(..., description="数据更新时间")
-
-
 # ==================== 投资观点 ====================
 
 class IdeasItem(BaseModel):
@@ -95,6 +74,5 @@ class FinanceChannelOverview(BaseModel):
     """财经频道综合数据"""
     news: dict = Field(..., description="财经资讯（使用现有 NewsListResponse）")
     market: MarketDataResponse = Field(..., description="市场数据")
-    calendar: CalendarResponse = Field(..., description="财经日历")
     ideas: IdeasResponse = Field(..., description="投资观点")
     policies: PolicyResponse = Field(..., description="政策法规")
