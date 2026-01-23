@@ -1,3 +1,6 @@
+import json
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,6 +15,28 @@ from models.factor import Factor
 from services.indicator_engine import BUILTIN_INDICATORS
 
 logger = get_logger(__name__)
+
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            val = json.loads(raw)
+            return [str(x) for x in val] if isinstance(val, list) else []
+        except Exception:
+            return []
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+def _cors_config() -> tuple[list[str], bool]:
+    env = (os.getenv("ENV", "local") or "local").lower()
+    if env == "local":
+        return ["*"], True
+    origins = _parse_cors_origins(os.getenv("CORS_ALLOW_ORIGINS", ""))
+    credentials = (os.getenv("CORS_ALLOW_CREDENTIALS", "false") or "false").lower() in {"1", "true", "yes"}
+    return origins, credentials
 
 
 async def seed_builtin_factors():
@@ -68,11 +93,12 @@ def create_app() -> FastAPI:
         # 初始化内设因子
         await seed_builtin_factors()
     
-    # CORS 中间件
+    # CORS 中间件（生产必须显式白名单；local 才允许 *）
+    cors_origins, cors_credentials = _cors_config()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 生产环境应限制具体域名
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=cors_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )

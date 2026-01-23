@@ -1,3 +1,5 @@
+import json
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,28 @@ from core.response import success
 # 配置日志
 configure_logging(settings)
 logger = get_logger(__name__)
+
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            val = json.loads(raw)
+            return [str(x) for x in val] if isinstance(val, list) else []
+        except Exception:
+            return []
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+def _cors_config() -> tuple[list[str], bool]:
+    env = (os.getenv("ENV", "local") or "local").lower()
+    if env == "local":
+        return ["*"], True
+    origins = _parse_cors_origins(os.getenv("CORS_ALLOW_ORIGINS", ""))
+    credentials = (os.getenv("CORS_ALLOW_CREDENTIALS", "false") or "false").lower() in {"1", "true", "yes"}
+    return origins, credentials
 
 
 @asynccontextmanager
@@ -69,11 +93,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,  # 生命周期管理
     )
     
-    # 配置 CORS
+    # 配置 CORS（生产必须显式白名单；local 才允许 *）
+    cors_origins, cors_credentials = _cors_config()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 生产环境应配置具体域名
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=cors_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )

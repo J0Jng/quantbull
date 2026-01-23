@@ -80,7 +80,13 @@
 
         <!-- 个股数据表格 -->
         <div class="stock-table-wrap">
-          <div class="table-title">个股行情（实时更新）</div>
+          <div class="table-title">
+            个股行情
+            <span v-if="stockLoading" style="margin-left: 10px; color: #999; font-size: 14px;">加载中...</span>
+            <span v-else-if="rawStockData.length > 0" style="margin-left: 10px; color: #999; font-size: 14px;">
+              (共 {{ rawStockData.length }} 只)
+            </span>
+          </div>
           <table class="stock-table">
             <thead>
               <tr>
@@ -88,71 +94,112 @@
                 <th>名称</th>
                 <th>最新价</th>
                 <th>涨跌幅</th>
-                <th>涨跌额</th>
-                <th>开盘价</th>
-                <th>最高价</th>
-                <th>最低价</th>
-                <th>成交量(手)</th>
-                <th>成交额(万)</th>
+                <th>行业</th>
                 <th>换手率</th>
+                <th>成交额(万)</th>
+                <th>更新时间</th>
               </tr>
             </thead>
             <tbody>
+              <tr v-if="stockLoading">
+                <td colspan="8" style="text-align: center; padding: 20px; color: #999;">
+                  数据加载中...
+                </td>
+              </tr>
+              <tr v-else-if="filteredStockData.length === 0">
+                <td colspan="8" style="text-align: center; padding: 20px; color: #999;">
+                  {{ rawStockData.length === 0 ? '暂无数据' : '无符合条件的股票' }}
+                </td>
+              </tr>
               <tr 
-                v-for="stock in stockData" 
-                :key="stock.code"
-                @click="selectStockForKline(stock.code, stock.name)"
+                v-else
+                v-for="stock in pagedStockData" 
+                :key="stock.symbol"
+                @click="selectStockForKline(stock.symbol, stock.name)"
                 style="cursor: pointer;"
+                :class="{ 'selected-row': stock.symbol === selectedStockCode }"
               >
-                <td class="stock-code">{{ stock.code }}</td>
+                <td class="stock-code">{{ stock.symbol }}</td>
                 <td>{{ stock.name }}</td>
-                <td :class="stock.pct_change >= 0 ? 'rise' : 'fall'">{{ stock.price.toFixed(2) }}</td>
                 <td :class="stock.pct_change >= 0 ? 'rise' : 'fall'">
-                  {{ stock.pct_change >= 0 ? '+' : '' }}{{ stock.pct_change.toFixed(2) }}%
+                  {{ stock.price ? stock.price.toFixed(2) : '--' }}
                 </td>
                 <td :class="stock.pct_change >= 0 ? 'rise' : 'fall'">
-                  {{ stock.pct_change >= 0 ? '+' : '' }}{{ (stock.price * stock.pct_change / 100).toFixed(2) }}
+                  {{ stock.pct_change >= 0 ? '+' : '' }}{{ stock.pct_change ? stock.pct_change.toFixed(2) : '0.00' }}%
                 </td>
-                <td>{{ (stock.price * (1 - stock.pct_change / 100 * 0.5)).toFixed(2) }}</td>
-                <td>{{ (stock.price * (1 + Math.abs(stock.pct_change) / 100 * 0.3)).toFixed(2) }}</td>
-                <td>{{ (stock.price * (1 - Math.abs(stock.pct_change) / 100 * 0.3)).toFixed(2) }}</td>
-                <td>{{ Math.floor(stock.turnover / stock.price / 100).toLocaleString() }}</td>
-                <td>{{ (stock.turnover / 10000).toFixed(2) }}</td>
-                <td>{{ (Math.random() * 2).toFixed(2) }}%</td>
+                <td>{{ stock.industry || '--' }}</td>
+                <td>{{ stock.turnover_rate ? stock.turnover_rate.toFixed(2) + '%' : '--' }}</td>
+                <td>{{ stock.turnover ? (stock.turnover / 10000).toFixed(2) : '--' }}</td>
+                <td style="font-size: 12px; color: #999;">{{ stock.update_time || '--' }}</td>
               </tr>
             </tbody>
           </table>
+          <div v-if="filteredStockData.length > 0" class="pagination">
+            <button class="page-btn" :disabled="currentPage === 1" @click="goToPrevPage">上一页</button>
+            <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
+            <button class="page-btn" :disabled="currentPage === totalPages" @click="goToNextPage">下一页</button>
+          </div>
         </div>
 
         <!-- K线图区域 -->
         <div class="kline-area">
-          <div class="kline-title">个股K线图（{{ selectedStockName }} - {{ selectedStockCode }}）</div>
-          <div class="kline-placeholder">
-            <div v-if="klineData.length > 0">
-              <div style="text-align: center; padding: 20px;">
-                <p style="font-size: 18px; margin-bottom: 15px;">日K线图（最近{{ klineData.length }}个交易日）</p>
-                <div style="margin: 20px 0;">
-                  <p style="margin: 8px 0;"><strong>最新收盘价：</strong>{{ latestKline.close.toFixed(2) }}</p>
-                  <p style="margin: 8px 0;"><strong>开盘：</strong>{{ latestKline.open.toFixed(2)}}
-                    | <strong>最高：</strong>{{ latestKline.high.toFixed(2)}} 
-                    | <strong>最低：</strong>{{ latestKline.low.toFixed(2)}}</p>
-                  <p style="margin: 8px 0;"><strong>成交量：</strong>{{ latestKline.vol.toLocaleString()}}手 
-                    | <strong>成交额：</strong>{{(latestKline.amount / 10000).toFixed(2)}}万元</p>
+          <div class="kline-title">
+            个股K线图
+            <span v-if="selectedStockName">
+              （{{ selectedStockName }} - {{ selectedStockCode }}）
+            </span>
+            <span v-else style="color: #999;">（请点击表格中的股票查看K线）</span>
+          </div>
+          <div v-if="klineLoading" class="kline-placeholder">
+            <div style="color: #ff7f24;">K线数据加载中...</div>
+          </div>
+          <div v-else-if="klineData.length === 0" class="kline-placeholder">
+            <div style="color: #999;">
+              <div v-if="!selectedStockCode">请点击表格中的股票查看K线图</div>
+              <div v-else>K线数据加载失败<br>请确保服务已启动且股票代码正确</div>
+            </div>
+          </div>
+          <div v-else>
+            <!-- ECharts 图表容器 -->
+            <div ref="chartContainer" style="width: 100%; height: 500px;"></div>
+            
+            <!-- 最新交易数据摘要 -->
+            <div style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 6px;">
+              <p style="font-size: 16px; margin-bottom: 10px; color: #333;">
+                <strong>最新交易日数据（{{ latestKline ? formatTradeDate(latestKline.trade_date) : '--' }}）</strong>
+              </p>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                <div>
+                  <span style="color: #666;">收盘价：</span>
+                  <span style="font-weight: bold;">{{ latestKline ? latestKline.close.toFixed(2) : '--' }}</span>
                 </div>
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
-                  <p style="font-size: 16px; margin-bottom: 10px;"><strong>移动平均线：</strong></p>
-                  <p style="margin: 5px 0; color: #ff7f24;">MA5: {{ ma5Value.toFixed(2) }}</p>
-                  <p style="margin: 5px 0; color: #008000;">MA10: {{ ma10Value.toFixed(2) }}</p>
-                  <p style="margin: 5px 0; color: #0000ff;">MA20: {{ ma20Value.toFixed(2) }}</p>
+                <div>
+                  <span style="color: #666;">开盘价：</span>
+                  <span>{{ latestKline ? latestKline.open.toFixed(2) : '--' }}</span>
                 </div>
-                <p style="margin-top: 20px; color: #666; font-size: 12px;">提示：实际项目中可集成 ECharts 等图表库显示完整K线图</p>
+                <div>
+                  <span style="color: #666;">最高价：</span>
+                  <span>{{ latestKline ? latestKline.high.toFixed(2) : '--' }}</span>
+                </div>
+                <div>
+                  <span style="color: #666;">最低价：</span>
+                  <span>{{ latestKline ? latestKline.low.toFixed(2) : '--' }}</span>
+                </div>
+                <div>
+                  <span style="color: #666;">成交量：</span>
+                  <span>{{ latestKline ? latestKline.vol.toLocaleString() : '--' }}手</span>
+                </div>
+                <div>
+                  <span style="color: #666;">成交额：</span>
+                  <span>{{ latestKline ? (latestKline.amount / 10000).toFixed(2) : '--' }}万元</span>
+                </div>
               </div>
-            </div>
-            <div v-else-if="klineLoading">
-              <div>加载中...</div>
-            </div>
-            <div v-else>
-              <div>K线数据加载失败<br>请确保服务已启动且股票代码正确</div>
+              <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd;">
+                <span style="color: #666;">均线：</span>
+                <span style="color: #ff7f24; margin-right: 15px;">MA5: {{ ma5Value.toFixed(2) }}</span>
+                <span style="color: #008000; margin-right: 15px;">MA10: {{ ma10Value.toFixed(2) }}</span>
+                <span style="color: #0000ff;">MA20: {{ ma20Value.toFixed(2) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -163,31 +210,29 @@
         <!-- 热门板块 -->
         <div class="hot-sector">
           <div class="sector-title">热门板块</div>
-          <div class="sector-list">
-            <div class="sector-item">
-              <div class="sector-name">新能源汽车</div>
-              <div class="sector-change rise">+3.25%</div>
-              <div class="index-change">领涨：比亚迪、宁德时代</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">半导体</div>
-              <div class="sector-change rise">+2.88%</div>
-              <div class="index-change">领涨：中芯国际、北方华创</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">白酒</div>
-              <div class="sector-change fall">-0.95%</div>
-              <div class="index-change">领跌：贵州茅台、五粮液</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">银行</div>
-              <div class="sector-change rise">+1.85%</div>
-              <div class="index-change">领涨：平安银行、招商银行</div>
-            </div>
-            <div class="sector-item">
-              <div class="sector-name">光伏</div>
-              <div class="sector-change rise">+2.56%</div>
-              <div class="index-change">领涨：隆基绿能、通威股份</div>
+          <div v-if="sectorsLoading" class="loading" style="padding: 20px; text-align: center;">
+            加载中...
+          </div>
+          <div v-else-if="sectorsError || hotSectors.length === 0" class="data-missing">
+            ⚠️ 行业数据尚未生成<br>
+            <span style="font-size: 12px; color: #666;">请联系后台预热数据或稍后重试</span>
+          </div>
+          <div v-else class="sector-list">
+            <div v-for="sector in hotSectors" :key="sector.name" class="sector-item">
+              <div class="sector-name">{{ sector.name }}</div>
+              <div class="sector-change" :class="sector.change !== null && sector.change >= 0 ? 'rise' : 'fall'">
+                {{ sector.change !== null ? (sector.change >= 0 ? '+' : '') + sector.change.toFixed(2) + '%' : '--' }}
+              </div>
+              <div class="sector-leaders">
+                指标：{{ sector.leaders }}
+              </div>
+              <div class="sector-metrics">
+                <span>分数：{{ formatMetric(sector.score, 4) }}</span>
+                <span>净利YoY：{{ formatMetric(sector.avg_netprofit_yoy, 2, '%') }}</span>
+                <span>营收YoY：{{ formatMetric(sector.avg_revenue_yoy, 2, '%') }}</span>
+                <span>ROE YoY：{{ formatMetric(sector.avg_roe_yoy, 2, '%') }}</span>
+                <span>样本：{{ sector.stock_count }}只</span>
+              </div>
             </div>
           </div>
         </div>
@@ -195,40 +240,45 @@
         <!-- 涨跌分布 -->
         <div class="rise-fall-dist">
           <div class="dist-title">涨跌分布</div>
-          <div class="dist-item">
-            <span class="dist-label">涨停</span>
-            <div class="dist-bar">
-              <div class="dist-rise-bar" style="width: 8%;"></div>
-            </div>
-            <span class="dist-num">86家</span>
+          <div v-if="statsError || marketStats.total === 0" class="data-missing">
+            ⚠️ 统计数据加载中...
           </div>
-          <div class="dist-item">
-            <span class="dist-label">上涨</span>
-            <div class="dist-bar">
-              <div class="dist-rise-bar" style="width: 65%;"></div>
+          <div v-else>
+            <div class="dist-item">
+              <span class="dist-label">涨停</span>
+              <div class="dist-bar">
+                <div class="dist-rise-bar" :style="`width: ${statsPercentages.upLimit}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.upLimit }}家</span>
             </div>
-            <span class="dist-num">3256家</span>
-          </div>
-          <div class="dist-item">
-            <span class="dist-label">平盘</span>
-            <div class="dist-bar">
-              <div class="dist-rise-bar" style="width: 5%;"></div>
+            <div class="dist-item">
+              <span class="dist-label">上涨</span>
+              <div class="dist-bar">
+                <div class="dist-rise-bar" :style="`width: ${statsPercentages.up}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.up }}家</span>
             </div>
-            <span class="dist-num">258家</span>
-          </div>
-          <div class="dist-item">
-            <span class="dist-label">下跌</span>
-            <div class="dist-bar">
-              <div class="dist-fall-bar" style="width: 22%;"></div>
+            <div class="dist-item">
+              <span class="dist-label">平盘</span>
+              <div class="dist-bar">
+                <div class="dist-rise-bar" :style="`width: ${statsPercentages.flat}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.flat }}家</span>
             </div>
-            <span class="dist-num">1125家</span>
-          </div>
-          <div class="dist-item">
-            <span class="dist-label">跌停</span>
-            <div class="dist-bar">
-              <div class="dist-fall-bar" style="width: 2%;"></div>
+            <div class="dist-item">
+              <span class="dist-label">下跌</span>
+              <div class="dist-bar">
+                <div class="dist-fall-bar" :style="`width: ${statsPercentages.down}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.down }}家</span>
             </div>
-            <span class="dist-num">21家</span>
+            <div class="dist-item">
+              <span class="dist-label">跌停</span>
+              <div class="dist-bar">
+                <div class="dist-fall-bar" :style="`width: ${statsPercentages.downLimit}%;`"></div>
+              </div>
+              <span class="dist-num">{{ marketStats.downLimit }}家</span>
+            </div>
           </div>
         </div>
       </div>
@@ -237,29 +287,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
-import { getRealtimeQuotes, getDailyQuotes } from '@/services/marketService';
+import { getMarketOverview, getStockSnapshotList, getDailyQuotes } from '@/services/marketService';
+import { getIndustryRank } from '@/services/fundamentalsService';
+import * as echarts from 'echarts';
 
 // 使用全局认证
 const { logged, userText, openLoginModal, logout } = useAuth()
 
 // ============================================
-// 默认股票代码列表
+// 数据解包工具函数
 // ============================================
-// 可以修改此列表来显示不同的股票
-// 支持的代码格式：6位数字（如 '000001', '600000'）
-const DEFAULT_STOCK_CODES = ['000001', '600000', '300750', '601318', '002594', '600519'];
-
-// 大盘指数代码
-const INDEX_CODES = {
-  '000001': '上证指数',
-  '399001': '深证成指',
-  '399006': '创业板指',
-  '000688': '科创50',
-  '000300': '沪深300',
-  '000905': '中证500'
+const getEnvelopeData = (resp) => {
+  if (resp && typeof resp === 'object' && 'code' in resp && 'data' in resp) {
+    return resp.data;
+  }
+  return resp;
 };
 
 // 用户菜单状态
@@ -267,17 +312,43 @@ const showUserMenu = ref(false);
 
 // 响应式数据
 const marketIndexes = ref([]);
-const stockData = ref([]);
+const currentTradeDate = ref(''); // 当前交易日
+const rawStockData = ref([]); // 原始股票数据（用于筛选）
 const klineData = ref([]);
-const selectedStockCode = ref('002594');
-const selectedStockName = ref('比亚迪');
+const selectedStockCode = ref('');
+const selectedStockName = ref('');
 const klineLoading = ref(false);
+const overviewLoading = ref(false);
+const stockLoading = ref(false);
+
+// 热门板块数据
+const hotSectors = ref([]);
+const sectorsLoading = ref(false);
+const sectorsError = ref(false);
+
+// 涨跌分布数据
+const marketStats = ref({
+  upLimit: 0,
+  up: 0,
+  flat: 0,
+  down: 0,
+  downLimit: 0,
+  total: 0
+});
+const statsLoading = ref(false);
+const statsError = ref(false);
 
 // 筛选条件
 const selectedMarket = ref('all');
 const selectedSort = ref('rise');
 const selectedChange = ref('all');
 const searchKeyword = ref('');
+const itemsPerPage = 10;
+const currentPage = ref(1);
+
+// ECharts 实例
+let chartInstance = null;
+const chartContainer = ref(null);
 
 // 计算属性
 const latestKline = computed(() => {
@@ -314,61 +385,296 @@ const ma20Value = computed(() => {
   return 0;
 });
 
+const formatMetric = (value, digits, suffix = '') => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '--';
+  }
+  return `${Number(value).toFixed(digits)}${suffix}`;
+};
+
+// 筛选后的股票数据
+const filteredStockData = computed(() => {
+  let result = [...rawStockData.value];
+  
+  // 市场筛选
+  if (selectedMarket.value !== 'all') {
+    result = result.filter(stock => {
+      const code = stock.symbol || stock.code;
+      switch (selectedMarket.value) {
+        case 'sh': return code.startsWith('60');
+        case 'sz': return code.startsWith('00') && !code.startsWith('300');
+        case 'cyb': return code.startsWith('300');
+        case 'kcb': return code.startsWith('688');
+        default: return true;
+      }
+    });
+  }
+  
+  // 涨跌幅筛选
+  if (selectedChange.value !== 'all') {
+    result = result.filter(stock => {
+      const pct = stock.pct_change;
+      switch (selectedChange.value) {
+        case 'gt5': return pct > 5;
+        case 'bt0-5': return pct >= 0 && pct <= 5;
+        case 'bt-5-0': return pct >= -5 && pct < 0;
+        case 'lt-5': return pct < -5;
+        default: return true;
+      }
+    });
+  }
+  
+  // 搜索关键词过滤
+  if (searchKeyword.value.trim()) {
+    const keyword = searchKeyword.value.trim().toLowerCase();
+    result = result.filter(stock => {
+      const code = stock.symbol || stock.code;
+      const name = stock.name || '';
+      return code.includes(keyword) || name.toLowerCase().includes(keyword);
+    });
+  }
+  
+  // 排序
+  result.sort((a, b) => {
+    switch (selectedSort.value) {
+      case 'rise': return b.pct_change - a.pct_change;
+      case 'fall': return a.pct_change - b.pct_change;
+      case 'volume': return (b.turnover || 0) - (a.turnover || 0);
+      case 'amount': return (b.turnover || 0) - (a.turnover || 0);
+      default: return 0;
+    }
+  });
+  
+  return result;
+});
+
+const totalPages = computed(() => {
+  return Math.max(1, Math.ceil(filteredStockData.value.length / itemsPerPage));
+});
+
+const pagedStockData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  return filteredStockData.value.slice(start, start + itemsPerPage);
+});
+
+// 涨跌分布统计计算属性
+const statsPercentages = computed(() => {
+  const total = marketStats.value.total || 1;
+  return {
+    upLimit: Math.round((marketStats.value.upLimit / total) * 100),
+    up: Math.round((marketStats.value.up / total) * 100),
+    flat: Math.round((marketStats.value.flat / total) * 100),
+    down: Math.round((marketStats.value.down / total) * 100),
+    downLimit: Math.round((marketStats.value.downLimit / total) * 100)
+  };
+});
+
 // 加载大盘指数概览
 const loadMarketOverview = async () => {
-  const indexCodes = Object.keys(INDEX_CODES);
+  overviewLoading.value = true;
   
   try {
-    const result = await getRealtimeQuotes(indexCodes);
+    const result = await getMarketOverview();
     
-    if (result.success && result.data) {
-      const data = result.data.data || result.data;
-      if (data && data.length > 0) {
-        marketIndexes.value = data.map(item => {
-          const name = INDEX_CODES[item.code] || item.name;
-          return { ...item, name };
-        });
-      } else {
-        console.error('暂无指数数据');
+    if (result.success) {
+      const data = getEnvelopeData(result.data);
+      
+      if (data) {
+        // 保存交易日期
+        currentTradeDate.value = data.trade_date || '';
+        
+        // 设置指数数据
+        if (data.indices && data.indices.length > 0) {
+          marketIndexes.value = data.indices.map(item => ({
+            code: item.symbol || item.code,
+            name: item.name,
+            price: item.close || item.price || 0,
+            pct_change: item.pct_change || 0
+          }));
+        } else {
+          console.warn('市场概览中没有指数数据');
+          marketIndexes.value = [];
+        }
       }
     } else {
       console.error('加载大盘指数失败:', result.message);
+      marketIndexes.value = [];
     }
   } catch (error) {
     console.error('加载大盘指数失败:', error);
+    marketIndexes.value = [];
+  } finally {
+    overviewLoading.value = false;
   }
 };
 
-// 加载股票数据
-const loadStockData = async (codes = DEFAULT_STOCK_CODES) => {
+// 加载股票列表数据（使用聚合快照接口）
+const loadStockData = async (forceRefresh = false) => {
+  stockLoading.value = true;
+  
   try {
-    const result = await getRealtimeQuotes(codes);
+    // 调用聚合快照接口，一次性获取所有需要的字段
+    // 首次加载或手动刷新时，触发后台数据拉取
+    // 不传 date 参数，让后端自动使用数据库中的最新交易日
+    const result = await getStockSnapshotList({
+      limit: 1000,  // 获取全部股票数据
+      min_turnover: 0,
+      sort: selectedSort.value || 'amount',
+      refresh: forceRefresh
+    });
     
-    if (result.success && result.data) {
-      const data = result.data.data || result.data;
-      stockData.value = data || [];
+    if (result.success) {
+      const data = getEnvelopeData(result.data);
+      let stockList = Array.isArray(data) ? data : (data?.data || []);
       
-      // 如果有失败的代码，显示提示
-      const failedCodes = result.data.failed_codes;
-      if (failedCodes && failedCodes.length > 0) {
-        console.warn('部分股票数据获取失败:', failedCodes);
+      if (stockList.length > 0) {
+        // 直接使用聚合后的数据，无需在前端 merge
+        rawStockData.value = stockList.map(stock => ({
+          symbol: stock.symbol || stock.code,
+          code: stock.code || stock.symbol,
+          name: stock.name,
+          industry: stock.industry,
+          price: stock.price,
+          latest_price: stock.latest_price || stock.price,
+          pct_change: stock.pct_change,
+          turnover: stock.turnover,
+          turnover_rate: stock.turnover_rate,
+          update_time: stock.update_time || ''
+        }));
+        
+        // 计算涨跌分布统计
+        calculateMarketStats(rawStockData.value);
+        
+        // 如果还没有选中股票，选择第一只
+        if (!selectedStockCode.value && rawStockData.value.length > 0) {
+          const firstStock = rawStockData.value[0];
+          selectedStockCode.value = firstStock.symbol;
+          selectedStockName.value = firstStock.name;
+        }
+      } else {
+        console.warn('股票列表为空');
+        rawStockData.value = [];
       }
     } else {
       console.error('加载股票数据失败:', result.message);
+      rawStockData.value = [];
     }
   } catch (error) {
     console.error('加载股票数据失败:', error);
+    rawStockData.value = [];
+  } finally {
+    stockLoading.value = false;
   }
 };
 
-// 加载K线数据
+// 加载热门板块数据
+const loadHotSectors = async () => {
+  sectorsLoading.value = true;
+  sectorsError.value = false;
+  
+  try {
+    const result = await getIndustryRank(null, true);
+    
+    if (result.success) {
+      const data = getEnvelopeData(result.data);
+      const industries = data?.data || [];
+      
+      if (industries.length > 0) {
+        // 使用行业排名数据直接展示（不依赖股票列表）
+        const sectorsWithData = industries.map(industry => {
+          const score = industry.score ?? null;
+          return {
+          name: industry.industry,
+          change: score === null ? null : score * 100,
+          leaders: '行业强度',
+          score,
+          avg_netprofit_yoy: industry.avg_netprofit_yoy ?? null,
+          avg_revenue_yoy: industry.avg_revenue_yoy ?? null,
+          avg_roe_yoy: industry.avg_roe_yoy ?? null,
+          stock_count: industry.stock_count ?? 0
+          };
+        });
+        
+        hotSectors.value = sectorsWithData;
+      } else {
+        hotSectors.value = [];
+        sectorsError.value = true;
+        console.warn('行业排名数据为空，可能需要后台预热数据');
+      }
+    } else {
+      console.error('加载热门板块失败:', result.message);
+      hotSectors.value = [];
+      sectorsError.value = true;
+    }
+  } catch (error) {
+    console.error('加载热门板块失败:', error);
+    sectorsError.value = true;
+    hotSectors.value = [];
+  } finally {
+    sectorsLoading.value = false;
+  }
+};
+
+// 计算涨跌分布统计
+const calculateMarketStats = (stockList) => {
+  if (!stockList || stockList.length === 0) {
+    statsError.value = true;
+    return;
+  }
+  
+  statsError.value = false;
+  const stats = {
+    upLimit: 0,
+    up: 0,
+    flat: 0,
+    down: 0,
+    downLimit: 0,
+    total: stockList.length
+  };
+  
+  stockList.forEach(stock => {
+    const pct = stock.pct_change;
+    if (pct >= 9.9) {
+      stats.upLimit++;
+    } else if (pct > 0.1) {
+      stats.up++;
+    } else if (pct >= -0.1 && pct <= 0.1) {
+      stats.flat++;
+    } else if (pct > -9.9) {
+      stats.down++;
+    } else {
+      stats.downLimit++;
+    }
+  });
+  
+  marketStats.value = stats;
+};
+
+// 规范化日线数据（兼容 YYYY-MM-DD / YYYYMMDD）
+const normalizeDailyItem = (item) => {
+  const tradeDate = String(item.trade_date || '').replace(/-/g, '');
+  return {
+    ...item,
+    trade_date: tradeDate,
+    open: Number(item.open) || 0,
+    close: Number(item.close) || 0,
+    low: Number(item.low) || 0,
+    high: Number(item.high) || 0,
+    vol: Number(item.vol) || 0,
+    amount: Number(item.amount) || 0
+  };
+};
+
+// 加载K线数据并渲染图表
 const loadKlineData = async (code, name) => {
+  if (!code) return;
+  
   klineLoading.value = true;
   
-  // 计算日期范围（最近30天）
+  // 计算日期范围（最近120个交易日，实际取180天范围）
   const endDate = new Date();
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 30);
+  startDate.setDate(startDate.getDate() - 180);
   
   const startDateStr = formatDate(startDate);
   const endDateStr = formatDate(endDate);
@@ -380,9 +686,34 @@ const loadKlineData = async (code, name) => {
       end_date: endDateStr
     });
     
-    if (result.success && result.data) {
-      const data = result.data.data || result.data;
-      klineData.value = data || [];
+    if (result.success) {
+      const data = getEnvelopeData(result.data);
+      let dailyData = data?.data || data || [];
+      
+      if (Array.isArray(dailyData) && dailyData.length > 0) {
+        // 统一数据格式
+        dailyData = dailyData.map(normalizeDailyItem);
+        // 按交易日期升序排序（Tushare 常为降序）
+        dailyData.sort((a, b) => {
+          const dateA = String(a.trade_date);
+          const dateB = String(b.trade_date);
+          return dateA.localeCompare(dateB);
+        });
+        
+        // 只取最近120个交易日
+        if (dailyData.length > 120) {
+          dailyData = dailyData.slice(-120);
+        }
+        
+        klineData.value = dailyData;
+        
+        // 等待 DOM 更新后渲染图表
+        await nextTick();
+        renderKlineChart();
+      } else {
+        console.warn('K线数据为空');
+        klineData.value = [];
+      }
     } else {
       console.error('加载K线数据失败:', result.message);
       klineData.value = [];
@@ -395,6 +726,246 @@ const loadKlineData = async (code, name) => {
   }
 };
 
+// 渲染 K 线图表
+const renderKlineChart = () => {
+  if (!chartContainer.value || klineData.value.length === 0) return;
+  
+  // 销毁旧实例
+  if (chartInstance) {
+    chartInstance.dispose();
+    chartInstance = null;
+  }
+  
+  // 创建新实例
+  chartInstance = echarts.init(chartContainer.value);
+  
+  // 准备数据
+  const dates = klineData.value.map(item => {
+    const dateStr = String(item.trade_date || '').replace(/-/g, '');
+    if (dateStr.length === 8) {
+      return `${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+    }
+    return dateStr;
+  });
+  
+  const values = klineData.value.map(item => [
+    item.open,
+    item.close,
+    item.low,
+    item.high
+  ]);
+  
+  const volumes = klineData.value.map(item => item.vol || 0);
+  
+  // 计算 MA 线
+  const closes = klineData.value.map(item => item.close);
+  const ma5 = calculateMA(closes, 5);
+  const ma10 = calculateMA(closes, 10);
+  const ma20 = calculateMA(closes, 20);
+  
+  // 配置选项
+  const option = {
+    backgroundColor: '#fff',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      formatter: function(params) {
+        let result = params[0].name + '<br/>';
+        params.forEach(param => {
+          if (param.seriesType === 'candlestick') {
+            const data = param.data;
+            if (Array.isArray(data)) {
+              result += `开盘: ${data[0]}<br/>`;
+              result += `收盘: ${data[1]}<br/>`;
+              result += `最低: ${data[2]}<br/>`;
+              result += `最高: ${data[3]}<br/>`;
+            }
+          } else if (param.seriesType === 'line') {
+            result += `${param.seriesName}: ${param.data !== null ? param.data.toFixed(2) : '--'}<br/>`;
+          } else if (param.seriesType === 'bar') {
+            result += `成交量: ${param.data}手<br/>`;
+          }
+        });
+        return result;
+      }
+    },
+    legend: {
+      data: ['日K', 'MA5', 'MA10', 'MA20', '成交量'],
+      top: 10
+    },
+    grid: [
+      {
+        left: '10%',
+        right: '8%',
+        top: '15%',
+        height: '50%'
+      },
+      {
+        left: '10%',
+        right: '8%',
+        top: '70%',
+        height: '15%'
+      }
+    ],
+    xAxis: [
+      {
+        type: 'category',
+        data: dates,
+        scale: true,
+        boundaryGap: false,
+        axisLine: { onZero: false },
+        splitLine: { show: false },
+        min: 'dataMin',
+        max: 'dataMax'
+      },
+      {
+        type: 'category',
+        gridIndex: 1,
+        data: dates,
+        scale: true,
+        boundaryGap: false,
+        axisLine: { onZero: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: { show: false },
+        min: 'dataMin',
+        max: 'dataMax'
+      }
+    ],
+    yAxis: [
+      {
+        scale: true,
+        splitArea: {
+          show: true
+        }
+      },
+      {
+        scale: true,
+        gridIndex: 1,
+        splitNumber: 2,
+        axisLabel: { show: false },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false }
+      }
+    ],
+    dataZoom: [
+      {
+        type: 'inside',
+        xAxisIndex: [0, 1],
+        start: 0,
+        end: 100
+      },
+      {
+        show: true,
+        xAxisIndex: [0, 1],
+        type: 'slider',
+        top: '90%',
+        start: 0,
+        end: 100
+      }
+    ],
+    series: [
+      {
+        name: '日K',
+        type: 'candlestick',
+        data: values,
+        itemStyle: {
+          color: '#ef232a',
+          color0: '#14b143',
+          borderColor: '#ef232a',
+          borderColor0: '#14b143'
+        }
+      },
+      {
+        name: 'MA5',
+        type: 'line',
+        data: ma5,
+        smooth: true,
+        lineStyle: {
+          opacity: 0.8,
+          width: 1,
+          color: '#ff7f24'
+        },
+        showSymbol: false
+      },
+      {
+        name: 'MA10',
+        type: 'line',
+        data: ma10,
+        smooth: true,
+        lineStyle: {
+          opacity: 0.8,
+          width: 1,
+          color: '#008000'
+        },
+        showSymbol: false
+      },
+      {
+        name: 'MA20',
+        type: 'line',
+        data: ma20,
+        smooth: true,
+        lineStyle: {
+          opacity: 0.8,
+          width: 1,
+          color: '#0000ff'
+        },
+        showSymbol: false
+      },
+      {
+        name: '成交量',
+        type: 'bar',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: volumes,
+        itemStyle: {
+          color: function(params) {
+            const index = params.dataIndex;
+            if (index === 0) return '#ef232a';
+            const current = klineData.value[index];
+            return current.close >= current.open ? '#ef232a' : '#14b143';
+          }
+        }
+      }
+    ]
+  };
+  
+  chartInstance.setOption(option);
+  
+  // 图表初始化完成后立即适配一次
+  chartInstance.resize();
+};
+
+// 数据或容器就绪后重新渲染（避免容器尺寸为 0）
+watch([klineData, chartContainer], async () => {
+  if (!chartContainer.value || klineData.value.length === 0) return;
+  await nextTick();
+  requestAnimationFrame(() => {
+    renderKlineChart();
+  });
+});
+
+// 筛选条件变化时重置分页
+watch([selectedMarket, selectedSort, selectedChange, searchKeyword, rawStockData], () => {
+  currentPage.value = 1;
+});
+
+watch(totalPages, (val) => {
+  if (currentPage.value > val) {
+    currentPage.value = val;
+  }
+});
+
+// 窗口大小调整处理
+const handleResize = () => {
+  if (chartInstance) {
+    chartInstance.resize();
+  }
+};
+
 // 选择股票用于K线图
 const selectStockForKline = (code, name) => {
   selectedStockCode.value = code;
@@ -402,25 +973,83 @@ const selectStockForKline = (code, name) => {
   loadKlineData(code, name);
 };
 
+const goToPrevPage = () => {
+  if (currentPage.value > 1) currentPage.value -= 1;
+};
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1;
+};
+
 // 刷新数据
-const refreshData = () => {
-  loadMarketOverview();
-  loadStockData();
-  loadKlineData(selectedStockCode.value, selectedStockName.value);
+const refreshData = async () => {
+  await loadMarketOverview();
+  // 强制刷新：触发后台数据拉取
+  await loadStockData(true);
+  await loadHotSectors();
+  
+  if (selectedStockCode.value) {
+    await loadKlineData(selectedStockCode.value, selectedStockName.value);
+  }
 };
 
 // 搜索股票
-const handleSearch = (event) => {
+const handleSearch = async (event) => {
   if (event.key === 'Enter') {
-    if (searchKeyword.value.trim()) {
-      if (/^\d{6}$/.test(searchKeyword.value.trim())) {
-        loadStockData([searchKeyword.value.trim()]);
-      } else {
-        console.log('股票名称搜索功能需要先获取股票列表，请输入6位股票代码');
-      }
-    } else {
-      loadStockData();
+    const keyword = searchKeyword.value.trim();
+    
+    if (!keyword) {
+      // 清空搜索，重新加载完整列表
+      await loadStockData();
+      return;
     }
+    
+    // 如果是6位数字代码，可以精确查询
+    if (/^\d{6}$/.test(keyword)) {
+      try {
+        // 使用快照接口查询单个股票
+        const result = await getStockSnapshotList({
+          limit: 1000  // 获取更多数据用于搜索
+        });
+        
+        if (result.success) {
+          const data = getEnvelopeData(result.data);
+          const snapshotList = data?.data || data || [];
+          
+          // 查找匹配的股票
+          const matchedStock = snapshotList.find(s => 
+            s.code === keyword || s.symbol === keyword
+          );
+          
+          if (matchedStock) {
+            // 更新股票列表（单独显示）
+            rawStockData.value = [{
+              symbol: matchedStock.symbol || matchedStock.code,
+              code: matchedStock.code || matchedStock.symbol,
+              name: matchedStock.name,
+              industry: matchedStock.industry,
+              price: matchedStock.price,
+              latest_price: matchedStock.latest_price || matchedStock.price,
+              pct_change: matchedStock.pct_change,
+              turnover: matchedStock.turnover || 0,
+              turnover_rate: matchedStock.turnover_rate,
+              update_time: matchedStock.update_time || ''
+            }];
+            
+            // 同时加载 K 线
+            selectStockForKline(matchedStock.code, matchedStock.name);
+            
+            return;
+          }
+        }
+        
+        console.warn('未找到股票:', keyword);
+      } catch (error) {
+        console.error('搜索股票失败:', error);
+      }
+    }
+    
+    // 否则作为关键词筛选（由计算属性 filteredStockData 处理）
   }
 };
 
@@ -444,6 +1073,16 @@ const formatDate = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}${month}${day}`;
+};
+
+// 格式化交易日期显示
+const formatTradeDate = (dateStr) => {
+  if (!dateStr) return '--';
+  const str = String(dateStr);
+  if (str.length === 8) {
+    return `${str.substring(0, 4)}-${str.substring(4, 6)}-${str.substring(6, 8)}`;
+  }
+  return str;
 };
 
 const router = useRouter();
@@ -501,27 +1140,37 @@ function goToUserProfile() {
 }
 
 // 页面加载时初始化数据
-onMounted(() => {
-  loadMarketOverview();
-  loadStockData();
+onMounted(async () => {
+  window.addEventListener('resize', handleResize);
+  // 按依赖顺序加载
+  await loadMarketOverview();
   
-  // 页面加载时加载默认K线图
-  setTimeout(() => {
-    loadKlineData(selectedStockCode.value, selectedStockName.value);
-  }, 1000);
+  // 首次尝试从数据库加载
+  await loadStockData(false);
+  
+  // 如果没有数据，触发后台数据刷新
+  if (rawStockData.value.length === 0) {
+    console.log('数据库无数据，触发后台刷新...');
+    await loadStockData(true);
+  }
+  
+  // 股票数据加载完成后再加载板块数据（依赖股票的行业映射）
+  await loadHotSectors();
+  
+  // 如果有选中的股票，加载 K 线
+  if (selectedStockCode.value) {
+    await loadKlineData(selectedStockCode.value, selectedStockName.value);
+  }
 });
 
-// ============================================
-// 使用说明
-// ============================================
-// 1. 确保 data-service 服务已启动（默认端口 8000）
-// 2. 点击"刷新数据"按钮可以重新加载所有数据
-// 3. 点击表格中的股票行可以查看该股票的K线图
-// 4. 在搜索框输入6位股票代码可以查询特定股票
-// 5. 如果数据加载失败，请检查：
-//    - data-service 服务是否正常运行
-//    - API_BASE_URL 配置是否正确
-//    - 浏览器控制台是否有错误信息
+// 组件卸载时清理
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  if (chartInstance) {
+    chartInstance.dispose();
+    chartInstance = null;
+  }
+});
 </script>
 
 <style scoped>
@@ -852,6 +1501,37 @@ onMounted(() => {
   background-color: #fff8f0;
 }
 
+.stock-table tr.selected-row {
+  background-color: #ffe8cc;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.page-btn {
+  background-color: #fff3e6;
+  color: #ff7f24;
+  border: 1px solid #ff7f24;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  color: #666;
+  font-size: 14px;
+}
+
 .stock-code {
   color: #666;
 }
@@ -883,6 +1563,7 @@ onMounted(() => {
   align-items: center;
   color: #ff7f24;
   font-size: 16px;
+  text-align: center;
 }
 
 .hot-sector {
@@ -922,6 +1603,21 @@ onMounted(() => {
 .sector-change {
   font-size: 14px;
   font-weight: bold;
+}
+
+.sector-leaders {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+}
+
+.sector-metrics {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  font-size: 12px;
+  color: #666;
 }
 
 .rise-fall-dist {
@@ -991,6 +1687,13 @@ onMounted(() => {
   border-radius: 4px;
   margin: 10px 0;
   border: 1px solid #ff7f24;
+}
+
+.data-missing {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-size: 14px;
 }
 
 /* 响应式适配 */

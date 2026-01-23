@@ -68,7 +68,7 @@
         </div>
       </div>
 
-      <div class="actions-section">
+    <div class="actions-section">
         <button class="btn-ai-eval" @click="askAiEvaluation" :disabled="evaluating">
           {{ evaluating ? 'AI正在思考...' : '✨ 用 AI 评价本次回测' }}
         </button>
@@ -242,7 +242,7 @@ ${JSON.stringify(curveSummary)}
         const userMessage = `请评价这个量化策略回测结果。上下文如下：\n${promptContext}`
         
         // 2. 设置系统 Prompt
-        chatStore.setSystemPrompt("你是一个专业的量化策略评审员。请根据用户提供的回测数据（收益、回撤、夏普等）进行客观评价。请指出策略的：1) 优点与表现亮点 2) 潜在风险点与缺点 3) 针对性的改进建议 4) 适用的市场环境。最后必须附带投资风险提示。")
+        chatStore.setSystemPrompt("你是一个专业的量化策略评审员。请根据用户提供的回测数据（收益、回撤、夏普等）进行客观评价。请指出策略的：1) 优点与表现亮点 2) 潜在风险点与缺点 3) 针对性的改进建议 4) 适用的市场环境。最后必须附带投资风险提示。输出要求：1) 必须分行输出；2) 使用短句，每句不超过20字；3) 不使用“略/后续/省略号”来截断回答；4) 需要分段时用空行分隔。")
         
         // 3. 打开聊天窗口
         if (!chatStore.isChatOpen) {
@@ -253,7 +253,7 @@ ${JSON.stringify(curveSummary)}
         chatStore.addMessage("请帮我评价一下当前的策略回测结果", true) // 显示给用户看的简洁文本
         
         // 5. 发送请求 (发送带有完整 Context 的 prompt 为 message)
-        const res = await chatService.sendChat(userMessage, chatStore.systemPrompt)
+        const res = await chatService.sendChat(userMessage, chatStore.systemPrompt, null, 0.6, 2000)
         
         if (res.success) {
             chatStore.addMessage(res.content, false)

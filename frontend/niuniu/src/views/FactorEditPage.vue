@@ -7,7 +7,20 @@
         <h1 class="page-title">编辑因子</h1>
       </div>
 
-      <div class="factor-form-section card">
+      <!-- 加载状态 -->
+      <div v-if="pageLoading" class="loading-state card">
+        <div class="loading-spinner"></div>
+        <p>正在加载因子数据...</p>
+      </div>
+
+      <!-- 加载错误 -->
+      <div v-else-if="loadError" class="error-state card">
+        <h3>加载失败</h3>
+        <p>{{ loadError }}</p>
+        <button @click="loadFactorData" class="retry-btn">重试</button>
+      </div>
+
+      <div v-else class="factor-form-section card">
         <!-- 表单验证错误 -->
         <div v-if="formErrors.length > 0" class="validation-errors">
           <h3>请修正以下错误:</h3>
@@ -198,7 +211,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFactorStore } from '@/stores/factor'
 
@@ -206,7 +219,8 @@ const route = useRoute()
 const router = useRouter()
 const factorStore = useFactorStore()
 
-const factorId = route.params.id
+// 使用 computed 响应式获取 factorId
+const factorId = computed(() => route.params.id)
 
 // 响应式数据
 const factorForm = ref({
@@ -281,17 +295,22 @@ const validateExpression = async () => {
   try {
     const response = await factorStore.validateExpression(factorForm.value.expression)
     
-    if (response.success) {
+    if (response.valid) {
       validationResult.value = {
         status: 'success',
-        message: response.message || '表达式验证通过！',
-        details: response.errors ? response.errors.join('\n') : '因子表达式语法正确。'
+        message: '表达式验证通过！',
+        details: response.warnings?.length > 0 
+          ? '提示: ' + response.warnings.join('\n') 
+          : '因子表达式语法正确。'
       }
     } else {
       validationResult.value = {
         status: 'error',
-        message: response.message || '表达式验证失败',
-        details: response.errors ? response.errors.join('\n') : '请检查表达式问题'
+        message: '表达式验证失败',
+        details: response.errors?.join('\n') || '请检查表达式问题'
+      }
+      if (response.suggested_fix) {
+        validationResult.value.details += '\n\n建议修复: ' + response.suggested_fix
       }
     }
   } catch (error) {
@@ -377,7 +396,7 @@ const updateFactor = async () => {
       parameters: JSON.parse(factorForm.value.parameters)
     }
     
-    const response = await factorStore.updateExistingFactor(factorId, updateData)
+    const response = await factorStore.updateExistingFactor(factorId.value, updateData)
     
     if (response) {
       updateResult.value = {
@@ -403,26 +422,60 @@ const updateFactor = async () => {
   }
 }
 
+// 页面加载状态
+const pageLoading = ref(true)
+const loadError = ref(null)
+
 // 加载因子数据
 const loadFactorData = async () => {
+  const id = factorId.value
+  
+  // 检查 factorId 是否有效
+  if (!id) {
+    loadError.value = '无效的因子ID'
+    pageLoading.value = false
+    console.error('factorId 无效:', id)
+    return
+  }
+  
+  pageLoading.value = true
+  loadError.value = null
+  
   try {
-    await factorStore.fetchFactor(factorId)
+    console.log('开始加载因子数据, factorId:', id)
+    await factorStore.fetchFactor(id)
     
-    if (factorStore.currentFactor) {
-      const factor = factorStore.currentFactor
+    const factor = factorStore.currentFactor
+    console.log('获取到的因子数据:', factor)
+    
+    if (factor) {
       factorForm.value = {
-        name: factor.name,
-        code: factor.code,
-        category: factor.category,
-        description: factor.description,
-        expression: factor.expression,
+        name: factor.name || '',
+        code: factor.code || '',
+        category: factor.category || '',
+        description: factor.description || '',
+        expression: factor.expression || '',
         parameters: JSON.stringify(factor.parameters || {}, null, 2)
       }
+      console.log('表单已填充:', factorForm.value)
+    } else {
+      loadError.value = factorStore.error || '因子数据未找到'
+      console.error('因子数据未找到, factorStore.error:', factorStore.error)
     }
   } catch (error) {
+    loadError.value = error.message || '加载失败'
     console.error('加载因子数据失败:', error)
+  } finally {
+    pageLoading.value = false
   }
 }
+
+// 监听路由参数变化
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    loadFactorData()
+  }
+})
 
 // 生命周期
 onMounted(() => {
@@ -479,6 +532,50 @@ onMounted(() => {
   margin-bottom: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid #f0f0f0;
+}
+
+.loading-state, .error-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f0f0f0;
+  border-top-color: #ff7f00;
+  border-radius: 50%;
+  margin: 0 auto 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p, .error-state p {
+  color: #666;
+  margin: 10px 0;
+}
+
+.error-state h3 {
+  color: #f44336;
+  margin-bottom: 10px;
+}
+
+.retry-btn {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #ff7f00;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.retry-btn:hover {
+  background-color: #e06f00;
 }
 
 .form-section {

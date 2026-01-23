@@ -12,197 +12,154 @@
       </div>
     </div>
 
-    <!-- 面包屑导航 -->
-    <div class="breadcrumb">
-      <a href="#" @click.prevent="goShop">首页</a> > 
-      <a href="#" @click.prevent="goShop">教育培训</a> > 
-      <a href="#" @click.prevent="goShop">理财课程</a> > 
-      理财入门实战课
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>加载商品详情中...</p>
     </div>
 
-    <!-- 商品详情核心区 -->
-    <div class="detail-container">
-      <!-- 商品主图 -->
-      <div class="goods-img">
-        <img src="https://picsum.photos/600/400" alt="理财入门实战课" class="main-img">
+    <!-- 错误状态 -->
+    <div v-else-if="loadError" class="error-container">
+      <div class="error-icon">😕</div>
+      <h2>商品不存在</h2>
+      <p>抱歉，您请求的商品不存在或已下架</p>
+      <button class="back-btn" @click="goShop">返回商店</button>
+    </div>
+
+    <template v-else>
+      <!-- 面包屑导航 -->
+      <div class="breadcrumb">
+        <a href="#" @click.prevent="goShop">首页</a> > 
+        <a href="#" @click.prevent="goShop">{{ productTypeName }}</a> > 
+        {{ currentGoods?.name || '商品详情' }}
       </div>
 
-      <!-- 商品信息 -->
-      <div class="goods-info">
-        <span class="goods-tag">{{ currentGoods?.category || '商品' }}</span>
-        <h1 class="goods-title">{{ currentGoods?.title || '加载中...' }}</h1>
-
-        <!-- 价格区域 -->
-        <div class="price-area">
-          <div class="price-label">售价</div>
-          <div class="current-price">¥{{ currentGoods?.price?.toFixed(2) || '0.00' }}</div>
-          <div class="origin-price">原价：¥{{ currentGoods?.originalPrice?.toFixed(2) || '0.00' }}</div>
+      <!-- 商品详情核心区 -->
+      <div class="detail-container">
+        <!-- 商品主图 -->
+        <div class="goods-img">
+          <img :src="currentGoods?.img || defaultImg" :alt="currentGoods?.name" class="main-img">
         </div>
 
-        <!-- 规格选择 -->
-        <div class="spec-area">
-          <div class="spec-title">选择课程版本</div>
+        <!-- 商品信息 -->
+        <div class="goods-info">
+          <span class="goods-tag">{{ productTypeName }}</span>
+          <h1 class="goods-title">{{ currentGoods?.name || '加载中...' }}</h1>
+
+          <!-- 价格区域 -->
+          <div class="price-area">
+            <div class="price-label">售价</div>
+            <div class="current-price">{{ formatPrice(currentGoods?.price) }}</div>
+            <div class="origin-price" v-if="currentGoods?.original_price">
+              原价：{{ formatPrice(currentGoods?.original_price) }}
+            </div>
+          </div>
+
+          <!-- 购买按钮区域 -->
+          <div class="buy-area">
+            <button class="buy-btn" @click="handleBuy">{{ buyButtonText }}</button>
+            <div class="trial-btn" v-if="currentGoods?.type === 'course'" @click="showTrialModal">
+              免费试听
+            </div>
+            <button class="cart-btn" @click="addToCart">加入购物车</button>
+          </div>
+
+          <!-- 商品基础信息 -->
+          <div class="course-info" v-if="hasDetailInfo">
+            <div class="course-info-item" v-if="currentGoods?.duration">
+              <div class="course-label">课程课时：</div>
+              <div class="course-value">{{ currentGoods.duration }}</div>
+            </div>
+            <div class="course-info-item" v-if="currentGoods?.target_audience">
+              <div class="course-label">适合人群：</div>
+              <div class="course-value">{{ currentGoods.target_audience }}</div>
+            </div>
+            <div class="course-info-item" v-if="currentGoods?.learning_method">
+              <div class="course-label">学习方式：</div>
+              <div class="course-value">{{ currentGoods.learning_method }}</div>
+            </div>
+            <div class="course-info-item" v-if="currentGoods?.start_time">
+              <div class="course-label">开课时间：</div>
+              <div class="course-value">{{ currentGoods.start_time }}</div>
+            </div>
+            <div class="course-info-item" v-if="currentGoods?.instructor">
+              <div class="course-label">讲师：</div>
+              <div class="course-value">{{ currentGoods.instructor }}</div>
+            </div>
+          </div>
+
+          <!-- 商品描述 -->
+          <div class="goods-description" v-if="currentGoods?.description">
+            <div class="description-title">商品简介</div>
+            <p>{{ currentGoods.description }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 课程详情/大纲 Tab -->
+      <div class="goods-detail" v-if="hasTabContent">
+        <div class="tab-nav">
           <div 
-            class="spec-option" 
-            :class="{ active: selectedSpec === 'basic' }"
-            @click="selectedSpec = 'basic'"
+            class="tab-item" 
+            v-if="parsedOutline.length > 0"
+            :class="{ active: activeTab === 'outline' }"
+            @click="activeTab = 'outline'"
           >
-            基础版（视频课+讲义）
+            课程大纲
           </div>
           <div 
-            class="spec-option" 
-            :class="{ active: selectedSpec === 'advanced' }"
-            @click="selectedSpec = 'advanced'"
+            class="tab-item" 
+            v-if="currentGoods?.detail_content"
+            :class="{ active: activeTab === 'detail' }"
+            @click="activeTab = 'detail'"
           >
-            进阶版（视频课+讲义+1v1答疑）
+            详细介绍
           </div>
           <div 
-            class="spec-option" 
-            :class="{ active: selectedSpec === 'premium' }"
-            @click="selectedSpec = 'premium'"
+            class="tab-item" 
+            v-if="parsedFaq.length > 0"
+            :class="{ active: activeTab === 'faq' }"
+            @click="activeTab = 'faq'"
           >
-            至尊版（全套+社群+实操指导）
+            常见问题
           </div>
         </div>
-
-        <!-- 购买按钮区域 -->
-        <div class="buy-area">
-          <button class="buy-btn" @click="handleBuy">立即购买</button>
-          <div class="trial-btn" @click="showTrialModal">
-            免费试听
+        <div class="tab-content">
+          <div v-if="activeTab === 'outline' && parsedOutline.length > 0">
+            <div class="outline-item" v-for="(chapter, idx) in parsedOutline" :key="idx">
+              <div class="outline-title">{{ chapter.title }}</div>
+              <p v-for="(item, itemIdx) in chapter.items" :key="itemIdx">{{ item }}</p>
+            </div>
           </div>
-          <button class="cart-btn" @click="addToCart">加入购物车</button>
-        </div>
-
-        <!-- 课程基础信息 -->
-        <div class="course-info">
-          <div class="course-info-item">
-            <div class="course-label">课程课时：</div>
-            <div class="course-value">12课时（每课时45分钟）</div>
+          <div v-if="activeTab === 'detail' && currentGoods?.detail_content">
+            <div class="detail-text">{{ currentGoods.detail_content }}</div>
           </div>
-          <div class="course-info-item">
-            <div class="course-label">适合人群：</div>
-            <div class="course-value">零基础理财新手、上班族、宝妈</div>
-          </div>
-          <div class="course-info-item">
-            <div class="course-label">学习方式：</div>
-            <div class="course-value">录播视频（永久回放）+ 在线答疑</div>
-          </div>
-          <div class="course-info-item">
-            <div class="course-label">开课时间：</div>
-            <div class="course-value">购买后立即开课</div>
-          </div>
-          <div class="course-info-item">
-            <div class="course-label">讲师：</div>
-            <div class="course-value">张老师（10年理财实战经验）</div>
+          <div v-if="activeTab === 'faq' && parsedFaq.length > 0">
+            <div class="faq-item" v-for="(item, idx) in parsedFaq" :key="idx">
+              <p><strong>Q: {{ item.q }}</strong></p>
+              <p>A: {{ item.a }}</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 课程详情/大纲 Tab -->
-    <div class="goods-detail">
-      <div class="tab-nav">
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'outline' }"
-          @click="activeTab = 'outline'"
-        >
-          课程大纲
-        </div>
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'detail' }"
-          @click="activeTab = 'detail'"
-        >
-          课程详情
-        </div>
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'review' }"
-          @click="activeTab = 'review'"
-        >
-          学员评价
-        </div>
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'faq' }"
-          @click="activeTab = 'faq'"
-        >
-          常见问题
+      <!-- 相关推荐 -->
+      <div class="recommend" v-if="relatedProducts.length > 0">
+        <div class="recommend-title">猜你喜欢</div>
+        <div class="recommend-grid">
+          <div 
+            class="recommend-card" 
+            v-for="item in relatedProducts" 
+            :key="item.id"
+            @click="goToProduct(item.id)"
+          >
+            <img :src="item.img || defaultImg" :alt="item.name" class="recommend-img">
+            <div class="recommend-name">{{ item.name }}</div>
+            <div class="recommend-price">{{ formatPrice(item.price) }}</div>
+          </div>
         </div>
       </div>
-      <div class="tab-content">
-        <div v-if="activeTab === 'outline'">
-          <div class="outline-item">
-            <div class="outline-title">第1章：理财基础认知（2课时）</div>
-            <p>1.1 为什么普通人必须理财？破除"理财=有钱"误区</p>
-            <p>1.2 理财的核心原则：风险与收益的平衡</p>
-          </div>
-          <div class="outline-item">
-            <div class="outline-title">第2章：低风险理财工具实操（4课时）</div>
-            <p>2.1 基金入门：货币基金、债券基金怎么选？</p>
-            <p>2.2 国债逆回购：零风险的短期理财神器</p>
-            <p>2.3 银行理财：避开坑，选对高收益产品</p>
-            <p>2.4 实操演练：手把手教你买入第一只基金</p>
-          </div>
-          <div class="outline-item">
-            <div class="outline-title">第3章：中高收益理财技巧（4课时）</div>
-            <p>3.1 股票入门：新手如何选股、看盘？</p>
-            <p>3.2 指数基金定投：懒人躺赚的核心策略</p>
-            <p>3.3 资产配置：不同收入阶段的理财组合</p>
-            <p>3.4 避坑指南：远离高风险理财骗局</p>
-          </div>
-          <div class="outline-item">
-            <div class="outline-title">第4章：实战复盘与答疑（2课时）</div>
-            <p>4.1 学员案例拆解：从月光到月存5000的理财方案</p>
-            <p>4.2 一对一答疑：解决你的个性化理财问题</p>
-          </div>
-        </div>
-        <div v-if="activeTab === 'detail'">
-          <h3>课程详细介绍</h3>
-          <p>本课程专为零基础理财小白设计，从最基础的理财认知开始，逐步深入讲解各种理财工具的使用方法和实战技巧。</p>
-          <p>课程特色：实战导向、案例丰富、通俗易懂、注重风险控制</p>
-        </div>
-        <div v-if="activeTab === 'review'">
-          <h3>学员评价</h3>
-          <p>"老师讲解很细致，零基础也能学会！"</p>
-          <p>"课程内容实用，已经成功开始理财了"</p>
-        </div>
-        <div v-if="activeTab === 'faq'">
-          <h3>常见问题</h3>
-          <p><strong>Q: 需要什么基础？</strong> A: 零基础即可</p>
-          <p><strong>Q: 课程有效期多长？</strong> A: 永久有效</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 相关推荐 -->
-    <div class="recommend">
-      <div class="recommend-title">猜你喜欢</div>
-      <div class="recommend-grid">
-        <div class="recommend-card">
-          <img src="https://picsum.photos/300/200" alt="量化投资进阶班" class="recommend-img">
-          <div class="recommend-name">量化投资进阶班</div>
-          <div class="recommend-price">¥299.00</div>
-        </div>
-        <div class="recommend-card">
-          <img src="https://picsum.photos/300/200" alt="家庭资产配置课" class="recommend-img">
-          <div class="recommend-name">家庭资产配置课</div>
-          <div class="recommend-price">¥159.00</div>
-        </div>
-        <div class="recommend-card">
-          <img src="https://picsum.photos/300/200" alt="基金定投实战课" class="recommend-img">
-          <div class="recommend-name">基金定投实战课</div>
-          <div class="recommend-price">¥89.00</div>
-        </div>
-        <div class="recommend-card">
-          <img src="https://picsum.photos/300/200" alt="股票入门必修课" class="recommend-img">
-          <div class="recommend-name">股票入门必修课</div>
-          <div class="recommend-price">¥129.00</div>
-        </div>
-      </div>
-    </div>
+    </template>
 
     <!-- 试听弹窗 -->
     <div class="modal-mask" v-show="showModal">
@@ -219,9 +176,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { watch } from 'vue'
+import { useCartStore } from '@/stores/cart.js'
+import { getProduct, getProducts, formatPrice as serviceFormatPrice, ProductTypeName } from '@/services/productService'
 
 const props = defineProps({
   id: {
@@ -231,42 +189,116 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const cartStore = useCartStore()
+
+// 状态
 const currentGoods = ref(null)
+const loading = ref(true)
+const loadError = ref(false)
+const relatedProducts = ref([])
+const defaultImg = 'https://picsum.photos/600/400?random=0'
 
-// 根据ID加载商品数据
-function loadGoodsData() {
-  // 模拟商品数据映射
-  const goodsDataMap = {
-    'factor-0': {
-      title: '量价因子合集 - 超100个经典A股量价因子（可直接回测）',
-      price: 1299.00,
-      originalPrice: 1999.00,
-      category: '因子',
-      description: '包含100+个经过验证的A股量价因子...'
-    },
-    'strategy-0': {
-      title: '双均线择时策略 - 年化收益25%+（附Python源码）',
-      price: 699.00,
-      originalPrice: 999.00,
-      category: '策略',
-      description: '经典双均线策略，附带完整Python实现...'
-    },
-    // 其他模拟商品数据...
+// 商品类型名称
+const productTypeName = computed(() => {
+  if (!currentGoods.value?.type) return '商品'
+  return ProductTypeName[currentGoods.value.type] || '商品'
+})
+
+// 购买按钮文字
+const buyButtonText = computed(() => {
+  const type = currentGoods.value?.type
+  if (type === 'fund') return '预约认购'
+  if (type === 'talent') return '咨询对接'
+  if (type === 'advisor') return '预约咨询'
+  return '立即购买'
+})
+
+// 是否有详情信息
+const hasDetailInfo = computed(() => {
+  const g = currentGoods.value
+  return g?.duration || g?.target_audience || g?.learning_method || g?.start_time || g?.instructor
+})
+
+// 解析课程大纲（JSON）
+const parsedOutline = computed(() => {
+  if (!currentGoods.value?.outline) return []
+  try {
+    return JSON.parse(currentGoods.value.outline)
+  } catch {
+    return []
   }
+})
 
-  // 检查商品是否存在
-  if (goodsDataMap[props.id]) {
-    currentGoods.value = goodsDataMap[props.id]
-  } else {
-    currentGoods.value = {
-      title: '商品不存在',
-      price: 0,
-      originalPrice: 0,
-      category: '错误',
-      description: '抱歉，您请求的商品不存在或已下架'
+// 解析常见问题（JSON）
+const parsedFaq = computed(() => {
+  if (!currentGoods.value?.faq) return []
+  try {
+    return JSON.parse(currentGoods.value.faq)
+  } catch {
+    return []
+  }
+})
+
+// 是否有Tab内容
+const hasTabContent = computed(() => {
+  return parsedOutline.value.length > 0 || currentGoods.value?.detail_content || parsedFaq.value.length > 0
+})
+
+// 格式化价格
+function formatPrice(price) {
+  return serviceFormatPrice(price)
+}
+
+// 从后端加载商品数据
+async function loadGoodsData() {
+  loading.value = true
+  loadError.value = false
+  
+  try {
+    const result = await getProduct(props.id)
+    if (result.success && result.data) {
+      currentGoods.value = result.data
+      // 设置默认Tab
+      if (parsedOutline.value.length > 0) {
+        activeTab.value = 'outline'
+      } else if (currentGoods.value.detail_content) {
+        activeTab.value = 'detail'
+      } else if (parsedFaq.value.length > 0) {
+        activeTab.value = 'faq'
+      }
+      // 加载相关推荐
+      await loadRelatedProducts()
+    } else {
+      loadError.value = true
     }
-    // 可以在这里添加错误提示逻辑
+  } catch (error) {
+    console.error('Error loading product:', error)
+    loadError.value = true
+  } finally {
+    loading.value = false
   }
+}
+
+// 加载相关推荐（同类型商品）
+async function loadRelatedProducts() {
+  if (!currentGoods.value?.type) return
+  
+  try {
+    const result = await getProducts({ type: currentGoods.value.type, limit: 5 })
+    if (result.success && result.data) {
+      // 排除当前商品
+      relatedProducts.value = result.data
+        .filter(p => p.id !== currentGoods.value.id)
+        .slice(0, 4)
+    }
+  } catch (error) {
+    console.error('Error loading related products:', error)
+  }
+}
+
+// 跳转到其他商品
+function goToProduct(productId) {
+  router.push(`/shop/goods-detail/${productId}`)
 }
 
 // 监听ID变化
@@ -274,8 +306,11 @@ watch(() => props.id, () => {
   loadGoodsData()
 })
 
-// 初始化加载
-loadGoodsData()
+// 初始化
+onMounted(() => {
+  loadGoodsData()
+})
+
 const selectedSpec = ref('basic')
 const activeTab = ref('outline')
 const showModal = ref(false)
@@ -297,6 +332,18 @@ function handleBuy() {
 }
 
 function addToCart() {
+  if (!currentGoods.value) return
+  
+  const cartItem = {
+    id: currentGoods.value.id,
+    name: currentGoods.value.name,
+    price: formatPrice(currentGoods.value.price),
+    rawPrice: currentGoods.value.price,
+    img: currentGoods.value.img || defaultImg,
+    type: currentGoods.value.type
+  }
+  
+  cartStore.addToCart(cartItem)
   alert('已加入购物车')
 }
 
@@ -365,6 +412,69 @@ onUnmounted(() => {
   background-color: #fff8f0;
   color: #333;
   min-height: 100vh;
+}
+
+/* 加载状态 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  color: #ff7f24;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #ffb380;
+  border-top-color: #ff7f24;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 错误状态 */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.error-container h2 {
+  color: #ff7f24;
+  margin-bottom: 10px;
+}
+
+.error-container p {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.back-btn {
+  background-color: #ff7f24;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.back-btn:hover {
+  background-color: #ff6a00;
 }
 
 /* 头部导航 */
@@ -601,6 +711,25 @@ onUnmounted(() => {
   color: #333;
 }
 
+/* 商品描述 */
+.goods-description {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #ffebcd;
+}
+
+.description-title {
+  font-size: 16px;
+  color: #ff7f24;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.goods-description p {
+  color: #666;
+  line-height: 1.8;
+}
+
 /* 商品详情/课程大纲 */
 .goods-detail {
   max-width: 1200px;
@@ -651,6 +780,32 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
+/* 详细内容文本 */
+.detail-text {
+  white-space: pre-wrap;
+  line-height: 1.8;
+  color: #333;
+}
+
+/* FAQ样式 */
+.faq-item {
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed #ffebcd;
+}
+
+.faq-item:last-child {
+  border-bottom: none;
+}
+
+.faq-item p {
+  margin-bottom: 5px;
+}
+
+.faq-item strong {
+  color: #ff7f24;
+}
+
 /* 相关推荐 */
 .recommend {
   max-width: 1200px;
@@ -678,6 +833,7 @@ onUnmounted(() => {
   border-radius: 8px;
   border: 1px solid #ffb380;
   transition: transform 0.3s;
+  cursor: pointer;
 }
 
 .recommend-card:hover {

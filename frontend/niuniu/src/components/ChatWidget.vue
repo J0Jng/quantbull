@@ -28,7 +28,7 @@ const isDragging = ref(false)
 const chatWindowRef = ref(null)
 const messagesEndRef = ref(null)
 const videoPlayerRef = ref(null)
-const maxTokens = ref(500)
+const maxTokens = ref(2000)
 
 // 窗口位置状态
 const windowState = reactive({
@@ -354,14 +354,6 @@ onUnmounted(() => {
             >
               <span class="mode-icon">💬</span>
               <span class="mode-text">文字聊天</span>
-            </button>
-            <button 
-              class="mode-switch-btn" 
-              :class="{ active: chatStore.chatMode === 'video' }"
-              @click="switchMode('video')"
-            >
-              <span class="mode-icon">🎥</span>
-              <span class="mode-text">数字人视频</span>
             </button>
           </div>
           <button class="tool-btn" @click="clearChat" title="清空对话">

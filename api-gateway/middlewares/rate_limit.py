@@ -24,21 +24,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def get_client_ip(self, request: Request) -> str:
         """获取客户端 IP"""
-        # 优先从 X-Forwarded-For 获取（代理场景）
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        client_host = request.client.host if request.client else "unknown"
+
+        # 仅在可信代理或本地环境下读取转发头
+        trust_forwarded = settings.env == "local" or client_host in set(settings.trusted_proxies)
+        if trust_forwarded:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
+            
+            real_ip = request.headers.get("X-Real-IP")
+            if real_ip:
+                return real_ip
         
-        # 从 X-Real-IP 获取
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
-        # 从客户端获取
-        if request.client:
-            return request.client.host
-        
-        return "unknown"
+        return client_host
     
     def cleanup_old_records(self):
         """清理过期记录"""

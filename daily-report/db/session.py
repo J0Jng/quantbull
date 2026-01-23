@@ -1,5 +1,5 @@
 """数据库会话管理"""
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -29,12 +29,14 @@ DATABASE_URL = get_database_url()
 
 # 创建数据库引擎
 if settings.db_type == "postgresql":
+    schema = settings.postgres_schema or "public"
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,  # 连接前检查连接是否有效
         pool_size=10,
         max_overflow=20,
         echo=settings.env == "local",  # 开发环境打印 SQL
+        connect_args={"options": f"-c search_path={schema}"},
     )
 else:
     # SQLite 配置
@@ -63,6 +65,14 @@ def get_db() -> Session:
 def init_db() -> None:
     """初始化数据库（创建表）"""
     try:
+        # 导入所有模型以确保它们被注册到 Base.metadata
+        from models import CompanyResearchReport, DailyInvestmentReport  # noqa: F401
+
+        if settings.db_type == "postgresql":
+            schema = settings.postgres_schema or "public"
+            with engine.begin() as connection:
+                connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema}"))
+
         Base.metadata.create_all(bind=engine)
         db_type_name = {
             "postgresql": "PostgreSQL",

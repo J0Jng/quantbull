@@ -3,11 +3,16 @@
  * 提供全局认证状态和方法，避免各页面重复实现登录逻辑
  */
 import { ref, computed } from 'vue'
-import { login as authLogin, register as authRegister, logout as authLogout, isAuthenticated } from '@/services/authService'
+import { login as authLogin, register as authRegister, logout as authLogout, isAuthenticated, getCurrentUser } from '@/services/authService'
 
 // 全局状态（跨组件共享）
 const logged = ref(false)
 const currentUser = ref('')
+const currentUserId = ref(null)
+const currentUserRole = ref('user')
+const currentUserEmail = ref('')
+const currentUserPhone = ref('')
+const currentUserCreatedAt = ref('')
 const showLoginModal = ref(false)
 const showRiskTip = ref(false)
 const isQualifiedInvestor = ref(false)
@@ -17,7 +22,8 @@ const loginForm = ref({
   username: '',
   password: '',
   confirmPassword: '',
-  email: ''
+  email: '',
+  phone: ''
 })
 const isRegisterMode = ref(false)
 const loginLoading = ref(false)
@@ -29,16 +35,56 @@ const successVisible = ref(false)
 /**
  * 初始化认证状态（页面加载时调用）
  */
-const initAuth = () => {
-  if (isAuthenticated()) {
-    logged.value = true
-    currentUser.value = localStorage.getItem('quantLoginUser') || '用户'
-    isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
-  } else {
-    logged.value = false
-    currentUser.value = ''
-    isQualifiedInvestor.value = false
+const initAuth = async () => {
+  try {
+    const result = await getCurrentUser()
+    if (result.success && result.data) {
+      const userData = result.data.data || result.data
+      logged.value = true
+      localStorage.setItem('session_active', 'true')
+      currentUser.value = localStorage.getItem('quantLoginUser') || userData.username || '用户'
+      isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+
+      if (userData.role) {
+        currentUserRole.value = userData.role
+        localStorage.setItem('userRole', userData.role)
+      }
+      if (userData.user_id) {
+        currentUserId.value = userData.user_id
+      }
+      if (userData.email) {
+        currentUserEmail.value = userData.email
+      }
+      if (userData.phone) {
+        currentUserPhone.value = userData.phone
+      }
+      if (userData.created_at) {
+        currentUserCreatedAt.value = userData.created_at
+      }
+      if (typeof userData.qualified_investor === 'boolean') {
+        isQualifiedInvestor.value = userData.qualified_investor
+        if (userData.qualified_investor) {
+          localStorage.setItem('qualifiedInvestor', 'certified')
+        } else {
+          localStorage.removeItem('qualifiedInvestor')
+        }
+      }
+      return true
+    }
+  } catch (error) {
+    console.warn('Failed to fetch user info:', error)
   }
+
+  localStorage.removeItem('session_active')
+  logged.value = false
+  currentUser.value = ''
+  currentUserRole.value = 'user'
+  currentUserId.value = null
+  currentUserEmail.value = ''
+  currentUserPhone.value = ''
+  currentUserCreatedAt.value = ''
+  isQualifiedInvestor.value = false
+  return false
 }
 
 /**
@@ -66,7 +112,8 @@ const resetLoginForm = () => {
     username: '',
     password: '',
     confirmPassword: '',
-    email: ''
+    email: '',
+    phone: ''
   }
   errorVisible.value = false
   successVisible.value = false
@@ -136,6 +183,7 @@ const submitLogin = async () => {
       // 登录成功，显示动态风险提示
       showRiskTip.value = true
       showLoginModal.value = false
+      localStorage.setItem('session_active', 'true')
       localStorage.setItem('quantLoginUser', username.trim())
       resetLoginForm()
     } else {
@@ -153,7 +201,7 @@ const submitLogin = async () => {
  * 提交注册
  */
 const submitRegister = async () => {
-  const { username, password, confirmPassword, email } = loginForm.value
+  const { username, password, confirmPassword, email, phone } = loginForm.value
   
   if (!username.trim() || !password.trim()) {
     showError('请输入账号和密码')
@@ -169,6 +217,16 @@ const submitRegister = async () => {
     showError('密码长度不能少于6位')
     return
   }
+
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    showError('密码需包含字母和数字')
+    return
+  }
+
+  if (!phone.trim()) {
+    showError('请输入手机号')
+    return
+  }
   
   loginLoading.value = true
   errorVisible.value = false
@@ -177,7 +235,8 @@ const submitRegister = async () => {
     const result = await authRegister({
       username: username.trim(),
       password: password.trim(),
-      email: email.trim() || undefined
+      email: email.trim() || undefined,
+      phone: phone.trim()
     })
     
     if (result.success) {
@@ -199,23 +258,71 @@ const submitRegister = async () => {
 /**
  * 确认风险提示（登录成功后）
  */
-const confirmRiskTip = () => {
+const confirmRiskTip = async () => {
   showRiskTip.value = false
   logged.value = true
   currentUser.value = localStorage.getItem('quantLoginUser') || '用户'
   isQualifiedInvestor.value = localStorage.getItem('qualifiedInvestor') === 'certified'
+  
+  // 获取用户角色
+  try {
+    const result = await getCurrentUser()
+    if (result.success && result.data) {
+      const userData = result.data.data || result.data
+      if (userData.role) {
+        currentUserRole.value = userData.role
+        localStorage.setItem('userRole', userData.role)
+      }
+      if (userData.user_id) {
+        currentUserId.value = userData.user_id
+      }
+      if (userData.email) {
+        currentUserEmail.value = userData.email
+      }
+      if (userData.phone) {
+        currentUserPhone.value = userData.phone
+      }
+      if (userData.created_at) {
+        currentUserCreatedAt.value = userData.created_at
+      }
+      if (typeof userData.qualified_investor === 'boolean') {
+        isQualifiedInvestor.value = userData.qualified_investor
+        if (userData.qualified_investor) {
+          localStorage.setItem('qualifiedInvestor', 'certified')
+        } else {
+          localStorage.removeItem('qualifiedInvestor')
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch user info:', error)
+  }
 }
 
 /**
  * 退出登录
  */
-const logout = () => {
-  authLogout()
+const logout = async () => {
+  await authLogout()
   logged.value = false
   currentUser.value = ''
+  currentUserRole.value = 'user'
+  currentUserId.value = null
+  currentUserEmail.value = ''
+  currentUserPhone.value = ''
+  currentUserCreatedAt.value = ''
   isQualifiedInvestor.value = false
+  localStorage.removeItem('session_active')
   localStorage.removeItem('quantLoginUser')
+  localStorage.removeItem('userRole')
 }
+
+/**
+ * 是否为管理员
+ */
+const isAdmin = computed(() => {
+  return logged.value && currentUserRole.value === 'admin'
+})
 
 /**
  * 用户显示文本
@@ -241,6 +348,12 @@ export function useAuth() {
     // 状态
     logged,
     currentUser,
+    currentUserId,
+    currentUserRole,
+    currentUserEmail,
+    currentUserPhone,
+    currentUserCreatedAt,
+    isAdmin,
     showLoginModal,
     showRiskTip,
     isQualifiedInvestor,

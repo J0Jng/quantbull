@@ -1,0 +1,42 @@
+# --- Secrets / local env ---
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Allow templates/examples
+!.env.example
+!.env.template
+!.env.*.template
+!.env*.template
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+**/node_modules/
+
+# Python env
+.venv/
+venv/
+ENV/
+quantbull/
+**/pyvenv.cfg
+
+# IDE
+.idea/
+.vscode/
+
+# Build
+dist/
+build/

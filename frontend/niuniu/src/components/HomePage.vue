@@ -26,10 +26,6 @@
           <h1 class="logo">量化牛牛</h1>
           <span class="slogan">专业理财平台</span>
         </div>
-        <div class="top-middle">
-          <input v-model="search" type="text" placeholder="输入股票代码、名称或关键词" class="search-input" />
-          <button class="search-btn">查行情</button>
-        </div>
         <div class="top-right">
           <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
             <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
@@ -71,30 +67,34 @@
         <h2 class="section-title">财经头条</h2>
         <router-link to="/news-list" class="more-link" style="float:right;margin-top:12px;font-size:14px;">更多&gt;</router-link>
         <section class="news-section">
-          <div class="news-banner">
-            <img src="/1.png" alt="财经头条主图" />
-            <div class="banner-mask" @click="goToNewsDetail(1)">
-              <h3 class="mask-title">央行：将再降准0.5个百分点 释放资金约1万亿元</h3>
-              <p class="mask-desc">本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。</p>
+          <!-- 加载状态 -->
+          <div v-if="newsLoading && !bannerNews" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载财经新闻...</p>
+          </div>
+          
+          <!-- 新闻内容 -->
+          <template v-else>
+            <div v-if="bannerNews" class="news-banner" @click="goToNewsDetail(bannerNews.id)">
+              <div class="banner-text">
+                <h3 class="mask-title">{{ bannerNews.title }}</h3>
+                <p class="mask-desc">{{ bannerNews.summary || '暂无摘要' }}</p>
+                <span class="banner-cta">查看详情</span>
+              </div>
             </div>
-          </div>
-          <div class="news-list">
-            <ul>
-              <li><a href="#" @click.prevent="goToNewsDetail(2)">24H：A三大集团集体高开 宁德时代涨5.1%</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(3)">国际油价涨超1% 报103美元/桶 WTI升4%</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(4)">房地产"超预期政策"密集发布 多家房企发公告</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(5)">人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口</a></li>
-              <li><a href="#" @click.prevent="goToNewsDetail(6)">工信部：加快推进新能源汽车充电桩建设 年内新增超20万个</a></li>
-            </ul>
-          </div>
+            <div v-else class="empty-news">
+              <p>{{ newsError || '暂无财经头条' }}</p>
+            </div>
+            <div class="news-list" v-if="newsList.length">
+              <ul>
+                <li v-for="news in newsList" :key="news.id">
+                  <a href="#" @click.prevent="goToNewsDetail(news.id)">{{ news.title }}</a>
+                </li>
+              </ul>
+            </div>
+          </template>
         </section>
 
-        <!-- 广告横幅 -->
-        <section class="ad-banner">
-            <a href="#">
-            <img src="/2.png" alt="理财广告" />
-          </a>
-        </section>
 
         <!-- 龙虎榜板块（新增切换内容容器） -->
         <h2 class="section-title">{{ dragonFailed ? '大盘指数' : '龙虎榜' }}</h2>
@@ -120,17 +120,17 @@
                     <th>指数名称</th>
                     <th>最新价</th>
                     <th>涨跌幅</th>
-                    <th>成交量</th>
-                    <th>成交额</th>
+                    <th>涨跌额</th>
+                    <th>更新时间</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(row, idx) in marketIndexData" :key="idx">
                     <td>{{ row.name }}</td>
                     <td>{{ row.price }}</td>
-                    <td><span :class="row.change > 0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
-                    <td>{{ row.volume }}</td>
-                    <td>{{ row.amount }}</td>
+                    <td><span :class="row.change > 0 ? 'red' : 'green'">{{ row.changeText }}</span></td>
+                    <td>{{ row.changeAmount }}</td>
+                    <td>{{ row.updatedAt }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -166,6 +166,9 @@
                       <th>涨跌幅</th>
                       <th>涨跌</th>
                       <th>净买入(亿)</th>
+                      <th>买入额(亿)</th>
+                      <th>卖出额(亿)</th>
+                      <th>上榜次数</th>
                       <th>上榜理由</th>
                     </tr>
                   </thead>
@@ -176,6 +179,9 @@
                       <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
                       <td>{{ row.delta }}</td>
                       <td>{{ row.net }}</td>
+                      <td>{{ row.buy }}</td>
+                      <td>{{ row.sell }}</td>
+                      <td>{{ row.appearCount }}</td>
                       <td>{{ row.reason }}</td>
                     </tr>
                   </tbody>
@@ -201,6 +207,9 @@
                       <th>涨跌幅</th>
                       <th>涨跌</th>
                       <th>净买入(亿)</th>
+                      <th>买入额(亿)</th>
+                      <th>卖出额(亿)</th>
+                      <th>上榜次数</th>
                       <th>上榜理由</th>
                     </tr>
                   </thead>
@@ -211,6 +220,9 @@
                       <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
                       <td>{{ row.delta }}</td>
                       <td>{{ row.net }}</td>
+                      <td>{{ row.buy }}</td>
+                      <td>{{ row.sell }}</td>
+                      <td>{{ row.appearCount }}</td>
                       <td>{{ row.reason }}</td>
                     </tr>
                   </tbody>
@@ -236,6 +248,9 @@
                       <th>涨跌幅</th>
                       <th>涨跌</th>
                       <th>净买入(亿)</th>
+                      <th>买入额(亿)</th>
+                      <th>卖出额(亿)</th>
+                      <th>上榜次数</th>
                       <th>上榜理由</th>
                     </tr>
                   </thead>
@@ -246,6 +261,9 @@
                       <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
                       <td>{{ row.delta }}</td>
                       <td>{{ row.net }}</td>
+                      <td>{{ row.buy }}</td>
+                      <td>{{ row.sell }}</td>
+                      <td>{{ row.appearCount }}</td>
                       <td>{{ row.reason }}</td>
                     </tr>
                   </tbody>
@@ -259,25 +277,54 @@
         </section>
 
         <!-- 公司研报板块 -->
-        <h2 class="section-title">公司投研</h2>
-        <router-link to="/company-research" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看全部 &gt;</router-link>
+        <div class="section-header-inline">
+          <h2 class="section-title">公司研报</h2>
+          <div class="header-actions">
+            <button v-if="companyReportsData.length > 0" @click="loadCompanyReports" class="refresh-icon-btn" :disabled="companyReportsLoading" title="刷新">
+              <span v-if="companyReportsLoading">⟳</span>
+              <span v-else>↻</span>
+            </button>
+            <router-link to="/company-research" class="more-link">查看全部 &gt;</router-link>
+          </div>
+        </div>
         <section class="company-report">
-          <div class="report-cards">
-            <div class="report-card" v-for="(card, idx) in reportCards" :key="idx">
+          <!-- 加载状态 -->
+          <div v-if="companyReportsLoading && companyReportsData.length === 0" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载公司研报...</p>
+          </div>
+          
+          <!-- 错误状态 -->
+          <div v-else-if="companyReportsError && companyReportsData.length === 0" class="error-state">
+            <p>{{ companyReportsError }}</p>
+            <button @click="loadCompanyReports" class="retry-btn">重试</button>
+          </div>
+          
+          <!-- 研报卡片 -->
+          <div v-else class="report-cards">
+            <div class="report-card" v-for="card in companyReportsData" :key="card.id" @click="viewCompanyReport(card)">
               <div class="card-body">
                 <div class="stock-info">
-                  <span class="stock-name">{{ card.name }}</span>
-                  <span :class="card.tagClass">{{ card.tag }}</span>
+                  <span class="stock-name">{{ card.company_name }}<span v-if="card.stock_code" class="stock-code-small">({{ card.stock_code }})</span></span>
+                  <span :class="getRatingClass(card.rating)">{{ getRatingTag(card.rating) }}</span>
                 </div>
-                <div class="price">{{ card.priceLabel }}：<span class="current-price">{{ card.price }}</span></div>
-                <div class="profit">{{ card.profitLabel }}:<span style="float:right;">{{ card.profit }}</span></div>
-                <ul class="report-ul">
-                  <li v-for="(t, i) in card.tags" :key="i">{{ t }}</li>
+                <div class="report-meta">
+                  <span class="meta-item">{{ card.report_type === 'analysis' ? '深度分析' : '投研摘要' }}</span>
+                  <span class="meta-item">{{ formatDate(card.created_at) }}</span>
+                </div>
+                <ul class="report-ul" v-if="card.tags && card.tags.length">
+                  <li v-for="(t, i) in card.tags.slice(0, 3)" :key="i">{{ t }}</li>
                 </ul>
                 <div style="clear:both;"></div>
-                <button class="view-btn" @click="goToCompanyResearch">查看研报</button>
+                <button class="view-btn" @click.stop="viewCompanyReport(card)">查看研报</button>
               </div>
             </div>
+          </div>
+          
+          <!-- 空状态 -->
+          <div v-if="!companyReportsLoading && !companyReportsError && companyReportsData.length === 0" class="error-state">
+            <p>暂无公司研报数据</p>
+            <button @click="loadCompanyReports" class="retry-btn">加载数据</button>
           </div>
         </section>
 
@@ -313,41 +360,74 @@
         <h2 class="section-title">商城</h2>
           <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
         <section class="mall-section">
-          <div class="mall-cards">
-            <div class="mall-card">
-                <div class="card-icon">
-                <img src="/4.png" alt="基金图标" />
+          <!-- 加载状态 -->
+          <div v-if="mallProductsLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载商品...</p>
+          </div>
+          
+          <!-- 商品卡片 -->
+          <div v-else class="mall-cards">
+            <div class="mall-card" v-for="product in mallProducts" :key="product.id">
+              <div class="card-icon">
+                <img :src="product.img || defaultProductImg" :alt="product.name" />
               </div>
               <div class="card-info">
-                <h4>黄金理财组合</h4>
-                <p>黄金定投收益稳，年化收益可达6.5%</p>
-                <p class="price">¥8,800</p>
+                <span class="product-type-tag">{{ getProductTypeName(product.type) }}</span>
+                <h4>{{ product.name }}</h4>
+                <p>{{ product.description || '精选商品，品质保证' }}</p>
+                <p class="price">{{ formatPrice(product.price) }}</p>
               </div>
               <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
             </div>
-            <div class="mall-card">
+            
+            <!-- 无商品时显示默认 -->
+            <template v-if="mallProducts.length === 0">
+              <div class="mall-card">
                 <div class="card-icon">
-                <img src="/5.png" alt="AI图标" />
+                  <img src="/4.png" alt="商品图标" />
+                </div>
+                <div class="card-info">
+                  <h4>更多商品</h4>
+                  <p>精选量化工具和服务，助力投资决策</p>
+                  <p class="price">敬请期待</p>
+                </div>
+                <button class="buy-btn" @click="router.push('/shop')">查看商城</button>
               </div>
-              <div class="card-info">
-                <h4>AI智能选股</h4>
-                <p>人工智能驱动的个性化选股组合服务</p>
-                <p class="price">¥15,000/年</p>
-              </div>
-              <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
-            </div>
+            </template>
           </div>
         </section>
 
         <!-- 基金排行榜板块 -->
-        <h2 class="section-title">基金排行榜</h2>
+        <div class="section-header-inline">
+          <h2 class="section-title">基金排行榜</h2>
+          <div class="header-actions">
+            <router-link to="/fund-ranking" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
+          </div>
+        </div>
         <section class="fund-rank">
-          <div class="fund-list">
+          <div v-if="fundsLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载基金排行榜...</p>
+          </div>
+          <div v-else-if="fundsError && funds.length === 0" class="error-state">
+            <p>{{ fundsError }}</p>
+            <button @click="loadFundRanking" class="retry-btn">重试</button>
+          </div>
+          <div v-else class="fund-list">
+            <div class="fund-item fund-header">
+              <div class="fund-col name-col">基金名称</div>
+              <div class="fund-col data-col">单位净值</div>
+              <div class="fund-col trend-col">日涨跌幅</div>
+              <div class="fund-col data-col">近1周</div>
+              <div class="fund-col data-col">近1月</div>
+              <div class="fund-col data-col">近3月</div>
+              <div class="fund-col data-col">近6月</div>
+              <div class="fund-col data-col">近1年</div>
+              <div class="fund-col data-col">近3年</div>
+              <div class="fund-col btn-col">操作</div>
+            </div>
             <div class="fund-item" v-for="(fund, idx) in funds" :key="idx">
-              <div class="fund-col check-col">
-                <input type="radio" name="fund-radio" :id="'fund'+idx" />
-              </div>
-              <div class="fund-col num-col">{{ fund.rank }}</div>
               <div class="fund-col name-col">
                 <div class="fund-name">{{ fund.name }}</div>
                 <div class="fund-type">{{ fund.type }}</div>
@@ -358,15 +438,11 @@
               </div>
               <div class="fund-col trend-col" :class="fund.trendColor">{{ fund.trend }}</div>
 
-              <div class="fund-col data-col" v-for="(d, i) in fund.periods" :key="i">
-                <div class="data-value">{{ d }}</div>
+              <div class="fund-col data-col" v-for="(p, i) in fund.periods" :key="i">
+                <div class="data-value" :class="p.class">{{ p.text }}</div>
               </div>
 
-              <div class="fund-col trend-img-col">
-                <img :src="'/3.png'" alt="上涨走势" class="trend-img" />
-              </div>
               <div class="fund-col btn-col">
-                <button class="buy-btn small" @click="$router.push('/fund-ranking')">立即购买</button>
                 <button class="fav-btn small" @click="$router.push('/fund-ranking')">自选</button>
               </div>
             </div>
@@ -374,48 +450,81 @@
         </section>
 
         <!-- 每日内参板块（新增切换内容容器） -->
-        <h2 class="section-title">每日内参</h2>
+        <h2 class="section-title">
+          每日内参
+        </h2>
+        <router-link to="/daily-insight" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
         <div class="tab-switch report-tab-switch">
-          <a href="javascript:;" :class="{ active: reportTab==='report-latest' }" @click.prevent="reportTab='report-latest'">最新</a>
+          <a 
+            href="javascript:;" 
+            :class="{ active: reportTab==='report-latest', disabled: !canAccessTodayReport() }" 
+            @click.prevent="handleLatestTabClick"
+            :title="canAccessTodayReport() ? '查看最新内参' : '今日内参需在16:00后查看'"
+          >
+            最新{{ canAccessTodayReport() ? '' : ' (16:00后可用)' }}
+          </a>
           <a href="javascript:;" :class="{ active: reportTab==='report-yesterday' }" @click.prevent="reportTab='report-yesterday'">昨日</a>
-          <a href="javascript:;" :class="{ active: reportTab==='report-history' }" @click.prevent="reportTab='report-history'">历史</a>
         </div>
         <section class="daily-report">
-          <div v-show="reportTab==='report-latest'" class="tab-content report-content" id="report-latest">
-            <div class="report-item">
-              <h3>新能源板块迎来布局良机</h3>
-              <p>光伏、风电产业链上游价格回落，需求端政策力度大，行业景气度有望持续，建议关注具备技术壁垒和产能扩张能力的企业。</p>
-              <span class="design">张明 | 首席设计师</span><span class="date">2025-12-17 09:30</span>
-            </div>
-            <div class="report-item">
-              <h3>低估值煤炭板块存修复机会</h3>
-              <p>煤炭板块估值处于低位，建议关注业绩稳健、高股息、低估值的中周期标的。</p>
-            </div>
+          <!-- 加载状态 -->
+          <div v-if="dailyReportLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载每日内参...</p>
           </div>
+          
+          <!-- 数据加载完成后的内容 -->
+          <template v-else>
+            <!-- 最新内参 -->
+            <div v-show="reportTab==='report-latest'" class="tab-content report-content" id="report-latest">
+              <div v-if="latestDailyReport" class="report-item">
+                <h3>{{ latestDailyReport.title || '最新投资策略' }}</h3>
+                <p>{{ truncateText(latestDailyReport.market_sentiment, 120) }}</p>
+                <span class="design">系统 | AI分析</span>
+                <span class="date">{{ formatReportDate(latestDailyReport.report_date) }}</span>
+              </div>
+              <div v-else class="report-item">
+                <h3>{{ dailyReportError || '暂无最新内参' }}</h3>
+                <p>{{ dailyReportError ? '请点击重试按钮重新加载' : '系统正在生成最新的投资策略分析，请稍后查看。' }}</p>
+                <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
+              </div>
+            </div>
 
-          <div v-show="reportTab==='report-yesterday'" class="tab-content report-content" id="report-yesterday">
-            <div class="report-item">
-              <h3>央行逆回购操作加码 市场流动性充裕</h3>
-              <p>昨日央行开展1500亿元7天期逆回购操作，中标利率2.00%，完全对冲当日到期量，市场资金面保持宽松。</p>
-              <span class="design">张明 | 首席设计师</span><span class="date">2025-12-16 15:45</span>
+            <!-- 昨日内参 -->
+            <div v-show="reportTab==='report-yesterday'" class="tab-content report-content" id="report-yesterday">
+              <div v-if="getYesterdayReport()" class="report-item">
+                <h3>{{ getYesterdayReport().title }}</h3>
+                <p>{{ truncateText(getYesterdayReport().market_sentiment, 120) }}</p>
+                <span class="design">系统 | AI分析</span>
+                <span class="date">{{ formatReportDate(getYesterdayReport().report_date) }}</span>
+              </div>
+              <div v-else class="report-item">
+                <h3>暂无昨日内参</h3>
+                <p>昨日投资策略分析暂未生成。</p>
+                <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
+              </div>
             </div>
-            <div class="report-item">
-              <h3>消费板块回暖 食品饮料领涨</h3>
-              <p>昨日消费板块集体走强，食品饮料板块涨幅超2%，白酒、休闲食品等细分领域表现亮眼，资金布局跨年行情。</p>
-            </div>
-          </div>
 
-          <div v-show="reportTab==='report-history'" class="tab-content report-content" id="report-history">
-            <div class="report-item">
-              <h3>2025年12月核心数据解读</h3>
-              <p>12月上旬社融数据超预期，新增人民币贷款2.8万亿元，企业中长期贷款占比提升，实体经济融资需求回暖。</p>
-              <span class="design">张明 | 首席设计师</span><span class="date">2025-12-10 10:20</span>
+            <!-- 历史内参 -->
+            <div v-show="reportTab==='report-history'" class="tab-content report-content" id="report-history">
+              <template v-if="dailyReportHistory.length > 0">
+                <div 
+                  v-for="report in dailyReportHistory.slice(0, 3)" 
+                  :key="report.id" 
+                  class="report-item"
+                >
+                  <h3>{{ report.title }}</h3>
+                  <p>{{ truncateText(report.market_sentiment, 100) }}</p>
+                  <span class="design">系统 | AI分析</span>
+                  <span class="date">{{ formatReportDate(report.report_date) }}</span>
+                </div>
+              </template>
+              <div v-else class="report-item">
+                <h3>暂无历史内参</h3>
+                <p>历史投资策略分析暂未生成。</p>
+                <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
+              </div>
             </div>
-            <div class="report-item">
-              <h3>年末资金面前瞻：流动性无虞</h3>
-              <p>监管层多次表态将维护年末流动性平稳，预计12月降准落地后，市场资金利率将维持在低位，利好股市跨年行情。</p>
-            </div>
-          </div>
+          </template>
         </section>
 
         <!-- AI智能服务入口 -->
@@ -557,10 +666,18 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from './FooterComponent.vue'
-import { getTopListSummary, getMarketOverview, getRealtimeQuotes } from '@/services/marketService'
+import { getTopListSummary } from '@/services/marketService'
+import { getMarketData } from '@/services/financeChannelService'
 import { generateNewsAnalysis, generateStrategy as generateStrategyApi, generateSummary as generateSummaryApi, generateReport as generateReportApi } from '@/services/aiService'
+import { getLatestDailyReport, getDailyReportList } from '@/services/dailyReportService'
+import { getCompanyResearchList } from '@/services/companyResearchService'
+import { getProducts, formatPrice as serviceFormatPrice } from '@/services/productService'
+import { getHeadlines } from '@/services/newsService'
+import { getPublicFundRanking } from '@/services/fundRankingService'
+import http from '@/services/http'
 import { useAuth } from '@/composables/useAuth'
 import chatService from '@/services/chatService'
+import { canAccessTodayReport } from '@/utils/accessControl'
 
 // 使用全局认证
 const { logged, userText, isQualifiedInvestor, showRiskTip, openLoginModal, logout, confirmRiskTip } = useAuth()
@@ -578,6 +695,33 @@ const dragonFailed = ref(false) // 龙虎榜加载失败标记
 const marketIndexData = ref([])
 const marketIndexLoading = ref(false)
 const marketIndexError = ref('')
+
+// 每日内参数据状态
+const dailyReportLoading = ref(false)
+const dailyReportError = ref('')
+const latestDailyReport = ref(null)
+const dailyReportHistory = ref([])
+
+// 公司研报数据状态
+const companyReportsLoading = ref(false)
+const companyReportsError = ref('')
+const companyReportsData = ref([])
+
+// 商城商品数据状态
+const mallProducts = ref([])
+const mallProductsLoading = ref(false)
+const defaultProductImg = 'https://picsum.photos/400/300?random=0'
+
+// 财经新闻数据状态
+const newsLoading = ref(false)
+const newsError = ref('')
+const newsList = ref([])
+const bannerNews = ref(null)
+
+// 基金排行榜数据状态
+const funds = ref([])
+const fundsLoading = ref(false)
+const fundsError = ref('')
 
 // 用户菜单相关状态
 const showUserMenu = ref(false)
@@ -645,9 +789,162 @@ const goToNewsDetail = (id) => {
   router.push(`/news-detail/${id}`)
 }
 
+// 加载财经新闻数据
+const loadNews = async () => {
+  try {
+    newsLoading.value = true
+    newsError.value = ''
+    const response = await getHeadlines({ page: 1, page_size: 6 })
+
+    let items = []
+    if (response?.items) {
+      items = response.items
+    } else if (response?.data?.items) {
+      items = response.data.items
+    } else if (Array.isArray(response)) {
+      items = response
+    }
+
+    if (items.length > 0) {
+      bannerNews.value = {
+        id: items[0].id,
+        title: items[0].title || '暂无标题',
+        summary: items[0].summary || '暂无摘要',
+        img: '/1.png'
+      }
+      newsList.value = items.slice(1).map(item => ({
+        id: item.id,
+        title: item.title || '暂无标题'
+      }))
+    } else {
+      bannerNews.value = null
+      newsList.value = []
+    }
+  } catch (e) {
+    console.error('加载财经新闻失败:', e)
+    newsError.value = '加载失败'
+    bannerNews.value = null
+    newsList.value = []
+  } finally {
+    newsLoading.value = false
+  }
+}
+
+// 加载商城商品数据
+const loadMallProducts = async () => {
+  mallProductsLoading.value = true
+  try {
+    const result = await getProducts({ limit: 4 })
+    if (result.success && result.data) {
+      // 直接取前2个商品显示
+      mallProducts.value = result.data.slice(0, 2)
+    }
+  } catch (error) {
+    console.error('Failed to load mall products:', error)
+  } finally {
+    mallProductsLoading.value = false
+  }
+}
+
+// 加载基金排行榜数据（公募）
+const loadFundRanking = async () => {
+  fundsLoading.value = true
+  fundsError.value = ''
+
+  try {
+    const result = await getPublicFundRanking({
+      sort_by: 'return1m',
+      order: 'desc',
+      page: 1,
+      page_size: 3
+    })
+
+    if (!result.success) {
+      fundsError.value = result.message || '加载基金排行榜失败'
+      funds.value = []
+      return
+    }
+
+    const payload = result.data?.data
+    const items = payload?.items || []
+
+    const uniqueByType = new Map()
+    const fallback = []
+    items.forEach((item) => {
+      const typeKey = item.type || '—'
+      if (!uniqueByType.has(typeKey)) {
+        uniqueByType.set(typeKey, item)
+      } else {
+        fallback.push(item)
+      }
+    })
+
+    const picked = Array.from(uniqueByType.values()).slice(0, 3)
+    if (picked.length < 3) {
+      picked.push(...fallback.slice(0, 3 - picked.length))
+    }
+
+    funds.value = picked.map((item, idx) => {
+      const change = Number(item.change ?? 0)
+      const trendText = `${change >= 0 ? '+' : ''}${change}%`
+      const formatVal = (val) => {
+        if (val === undefined || val === null || val === '—') return { text: '—', class: '' }
+        const num = parseFloat(val)
+        if (isNaN(num)) return { text: val, class: '' }
+        const text = `${num >= 0 ? '+' : ''}${num.toFixed(2)}%`
+        return { text, class: num < 0 ? 'green' : 'red' }
+      }
+
+      return {
+        name: item.name || '—',
+        type: item.type || '—',
+        nav: item.nav ?? '—',
+        trend: trendText,
+        trendColor: trendText.includes('-') ? 'green' : 'red',
+        periods: [
+          formatVal(item.return1w),
+          formatVal(item.return1m),
+          formatVal(item.return3m),
+          formatVal(item.return6m),
+          formatVal(item.return1y),
+          formatVal(item.return3y)
+        ]
+      }
+    })
+  } catch (error) {
+    fundsError.value = error?.message || '加载基金排行榜失败'
+    funds.value = []
+  } finally {
+    fundsLoading.value = false
+  }
+}
+
+// 格式化价格
+const formatPrice = (price) => {
+  return serviceFormatPrice(price)
+}
+
+// 获取商品类型中文名
+const getProductTypeName = (type) => {
+  const typeMap = {
+    'course': '课程',
+    'factor': '因子',
+    'strategy': '策略',
+    'fund': '基金',
+    'advisor': '投顾',
+    'book': '书籍',
+    'talent': '人才'
+  }
+  return typeMap[type] || '商品'
+}
+
 // 页面加载时的初始化（认证状态已在 App.vue 中初始化）
 onMounted(() => {
   // 认证状态已由 useAuth 全局管理，不需要在这里重复初始化
+  loadNews()
+  loadCompanyReports()
+  loadMallProducts()
+  loadFundRanking()
 })
 
 // AI服务相关状态
@@ -891,6 +1188,62 @@ const checkApiStatus = async () => {
   }
 }
 
+// 辅助函数：截断文本
+const truncateText = (text, maxLength) => {
+  if (!text) return '暂无内容'
+  if (text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
+}
+
+// 辅助函数：格式化报告日期
+const formatReportDate = (dateString) => {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  } catch (e) {
+    return dateString
+  }
+}
+
+// 辅助函数：检查是否为今天
+const isToday = (dateStr) => {
+  if (!dateStr) return false
+  try {
+    const reportDate = new Date(dateStr).toISOString().split('T')[0]
+    const today = new Date().toISOString().split('T')[0]
+    return reportDate === today
+  } catch {
+    return false
+  }
+}
+
+// 处理"最新"标签点击
+const handleLatestTabClick = () => {
+  if (!canAccessTodayReport()) {
+    // 16:00前不允许查看最新（今天），自动切换到昨日
+    alert('今日内参需在 16:00 后查看，已为您切换至昨日内参')
+    reportTab.value = 'report-yesterday'
+    return
+  }
+  reportTab.value = 'report-latest'
+}
+
+// 辅助函数：获取昨日报告
+const getYesterdayReport = () => {
+  if (!dailyReportHistory.value || dailyReportHistory.value.length === 0) return null
+  
+  const today = new Date().toISOString().split('T')[0]
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  
+  // 查找昨日报告
+  const yesterdayReport = dailyReportHistory.value.find(report => report.report_date === yesterday)
+  if (yesterdayReport) return yesterdayReport
+  
+  // 如果没有昨日报告，返回最近的一个（非今日）
+  return dailyReportHistory.value.find(report => report.report_date !== today) || null
+}
+
 // 加载龙虎榜数据（根据天数）
 const loadDragonData = async (days = 1) => {
   dragonLoading.value = true
@@ -908,6 +1261,9 @@ const loadDragonData = async (days = 1) => {
         changeText: item.pct_change ? `${item.pct_change > 0 ? '+' : ''}${item.pct_change.toFixed(2)}%` : '-',
         delta: item.pct_change?.toFixed(2) || '-',
         net: item.net_amount ? (item.net_amount / 100000000).toFixed(2) : '-', // 转换为亿
+        buy: item.total_buy ? (item.total_buy / 100000000).toFixed(2) : (item.l_buy ? (item.l_buy / 100000000).toFixed(2) : '-'),
+        sell: item.total_sell ? (item.total_sell / 100000000).toFixed(2) : (item.l_sell ? (item.l_sell / 100000000).toFixed(2) : '-'),
+        appearCount: item.appear_count || 1,
         reason: item.reason || '-'
       }))
       
@@ -947,40 +1303,29 @@ const loadMarketIndex = async () => {
   marketIndexError.value = ''
   
   try {
-    const result = await getMarketOverview()
-    
-    if (result.success && result.data) {
-      // 转换 API 数据为前端格式
-      // data-service 返回: {"trade_date", "market_status", "indices": [...], "total_turnover"}
-      const data = result.data.data || result.data
-      if (data.indices && data.indices.length > 0) {
-        // 指数名称映射
-        const indexNameMap = {
-          '000001.SH': '上证指数',
-          '399001.SZ': '深证成指',
-          '399006.SZ': '创业板指',
-          '000016.SH': '上证50',
-          '000300.SH': '沪深300',
-          '000905.SH': '中证500',
-          '000688.SH': '科创50'
+    const result = await getMarketData()
+
+    if (result?.data?.items && result.data.items.length > 0) {
+      const items = result.data.items
+      marketIndexData.value = items.map(item => {
+        const price = Number(item.value)
+        const pct = Number(item.change_pct)
+        const changeAmount = Number.isFinite(price) && Number.isFinite(pct)
+          ? (price * (pct / 100)).toFixed(2)
+          : '-'
+        const changeText = Number.isFinite(pct)
+          ? `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`
+          : '-'
+
+        return {
+          name: item.title || item.code || '-',
+          price: Number.isFinite(price) ? price.toFixed(2) : '-',
+          change: Number.isFinite(pct) ? pct : 0,
+          changeText,
+          changeAmount: Number.isFinite(Number(changeAmount)) ? `${pct > 0 ? '+' : ''}${changeAmount}` : '-',
+          updatedAt: item.updated_at ? item.updated_at.replace('T', ' ').slice(0, 19) : '-'
         }
-        
-        marketIndexData.value = data.indices.map(item => {
-          const symbol = item.symbol || item.code || ''
-          return {
-            name: indexNameMap[symbol] || item.name || symbol,
-            price: item.close?.toFixed(2) || item.latest_price?.toFixed(2) || '-',
-            change: item.pct_change || item.change || 0,
-            changeText: item.pct_change 
-              ? `${item.pct_change > 0 ? '+' : ''}${item.pct_change.toFixed(2)}%` 
-              : '-',
-            volume: item.vol ? (item.vol / 100000000).toFixed(2) + '亿' : '-',
-            amount: item.amount ? (item.amount / 100000000).toFixed(2) + '亿' : '-'
-          }
-        })
-      } else {
-        marketIndexError.value = '数据丢失'
-      }
+      })
     } else {
       marketIndexError.value = '数据丢失'
     }
@@ -989,6 +1334,96 @@ const loadMarketIndex = async () => {
     marketIndexError.value = '数据丢失'
   } finally {
     marketIndexLoading.value = false
+  }
+}
+
+// 加载每日内参数据
+const loadDailyReports = async () => {
+  // 如果已经有数据且不是今天（或今天且已过16:00），则不重复加载
+  if (latestDailyReport.value) {
+    const reportDate = latestDailyReport.value.report_date
+    const reportIsToday = isToday(reportDate)
+    if (!reportIsToday || (reportIsToday && canAccessTodayReport())) {
+      console.log('已有有效的投资方案数据，直接使用:', latestDailyReport.value)
+      return
+    }
+  }
+  
+  dailyReportLoading.value = true
+  dailyReportError.value = ''
+  
+  try {
+    console.log('开始加载每日内参数据...')
+    console.log('当前时间是否可访问今日报告:', canAccessTodayReport())
+    
+    // 加载最新报告（后端会自动过滤今天的报告如果<16:00）
+    const latestResult = await getLatestDailyReport()
+    console.log('最新报告API响应:', latestResult)
+    
+    if (latestResult.success && latestResult.data) {
+      // 后端返回格式: {code: 0, message: "ok", data: {报告数据}}
+      // handleRequest包装后: {success: true, data: {code: 0, message: "ok", data: {报告数据}}}
+      let reportData = latestResult.data
+      
+      // 如果有嵌套的data字段，提取出来
+      if (reportData.data && reportData.code === 0) {
+        reportData = reportData.data
+      }
+      
+      // 现在reportData应该是真正的报告数据
+      if (reportData.id && reportData.report_date) {
+        latestDailyReport.value = reportData
+        console.log('最新报告加载成功:', reportData)
+      } else {
+        console.warn('最新报告数据格式异常:', reportData)
+      }
+    } else {
+      console.warn('最新报告加载失败:', latestResult.message || '未知错误')
+      
+      // 兜底：如果是404且当前<16:00，提示用户
+      if (latestResult.status === 404 && !canAccessTodayReport()) {
+        dailyReportError.value = '今日内参需在 16:00 后查看'
+      } else if (latestResult.status === 401) {
+        dailyReportError.value = '认证失败，请重新登录'
+      } else if (latestResult.status === 404) {
+        dailyReportError.value = '暂无最新报告'
+      } else {
+        dailyReportError.value = latestResult.message || '加载失败'
+      }
+    }
+    
+    // 加载历史报告（后端会自动过滤今天的报告如果<16:00）
+    const historyResult = await getDailyReportList({ limit: 10 })
+    console.log('历史报告API响应:', historyResult)
+    
+    if (historyResult.success && historyResult.data) {
+      let historyData = historyResult.data
+      
+      // 如果有嵌套的data字段，提取出来
+      if (historyData.data && historyData.code === 0) {
+        historyData = historyData.data
+      }
+      
+      // 检查数据结构
+      if (historyData.reports && Array.isArray(historyData.reports)) {
+        dailyReportHistory.value = historyData.reports
+        console.log('历史报告加载成功:', historyData.reports.length, '条记录')
+      } else if (Array.isArray(historyData)) {
+        dailyReportHistory.value = historyData
+        console.log('历史报告加载成功:', historyData.length, '条记录')
+      } else {
+        console.warn('历史报告数据格式异常:', historyData)
+      }
+    } else {
+      console.warn('历史报告加载失败:', historyResult.message || '未知错误')
+    }
+    
+  } catch (e) {
+    console.error('加载每日内参异常:', e)
+    dailyReportError.value = `加载异常: ${e.message || e}`
+  } finally {
+    dailyReportLoading.value = false
+    console.log('每日内参数据加载完成')
   }
 }
 
@@ -1015,21 +1450,78 @@ watch(dragonTab, (newTab) => {
 
 // 页面加载时检查API状态并加载龙虎榜
 onMounted(() => {
+  console.log('认证状态检查:', {
+    logged: logged.value,
+    sessionActive: localStorage.getItem('session_active') === 'true',
+    userText: userText.value
+  })
+  
   checkApiStatus()
   loadDragonData(1) // 默认加载今日数据
+  loadDailyReports() // 加载每日内参数据
 })
 
-const reportCards = [
-  { name: '键凯科技', tag: '买入', tagClass: 'mai-ru', priceLabel: '当前价', price: '71.25元', profitLabel: '目标价格', profit: '94.00%', tags: ['光伏', '碳中和', '新能源'] },
-  { name: '宁德时代', tag: '买入', tagClass: 'mai-ru', priceLabel: '目标价', price: '544.40元', profitLabel: '机构预测', profit: '68.00%', tags: ['光伏', '碳中和', '新能源'] },
-  { name: '招商银行', tag: '增持', tagClass: 'mai-ru-zeng', priceLabel: '目标价', price: '42.50元', profitLabel: '机构预测', profit: '44.30%', tags: ['光伏', '碳中和', '新能源'] }
-]
+// 加载公司研报数据
+const loadCompanyReports = async () => {
+  companyReportsLoading.value = true
+  companyReportsError.value = ''
+  
+  try {
+    const result = await getCompanyResearchList({ limit: 3, offset: 0 })
+    
+    if (result.success && result.data) {
+      const payload = result.data.data || result.data
+      // 兼容 { total, items } 和直接数组
+      if (payload.items) {
+        companyReportsData.value = payload.items
+      } else if (Array.isArray(payload)) {
+        companyReportsData.value = payload
+      } else {
+        companyReportsData.value = []
+      }
+    } else {
+      companyReportsError.value = result.message || '加载公司研报失败'
+    }
+  } catch (error) {
+    console.error('加载公司研报失败:', error)
+    companyReportsError.value = '网络错误，请稍后重试'
+  } finally {
+    companyReportsLoading.value = false
+  }
+}
 
-const funds = [
-  { rank: '01', name: '中欧医疗健康混合C', type: '混合型基金', nav: '1.3609', trend: '+1.1%', trendColor: 'green', periods: ['25.90%', '16.92%', '13.54%', '16.04%', '24.75%', '230.90%', '72.47%'] },
-  { rank: '02', name: '易方达蓝筹精选混合', type: '混合型基金', nav: '4.9100', trend: '-0.5%', trendColor: 'red', periods: ['30.50%', '84.71%', '11.29%', '5.85%', '26.76%', '367.42%', '14.27%'] },
-  { rank: '03', name: '华夏能源革新股票A', type: '股票型基金', nav: '2.3179', trend: '+0.7%', trendColor: 'green', periods: ['11.76%', '115.85%', '15.43%', '17.62%', '24.40%', '137.09%', '173.36%'] }
-]
+// 查看公司研报详情
+const viewCompanyReport = (report) => {
+  router.push(`/company-research/${report.id}`)
+}
+
+// 评级映射
+const ratingMap = {
+  'buy': { tag: '买入', tagClass: 'mai-ru' },
+  'add': { tag: '增持', tagClass: 'mai-ru-zeng' },
+  'hold': { tag: '持有', tagClass: 'chi-you' },
+  'reduce': { tag: '减持', tagClass: 'jian-chi' },
+  'sell': { tag: '卖出', tagClass: 'mai-chu' }
+}
+
+const getRatingTag = (rating) => {
+  return ratingMap[rating]?.tag || '持有'
+}
+
+const getRatingClass = (rating) => {
+  return ratingMap[rating]?.tagClass || 'chi-you'
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+  } catch {
+    return '-'
+  }
+}
+
 </script>
 
 <style scoped>
@@ -1110,6 +1602,100 @@ const funds = [
 
 .retry-btn:hover {
   background: #ff6a00;
+}
+
+.fund-header {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+/* 财经头条展示优化 */
+.news-section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+}
+
+.news-banner {
+  background: linear-gradient(135deg, #fff6ee 0%, #ffffff 100%);
+  border: 1px solid #ffe0c0;
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.news-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 127, 36, 0.18);
+}
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mask-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  line-height: 1.4;
+}
+
+.mask-desc {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.banner-cta {
+  align-self: flex-start;
+  font-size: 12px;
+  color: #ff7f24;
+  background: #fff;
+  border: 1px solid #ff7f24;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.news-list {
+  margin-top: 12px;
+}
+
+.news-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.news-list li a {
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease;
+  background: #fff8f0;
+}
+
+.news-list li a:hover {
+  color: #ff7f24;
+  background: #fff1e3;
+}
+
+.empty-news {
+  padding: 16px;
+  text-align: center;
+  color: #999;
+  background: #fff8f0;
+  border-radius: 8px;
+  margin-top: 8px;
 }
 
 /* 用户菜单样式 */
@@ -1366,5 +1952,264 @@ const funds = [
 
 .risk-confirm-btn:hover {
   background-color: #ff6a00;
+}
+
+/* 禁用的标签样式 */
+.tab-switch a.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #999;
+}
+
+.tab-switch a.disabled:hover {
+  background-color: transparent;
+  color: #999;
+}
+
+/* 公司研报模块样式优化 */
+.section-header-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0 15px;
+  clear: both;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.refresh-icon-btn {
+  background: transparent;
+  border: 1px solid #ff7f24;
+  color: #ff7f24;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  padding: 0;
+}
+
+.refresh-icon-btn:hover:not(:disabled) {
+  background: #ff7f24;
+  color: white;
+  transform: rotate(90deg);
+}
+
+.refresh-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.report-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.report-card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid #ffb380;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* 确保卡片填满 Grid 单元格高度 */
+}
+
+.report-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 16px rgba(255, 127, 36, 0.25);
+  border-color: #ff7f24;
+}
+
+.card-body {
+  padding: 20px;
+  flex: 1; /* 内容撑满剩余空间 */
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #f0f0f0;
+}
+
+.stock-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  flex: 1;
+  margin-right: 10px; /* 防止与标签太紧凑 */
+  line-height: 1.4;
+  white-space: nowrap; /* 不换行 */
+  overflow: hidden; /* 隐藏溢出 */
+  text-overflow: ellipsis; /* 显示省略号 */
+}
+
+.stock-code-small {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+  margin-left: 4px;
+  white-space: nowrap; /* 股票代码不换行 */
+}
+
+.report-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.meta-item {
+  color: #999;
+}
+
+.report-ul {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: flex;
+  flex-wrap: wrap; /* 允许标签换行，避免截断 */
+  gap: 8px; /* 使用 gap 代替 margin 控制间距 */
+}
+
+.report-ul li {
+  background: linear-gradient(to right, #ffeedd, #fff6ee);
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 3px;
+  color: #ff7f24;
+  white-space: nowrap; /* 标签内文字不换行 */
+}
+
+.view-btn {
+  width: 100%;
+  padding: 10px;
+  background: white;
+  border: 1px solid #ff7f24;
+  color: #ff7f24;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s;
+  margin-top: auto; /* 将按钮推到底部，对齐更整齐 */
+}
+
+.view-btn:hover {
+  background: #ff7f24;
+  color: white;
+  box-shadow: 0 4px 12px rgba(255, 127, 36, 0.3);
+}
+
+/* 评级标签样式 */
+.mai-ru {
+  background: linear-gradient(to bottom, #DDFCE6, #c8f5d2);
+  padding: 4px 10px;
+  color: #18A44B;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.mai-ru-zeng {
+  background: linear-gradient(to bottom, #FCF5C4, #f5ecaa);
+  padding: 4px 10px;
+  color: #976A1C;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.chi-you {
+  background: linear-gradient(to bottom, #E0E0E0, #d0d0d0);
+  padding: 4px 10px;
+  color: #333333;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.jian-chi {
+  background: linear-gradient(to bottom, #FFE0B2, #ffd090);
+  padding: 4px 10px;
+  color: #FF6D00;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.mai-chu {
+  background: linear-gradient(to bottom, #FFCDD2, #fba4ab);
+  padding: 4px 10px;
+  color: #C62828;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* 商品类型标签样式 */
+.product-type-tag {
+  display: inline-block;
+  background: linear-gradient(to right, #ff7f24, #ff9933);
+  color: white;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.active {
+  color: #ff7f24;
+  font-weight: bold;
+}
+
+.red {
+  color: #eb445a; /* 红色表示上涨 */
+}
+
+.green {
+  color: #2dd36f; /* 绿色表示下跌 */
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .report-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .report-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header-inline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 }
 </style>

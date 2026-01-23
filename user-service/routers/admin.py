@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from auth.jwt import hash_password, verify_token
+from routers.auth import validate_password, validate_username
 from models import User, get_session, get_user_by_username, create_user as create_user_model
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -30,11 +31,17 @@ class UserUpdateRequest(BaseModel):
     ai_tokens: Optional[int] = None
 
 
+class UserAiTokensUpdateRequest(BaseModel):
+    ai_tokens: int
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
     role: str
     ai_tokens: int
+    email: Optional[str] = None
+    phone: Optional[str] = None
     created_at: str
 
     @classmethod
@@ -46,6 +53,8 @@ class UserResponse(BaseModel):
             username=user.username,
             role=user.role,
             ai_tokens=user.ai_tokens,
+            email=user.email,
+            phone=user.phone,
             created_at=user.created_at.isoformat(),
         )
 
@@ -103,6 +112,8 @@ async def create_user_by_admin(
     session: Session = Depends(get_session),
 ) -> Envelope:
     """创建新用户"""
+    validate_username(payload.username)
+    validate_password(payload.password)
     if get_user_by_username(session, payload.username):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user already exists")
     
@@ -125,6 +136,7 @@ async def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
     
     if payload.password:
+        validate_password(payload.password)
         user.password_hash = hash_password(payload.password)
     
     if payload.role is not None:
@@ -139,6 +151,29 @@ async def update_user(
     session.commit()
     session.refresh(user)
     
+    return Envelope(code=0, message="ok", data=UserResponse.from_user(user).model_dump())
+
+
+@router.patch("/users/{user_id}/ai-tokens")
+async def update_user_ai_tokens(
+    user_id: int,
+    payload: UserAiTokensUpdateRequest,
+    admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+) -> Envelope:
+    """更新用户 AI Token 余额（仅管理员）"""
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    if payload.ai_tokens < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ai_tokens cannot be negative")
+
+    user.ai_tokens = payload.ai_tokens
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
     return Envelope(code=0, message="ok", data=UserResponse.from_user(user).model_dump())
 
 

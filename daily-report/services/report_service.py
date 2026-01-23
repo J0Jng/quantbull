@@ -6,6 +6,7 @@ from sqlalchemy import desc
 import uuid
 
 from core.logger import get_logger
+from core.access_control import get_china_today
 from db.session import SessionLocal
 from models.daily_report import DailyInvestmentReport
 from schemas.daily_report import (
@@ -234,6 +235,7 @@ class ReportService:
         limit: int = 20,
         offset: int = 0,
         status: Optional[str] = None,
+        exclude_today: bool = False,
     ) -> DailyReportListResponse:
         """
         列出投资方案报告
@@ -242,6 +244,7 @@ class ReportService:
             limit: 每页数量
             offset: 偏移量
             status: 状态过滤
+            exclude_today: 是否排除今天的报告
             
         Returns:
             DailyReportListResponse: 投资方案报告列表
@@ -252,6 +255,11 @@ class ReportService:
             
             if status:
                 query = query.filter(DailyInvestmentReport.status == status)
+            
+            # 如果需要排除今天，添加过滤条件
+            if exclude_today:
+                today = get_china_today()
+                query = query.filter(DailyInvestmentReport.report_date < today)
             
             # 按日期倒序
             query = query.order_by(desc(DailyInvestmentReport.report_date))
@@ -266,17 +274,27 @@ class ReportService:
         finally:
             db.close()
     
-    async def get_latest_report(self) -> Optional[DailyReportResponse]:
+    async def get_latest_report(self, exclude_today: bool = False) -> Optional[DailyReportResponse]:
         """
         获取最新的报告
         
+        Args:
+            exclude_today: 是否排除今天的报告
+            
         Returns:
             Optional[DailyReportResponse]: 最新报告
         """
         db = SessionLocal()
         try:
+            query = db.query(DailyInvestmentReport)
+            
+            # 如果需要排除今天，添加过滤条件
+            if exclude_today:
+                today = get_china_today()
+                query = query.filter(DailyInvestmentReport.report_date < today)
+            
             report = (
-                db.query(DailyInvestmentReport)
+                query
                 .order_by(desc(DailyInvestmentReport.report_date))
                 .first()
             )

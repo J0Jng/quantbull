@@ -23,19 +23,19 @@
           <div class="info-grid">
             <div class="info-item">
               <label>昵称</label>
-              <div class="info-value">量化牛牛用户</div>
+              <div class="info-value">{{ currentUser || '--' }}</div>
             </div>
             <div class="info-item">
               <label>邮箱</label>
-              <div class="info-value">占位</div>
+              <div class="info-value">{{ currentUserEmail || '--' }}</div>
             </div>
             <div class="info-item">
               <label>电话号码</label>
-              <div class="info-value">占位</div>
+              <div class="info-value">{{ currentUserPhone || '--' }}</div>
             </div>
             <div class="info-item">
               <label>注册时间</label>
-              <div class="info-value">占位</div>
+              <div class="info-value">{{ userCreatedAtDisplay }}</div>
             </div>
           </div>
         </div>
@@ -49,20 +49,6 @@
               <div class="status-info">
                 <div class="status-label">账户余额</div>
                 <div class="status-value">¥0.00</div>
-              </div>
-            </div>
-            <div class="status-item">
-              <span class="status-icon">📊</span>
-              <div class="status-info">
-                <div class="status-label">交易次数</div>
-                <div class="status-value">0 次</div>
-              </div>
-            </div>
-            <div class="status-item">
-              <span class="status-icon">⭐</span>
-              <div class="status-info">
-                <div class="status-label">会员等级</div>
-                <div class="status-value">普通会员</div>
               </div>
             </div>
             <div class="status-item">
@@ -103,8 +89,11 @@
             <div class="certified-content">
               <h3>认证成功</h3>
               <p>您已完成合格投资者认证，可以访问所有投资产品</p>
+              <div class="certification-tags" v-if="investorTags.length">
+                <span class="certification-tag" v-for="(tag, index) in investorTags" :key="index">{{ tag }}</span>
+              </div>
               <div class="certification-info">
-                <span>认证时间：2025-12-20</span>
+                <span>认证时间：{{ investorCertifiedAtDisplay }}</span>
                 <span>认证等级：合格投资者</span>
               </div>
               <button class="logout-cert-btn" @click="logoutCertification">退出认证</button>
@@ -114,7 +103,7 @@
 
         <!-- 操作按钮 -->
         <div class="action-section">
-          <button class="action-btn primary" @click="editProfile">编辑个人信息</button>
+          <button class="action-btn secondary" v-if="isAdmin" @click="goAdminUsers">用户管理</button>
           <button class="action-btn secondary" @click="goHome">返回首页</button>
         </div>
       </div>
@@ -128,16 +117,16 @@
           <span class="close-btn" @click="closeCertification">&times;</span>
         </div>
         <div class="modal-body">
-          <div class="certification-step" v-if="certStep === 1">
-            <h3>第一步：基本信息确认</h3>
+          <div class="certification-step">
+            <h3>基本信息确认</h3>
             <form class="certification-form">
               <div class="form-group">
                 <label>真实姓名</label>
-                <input type="text" v-model="certForm.realName" placeholder="请输入真实姓名">
+                <input type="text" v-model="certForm.realName" placeholder="请输入真实姓名（选填）">
               </div>
               <div class="form-group">
                 <label>身份证号码</label>
-                <input type="text" v-model="certForm.idCard" placeholder="请输入身份证号码">
+                <input type="text" v-model="certForm.idCard" placeholder="请输入身份证号码（选填）">
               </div>
               <div class="form-group">
                 <label>风险承受能力评估</label>
@@ -150,9 +139,9 @@
               </div>
             </form>
           </div>
-          
-          <div class="certification-step" v-if="certStep === 2">
-            <h3>第二步：资产情况</h3>
+
+          <div class="certification-step">
+            <h3>资产情况</h3>
             <div class="asset-info">
               <p>根据《证券期货投资者适当性管理办法》，合格投资者需满足以下条件之一：</p>
               <ul>
@@ -168,8 +157,8 @@
             </div>
           </div>
 
-          <div class="certification-step" v-if="certStep === 3">
-            <h3>第三步：风险确认</h3>
+          <div class="certification-step">
+            <h3>风险确认</h3>
             <div class="risk-confirm">
               <p>请仔细阅读并确认以下风险提示：</p>
               <div class="risk-content">
@@ -186,10 +175,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-cancel" @click="closeCertification" v-if="certStep === 1">取消</button>
-          <button class="btn-prev" @click="prevStep" v-if="certStep > 1">上一步</button>
-          <button class="btn-next" @click="nextStep" v-if="certStep < 3">下一步</button>
-          <button class="btn-submit" @click="submitCertification" v-if="certStep === 3">提交认证</button>
+          <button class="btn-cancel" @click="closeCertification">取消</button>
+          <button class="btn-submit" @click="submitCertification">提交认证</button>
         </div>
       </div>
     </div>
@@ -203,23 +190,26 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
-import { getTokenBalance } from '@/services/authService'
+import { getTokenBalance, isAuthenticated } from '@/services/authService'
+import { submitInvestorCertification, getInvestorStatus, revokeInvestorCertification } from '@/services/investorService'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
-const isQualifiedInvestor = ref(false)
+const { isAdmin, initAuth, isQualifiedInvestor, currentUser, currentUserEmail, currentUserPhone, currentUserCreatedAt } = useAuth()
 const showCertification = ref(false)
-const certStep = ref(1)
 const tokenBalance = ref(null)
 const tokenLoading = ref(false)
 const tokenError = ref('')
+const investorTags = ref([])
+const investorCertifiedAt = ref(null)
 
 // 在页面加载时检查认证状态
-onMounted(() => {
-  const investorStatus = localStorage.getItem('qualifiedInvestor')
-  if (investorStatus === 'certified') {
-    isQualifiedInvestor.value = true
-  }
+onMounted(async () => {
+  const authed = await initAuth()
   loadTokenBalance()
+  if (authed || isAuthenticated()) {
+    loadInvestorStatus()
+  }
 })
 
 const certForm = ref({
@@ -234,6 +224,10 @@ function goHome() {
   router.push('/')
 }
 
+function goAdminUsers() {
+  router.push('/admin/users')
+}
+
 function goBack() {
   router.push('/shop')
 }
@@ -244,7 +238,6 @@ function editProfile() {
 
 function startInvestorCertification() {
   showCertification.value = true
-  certStep.value = 1
   // 重置表单
   certForm.value = {
     realName: '',
@@ -252,6 +245,25 @@ function startInvestorCertification() {
     riskLevel: '',
     assetType: '',
     riskConfirmed: false
+  }
+}
+
+async function loadInvestorStatus() {
+  try {
+    const result = await getInvestorStatus()
+    if (result.success) {
+      const data = result.data?.data || result.data || {}
+      isQualifiedInvestor.value = !!data.qualified_investor
+      investorTags.value = Array.isArray(data.tags) ? data.tags : []
+      investorCertifiedAt.value = data.certified_at || null
+      if (data.qualified_investor) {
+        localStorage.setItem('qualifiedInvestor', 'certified')
+      } else {
+        localStorage.removeItem('qualifiedInvestor')
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load investor status:', err)
   }
 }
 
@@ -282,52 +294,84 @@ const tokenBalanceDisplay = computed(() => {
   return `${tokenBalance.value}`
 })
 
+const investorCertifiedAtDisplay = computed(() => {
+  if (!investorCertifiedAt.value) return '--'
+  const date = new Date(investorCertifiedAt.value)
+  if (Number.isNaN(date.getTime())) return '--'
+  return date.toLocaleString('zh-CN')
+})
+
+const userCreatedAtDisplay = computed(() => {
+  if (!currentUserCreatedAt.value) return '--'
+  const date = new Date(currentUserCreatedAt.value)
+  if (Number.isNaN(date.getTime())) return '--'
+  return date.toLocaleString('zh-CN')
+})
+
 function closeCertification() {
   showCertification.value = false
-  certStep.value = 1
 }
 
-function nextStep() {
-  if (certStep.value < 3) {
-    certStep.value++
-  }
-}
-
-function prevStep() {
-  if (certStep.value > 1) {
-    certStep.value--
-  }
-}
-
-function submitCertification() {
+async function submitCertification() {
   if (!certForm.value.riskConfirmed) {
     alert('请确认风险提示')
     return
   }
   
-  // 检查必填字段是否为空
-  if (!certForm.value.realName || !certForm.value.idCard || !certForm.value.riskLevel || !certForm.value.assetType) {
+  // 检查必填字段是否为空（姓名/身份证不再强制）
+  if (!certForm.value.riskLevel || !certForm.value.assetType) {
     alert('请填写完整的认证信息')
     return
   }
   
-  // 模拟认证成功
-  isQualifiedInvestor.value = true
-  showCertification.value = false
-  // 保存认证状态到本地存储
-  localStorage.setItem('qualifiedInvestor', 'certified')
-  // 触发自定义事件通知商店页面认证状态变化
-  window.dispatchEvent(new Event('investorCertificationChanged'))
-  alert('合格投资者认证成功！您现在可以访问基金和投顾产品了。')
+  try {
+    const payload = {
+      real_name: certForm.value.realName?.trim() || null,
+      id_card: certForm.value.idCard?.trim() || null,
+      risk_level: certForm.value.riskLevel,
+      asset_type: certForm.value.assetType,
+      risk_confirmed: certForm.value.riskConfirmed
+    }
+    const result = await submitInvestorCertification(payload)
+    if (result.success) {
+      const data = result.data?.data || result.data || {}
+      isQualifiedInvestor.value = !!data.qualified_investor
+      investorTags.value = Array.isArray(data.tags) ? data.tags : []
+      investorCertifiedAt.value = data.certified_at || null
+      showCertification.value = false
+      if (data.qualified_investor) {
+        localStorage.setItem('qualifiedInvestor', 'certified')
+      }
+      window.dispatchEvent(new Event('investorCertificationChanged'))
+      alert('合格投资者认证成功！您现在可以访问基金和投顾产品了。')
+    } else {
+      alert(result.message || '认证失败，请稍后重试')
+    }
+  } catch (err) {
+    alert(err.message || '认证失败，请稍后重试')
+  }
 }
 
-function logoutCertification() {
-  if (confirm('确定要退出合格投资者认证吗？退出后将无法访问基金和投顾产品。')) {
-    isQualifiedInvestor.value = false
-    localStorage.removeItem('qualifiedInvestor')
-    // 触发自定义事件通知商店页面认证状态变化
-    window.dispatchEvent(new Event('investorCertificationChanged'))
-    alert('已成功退出合格投资者认证。')
+async function logoutCertification() {
+  if (!confirm('确定要退出合格投资者认证吗？退出后将无法访问基金和投顾产品。')) {
+    return
+  }
+
+  try {
+    const result = await revokeInvestorCertification()
+    if (result.success) {
+      const data = result.data?.data || result.data || {}
+      isQualifiedInvestor.value = !!data.qualified_investor
+      investorTags.value = Array.isArray(data.tags) ? data.tags : []
+      investorCertifiedAt.value = data.certified_at || null
+      localStorage.removeItem('qualifiedInvestor')
+      window.dispatchEvent(new Event('investorCertificationChanged'))
+      alert('已成功退出合格投资者认证。')
+    } else {
+      alert(result.message || '退出失败，请稍后重试')
+    }
+  } catch (err) {
+    alert(err.message || '退出失败，请稍后重试')
   }
 }
 </script>
@@ -529,6 +573,23 @@ function logoutCertification() {
 /* 已认证样式 */
 .certified-content {
   text-align: center;
+}
+
+.certification-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 12px 0 8px;
+}
+
+.certification-tag {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
 }
 
 .certification-info {

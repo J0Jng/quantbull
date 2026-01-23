@@ -10,6 +10,8 @@ from schemas.factor import (
     FactorListResponse,
     FactorCalculateRequest,
     FactorCalculateResponse,
+    FactorValidateRequest,
+    FactorValidateResponse,
 )
 from services.factor_service import FactorService
 
@@ -18,6 +20,25 @@ router = APIRouter()
 
 # 初始化服务
 factor_service = FactorService()
+
+
+@router.post("/validate", response_model=FactorValidateResponse, summary="验证因子表达式")
+async def validate_expression(request: FactorValidateRequest) -> FactorValidateResponse:
+    """
+    验证因子表达式的语法和有效性
+    
+    检查内容：
+    - 表达式语法是否正确
+    - 使用的列名是否有效
+    - 是否包含危险代码
+    
+    返回验证结果和可能的修复建议
+    """
+    try:
+        return await factor_service.validate_expression(request)
+    except Exception as e:
+        logger.error(f"验证表达式失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"验证表达式失败: {str(e)}")
 
 
 @router.post("", response_model=FactorResponse, summary="创建因子")
@@ -100,17 +121,24 @@ async def delete_factor(factor_id: str) -> dict:
 @router.get("", response_model=FactorListResponse, summary="列出因子")
 async def list_factors(
     category: Optional[str] = None,
+    search: Optional[str] = None,
     limit: int = 20,
     offset: int = 0
 ) -> FactorListResponse:
     """
     列出所有因子
     
-    支持按类别过滤和分页
+    支持按类别过滤、搜索和分页
+    
+    - category: 因子类别 (technical/fundamental/macro)
+    - search: 搜索关键词，支持名称、代码、描述模糊匹配
+    - limit: 每页数量
+    - offset: 偏移量
     """
     try:
         factors, total = await factor_service.list_factors(
             category=category,
+            search=search,
             limit=limit,
             offset=offset
         )

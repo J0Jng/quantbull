@@ -1,3 +1,6 @@
+import json
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,6 +10,28 @@ from routers import api_router
 from core.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler, envelope_middleware
 from core.response import success
 from services.llm.llm_factory import LLMFactory
+
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            val = json.loads(raw)
+            return [str(x) for x in val] if isinstance(val, list) else []
+        except Exception:
+            return []
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+def _cors_config() -> tuple[list[str], bool]:
+    env = (os.getenv("ENV", "local") or "local").lower()
+    if env == "local":
+        return ["*"], True
+    origins = _parse_cors_origins(os.getenv("CORS_ALLOW_ORIGINS", ""))
+    credentials = (os.getenv("CORS_ALLOW_CREDENTIALS", "false") or "false").lower() in {"1", "true", "yes"}
+    return origins, credentials
 
 
 def create_app() -> FastAPI:
@@ -23,10 +48,11 @@ def create_app() -> FastAPI:
     )
     
     # CORS 中间件
+    cors_origins, cors_credentials = _cors_config()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 生产环境应限制具体域名
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=cors_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
