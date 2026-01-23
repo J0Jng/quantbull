@@ -16,6 +16,20 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 logger = logging.getLogger(__name__)
 
+# Paths that are intentionally owned by the gateway and commonly appear in downstream specs.
+# We suppress collision warnings for these to reduce noise.
+COLLISION_IGNORE_PATHS = {
+    "/",
+    "/health",
+    "/api/auth/login",
+    "/api/auth/login/json",
+    "/api/auth/verify",
+    "/api/auth/register",
+    "/api/admin/users",
+    "/api/admin/users/{user_id}",
+    "/api/admin/users/{user_id}/ai-tokens",
+}
+
 
 def _resolve_env(value: Any) -> Any:
     if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
@@ -171,7 +185,8 @@ class OpenAPIAggregator:
         for path, path_item in service_spec.get("paths", {}).items():
             prefixed_path = self._apply_prefix(path, svc.prefix)
             if prefixed_path in merged_paths:
-                logger.warning("Path collision detected, keeping gateway definition: %s", prefixed_path)
+                if prefixed_path not in COLLISION_IGNORE_PATHS:
+                    logger.warning("Path collision detected, keeping gateway definition: %s", prefixed_path)
                 continue
 
             namespaced_path_item = self._namespace_schema_refs(deepcopy(path_item), svc.name)

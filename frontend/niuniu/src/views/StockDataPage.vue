@@ -113,7 +113,7 @@
               </tr>
               <tr 
                 v-else
-                v-for="stock in filteredStockData" 
+                v-for="stock in pagedStockData" 
                 :key="stock.symbol"
                 @click="selectStockForKline(stock.symbol, stock.name)"
                 style="cursor: pointer;"
@@ -134,6 +134,11 @@
               </tr>
             </tbody>
           </table>
+          <div v-if="filteredStockData.length > 0" class="pagination">
+            <button class="page-btn" :disabled="currentPage === 1" @click="goToPrevPage">上一页</button>
+            <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
+            <button class="page-btn" :disabled="currentPage === totalPages" @click="goToNextPage">下一页</button>
+          </div>
         </div>
 
         <!-- K线图区域 -->
@@ -282,7 +287,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, computed, onUnmounted, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 import { getMarketOverview, getStockSnapshotList, getDailyQuotes } from '@/services/marketService';
@@ -338,6 +343,8 @@ const selectedMarket = ref('all');
 const selectedSort = ref('rise');
 const selectedChange = ref('all');
 const searchKeyword = ref('');
+const itemsPerPage = 10;
+const currentPage = ref(1);
 
 // ECharts 实例
 let chartInstance = null;
@@ -439,6 +446,15 @@ const filteredStockData = computed(() => {
   });
   
   return result;
+});
+
+const totalPages = computed(() => {
+  return Math.max(1, Math.ceil(filteredStockData.value.length / itemsPerPage));
+});
+
+const pagedStockData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  return filteredStockData.value.slice(start, start + itemsPerPage);
 });
 
 // 涨跌分布统计计算属性
@@ -634,6 +650,21 @@ const calculateMarketStats = (stockList) => {
   marketStats.value = stats;
 };
 
+// 规范化日线数据（兼容 YYYY-MM-DD / YYYYMMDD）
+const normalizeDailyItem = (item) => {
+  const tradeDate = String(item.trade_date || '').replace(/-/g, '');
+  return {
+    ...item,
+    trade_date: tradeDate,
+    open: Number(item.open) || 0,
+    close: Number(item.close) || 0,
+    low: Number(item.low) || 0,
+    high: Number(item.high) || 0,
+    vol: Number(item.vol) || 0,
+    amount: Number(item.amount) || 0
+  };
+};
+
 // 加载K线数据并渲染图表
 const loadKlineData = async (code, name) => {
   if (!code) return;
@@ -660,6 +691,8 @@ const loadKlineData = async (code, name) => {
       let dailyData = data?.data || data || [];
       
       if (Array.isArray(dailyData) && dailyData.length > 0) {
+        // 统一数据格式
+        dailyData = dailyData.map(normalizeDailyItem);
         // 按交易日期升序排序（Tushare 常为降序）
         dailyData.sort((a, b) => {
           const dateA = String(a.trade_date);
@@ -708,8 +741,11 @@ const renderKlineChart = () => {
   
   // 准备数据
   const dates = klineData.value.map(item => {
-    const dateStr = String(item.trade_date);
-    return `${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+    const dateStr = String(item.trade_date || '').replace(/-/g, '');
+    if (dateStr.length === 8) {
+      return `${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+    }
+    return dateStr;
   });
   
   const values = klineData.value.map(item => [
@@ -740,10 +776,12 @@ const renderKlineChart = () => {
         params.forEach(param => {
           if (param.seriesType === 'candlestick') {
             const data = param.data;
-            result += `开盘: ${data[1]}<br/>`;
-            result += `收盘: ${data[2]}<br/>`;
-            result += `最低: ${data[3]}<br/>`;
-            result += `最高: ${data[4]}<br/>`;
+            if (Array.isArray(data)) {
+              result += `开盘: ${data[0]}<br/>`;
+              result += `收盘: ${data[1]}<br/>`;
+              result += `最低: ${data[2]}<br/>`;
+              result += `最高: ${data[3]}<br/>`;
+            }
           } else if (param.seriesType === 'line') {
             result += `${param.seriesName}: ${param.data !== null ? param.data.toFixed(2) : '--'}<br/>`;
           } else if (param.seriesType === 'bar') {
@@ -897,9 +935,29 @@ const renderKlineChart = () => {
   
   chartInstance.setOption(option);
   
-  // 监听窗口大小变化
-  window.addEventListener('resize', handleResize);
+  // 图表初始化完成后立即适配一次
+  chartInstance.resize();
 };
+
+// 数据或容器就绪后重新渲染（避免容器尺寸为 0）
+watch([klineData, chartContainer], async () => {
+  if (!chartContainer.value || klineData.value.length === 0) return;
+  await nextTick();
+  requestAnimationFrame(() => {
+    renderKlineChart();
+  });
+});
+
+// 筛选条件变化时重置分页
+watch([selectedMarket, selectedSort, selectedChange, searchKeyword, rawStockData], () => {
+  currentPage.value = 1;
+});
+
+watch(totalPages, (val) => {
+  if (currentPage.value > val) {
+    currentPage.value = val;
+  }
+});
 
 // 窗口大小调整处理
 const handleResize = () => {
@@ -913,6 +971,14 @@ const selectStockForKline = (code, name) => {
   selectedStockCode.value = code;
   selectedStockName.value = name;
   loadKlineData(code, name);
+};
+
+const goToPrevPage = () => {
+  if (currentPage.value > 1) currentPage.value -= 1;
+};
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1;
 };
 
 // 刷新数据
@@ -1075,6 +1141,7 @@ function goToUserProfile() {
 
 // 页面加载时初始化数据
 onMounted(async () => {
+  window.addEventListener('resize', handleResize);
   // 按依赖顺序加载
   await loadMarketOverview();
   
@@ -1098,8 +1165,8 @@ onMounted(async () => {
 
 // 组件卸载时清理
 onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
   if (chartInstance) {
-    window.removeEventListener('resize', handleResize);
     chartInstance.dispose();
     chartInstance = null;
   }
@@ -1436,6 +1503,33 @@ onUnmounted(() => {
 
 .stock-table tr.selected-row {
   background-color: #ffe8cc;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.page-btn {
+  background-color: #fff3e6;
+  color: #ff7f24;
+  border: 1px solid #ff7f24;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  color: #666;
+  font-size: 14px;
 }
 
 .stock-code {

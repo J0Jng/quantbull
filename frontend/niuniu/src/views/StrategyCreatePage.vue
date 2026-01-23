@@ -357,6 +357,7 @@ const loadingExamples = ref(false)
 const showAIDialog = ref(false)
 const aiDescription = ref('')
 const generatingStrategy = ref(false)
+const isExampleCode = ref(false)
 
 // 因子选择相关
 const loadingFactors = ref(false)
@@ -429,12 +430,12 @@ const hasRequiredClasses = computed(() => {
 })
 
 const hasSyntaxErrors = computed(() => {
-  return validationResult.value && validationResult.value.status === 'error'
+  return validationResult.value ? !validationResult.value.valid : false
 })
 
 const validationStatusClass = computed(() => {
   if (validationResult.value) {
-    return validationResult.value.status
+    return validationResult.value.valid ? 'success' : 'error'
   }
   return lineCount.value >= 10 ? 'success' : 'warning'
 })
@@ -470,6 +471,7 @@ const onCodeChange = () => {
   if (validationResult.value) {
     validationResult.value = null
   }
+  isExampleCode.value = false
 }
 
 const validateCode = async () => {
@@ -493,20 +495,34 @@ const validateCode = async () => {
         warnings: data.warnings || []
       }
     } else {
-      validationResult.value = {
-        valid: false,
-        message: response.message || '代码验证失败',
-        errors: ['服务返回错误'],
-        warnings: []
-      }
+      validationResult.value = isExampleCode.value
+        ? {
+            valid: true,
+            message: '示例代码已加载（验证服务不可用）',
+            errors: [],
+            warnings: [response.message || '验证服务返回错误，已跳过验证']
+          }
+        : {
+            valid: false,
+            message: response.message || '代码验证失败',
+            errors: ['服务返回错误'],
+            warnings: []
+          }
     }
   } catch (error) {
-    validationResult.value = {
-      valid: false,
-      message: '验证服务暂时不可用',
-      errors: [error.message || '网络错误'],
-      warnings: []
-    }
+    validationResult.value = isExampleCode.value
+      ? {
+          valid: true,
+          message: '示例代码已加载（验证服务不可用）',
+          errors: [],
+          warnings: [error.message || '网络错误，已跳过验证']
+        }
+      : {
+          valid: false,
+          message: '验证服务暂时不可用',
+          errors: [error.message || '网络错误'],
+          warnings: []
+        }
   } finally {
     validatingCode.value = false
   }
@@ -534,6 +550,7 @@ const insertExample = () => {
   
   const example = exampleStrategies.value.find(ex => ex.id === selectedExample.value)
   if (example) {
+    isExampleCode.value = true
     strategyForm.value.code = example.code
     strategyForm.value.parameters = JSON.stringify(example.default_parameters || {}, null, 2)
     

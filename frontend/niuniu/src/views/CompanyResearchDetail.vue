@@ -95,6 +95,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCompanyResearchById } from '@/services/companyResearchService'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 export default {
   name: 'CompanyResearchDetail',
@@ -143,17 +144,17 @@ export default {
 
     const formatContent = (content) => {
       if (!content) return ''
-      // 将换行符转换为 <br> 标签
-      return content.replace(/\n/g, '<br>')
+      const sanitized = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+      return sanitized.replace(/\n/g, '<br>')
     }
     
     const renderMarkdown = (content) => {
       if (!content) return ''
       try {
-        return marked(content)
+        return DOMPurify.sanitize(marked(content), { USE_PROFILES: { html: true } })
       } catch (e) {
         console.error('Markdown 渲染失败:', e)
-        return `<pre>${content}</pre>`
+        return DOMPurify.sanitize(`<pre>${content}</pre>`, { USE_PROFILES: { html: true } })
       }
     }
 

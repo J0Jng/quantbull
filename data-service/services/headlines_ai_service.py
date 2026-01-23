@@ -4,12 +4,13 @@ AI 生成财经头条服务
 import json
 import re
 import logging
+import os
 from typing import List, Dict, Any, Optional
 import httpx
 
 logger = logging.getLogger(__name__)
 
-AI_HUB_URL = "http://ai-hub:8005"
+AI_HUB_URL = os.getenv("AI_HUB_URL", "http://ai-hub:8002")
 
 
 async def generate_headlines_from_news(news_items: List[Dict[str, Any]], limit: int = 10) -> List[Dict[str, Any]]:
@@ -86,7 +87,13 @@ async def generate_headlines_from_news(news_items: List[Dict[str, Any]], limit: 
             raise ValueError(f"AI 服务调用失败：{str(e)}")
     
     # 解析 AI 返回
-    content = ai_result.get("content", "")
+    # 兼容 AI Hub 的统一封装 {code, message, data}
+    if isinstance(ai_result, dict) and "data" in ai_result:
+        if ai_result.get("code") not in (0, 200):
+            raise ValueError(f"AI 服务调用失败：{ai_result.get('message', 'unknown error')}")
+        ai_result = ai_result.get("data") or {}
+
+    content = ai_result.get("content", "") if isinstance(ai_result, dict) else ""
     if not content:
         raise ValueError("AI 返回内容为空")
     

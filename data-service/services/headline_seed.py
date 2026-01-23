@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from models.headline_news import HeadlineNews
 import logging
 
@@ -19,6 +19,7 @@ async def seed_headline_news_if_empty(db: AsyncSession) -> None:
         
         if count > 0:
             logger.info(f"财经头条表已存在 {count} 条数据，跳过种子数据初始化")
+            await _sync_headline_news_sequence(db)
             return
         
         logger.info("开始初始化财经头条种子数据...")
@@ -148,7 +149,24 @@ async def seed_headline_news_if_empty(db: AsyncSession) -> None:
         
         await db.commit()
         logger.info(f"成功初始化 {len(seed_data)} 条财经头条种子数据")
+        await _sync_headline_news_sequence(db)
         
     except Exception as e:
         await db.rollback()
         logger.error(f"初始化财经头条种子数据失败：{e}", exc_info=True)
+
+
+async def _sync_headline_news_sequence(db: AsyncSession) -> None:
+    """同步 headline_news 主键序列，避免自增值落后于现有数据"""
+    try:
+        await db.execute(
+            text(
+                "SELECT setval(pg_get_serial_sequence('headline_news','id'), "
+                "COALESCE((SELECT MAX(id) FROM headline_news), 1), true)"
+            )
+        )
+        await db.commit()
+        logger.info("headline_news 主键序列已同步")
+    except Exception as e:
+        await db.rollback()
+        logger.warning(f"headline_news 主键序列同步失败: {e}")

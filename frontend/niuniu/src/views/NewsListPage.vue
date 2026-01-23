@@ -16,7 +16,6 @@
             <button @click="handleGenerateDaily" class="btn-generate" :disabled="generating">
               {{ generating ? 'AI 生成中...' : '🤖 AI生成今日头条' }}
             </button>
-            <button @click="openCreateModal" class="btn-create">+ 新增新闻</button>
           </div>
         </div>
         <div class="news-content">
@@ -50,10 +49,6 @@
                   <h3>{{ item.title }}</h3>
                   <div class="news-item-actions">
                     <span class="news-date">{{ item.date }}</span>
-                    <template v-if="isAdmin">
-                      <button @click.stop="openEditModal(item)" class="btn-icon btn-edit" title="编辑">✎</button>
-                      <button @click.stop="handleDelete(item.id)" class="btn-icon btn-delete" title="删除">✕</button>
-                    </template>
                   </div>
                 </div>
                 <div class="news-item-summary">
@@ -111,88 +106,18 @@
                 </li>
               </ul>
             </div>
-            
-            <div class="ad-section">
-              <a href="#">
-                <img src="/2.png" alt="广告位">
-              </a>
-            </div>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- 创建/编辑弹窗 -->
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>{{ modalTitle }}</h3>
-          <button @click="closeModal" class="btn-close">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>标题 <span class="required">*</span></label>
-            <input 
-              v-model="formData.title" 
-              type="text" 
-              placeholder="请输入新闻标题（1-200字符）"
-              maxlength="200"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label>摘要 <span class="required">*</span></label>
-            <textarea 
-              v-model="formData.summary" 
-              placeholder="请输入新闻摘要（1-500字符）"
-              maxlength="500"
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <div class="form-group">
-            <label>标签（逗号分隔）</label>
-            <input 
-              v-model="formData.tags" 
-              type="text" 
-              placeholder="例如：A股,市场,政策"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label>正文</label>
-            <textarea 
-              v-model="formData.content" 
-              placeholder="请输入新闻正文（可选）"
-              rows="6"
-            ></textarea>
-          </div>
-          
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input 
-                v-model="formData.is_hot" 
-                type="checkbox"
-              />
-              设为热点新闻
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="closeModal" class="btn-cancel" :disabled="submitting">取消</button>
-          <button @click="submitForm" class="btn-submit" :disabled="submitting">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getHeadlines, getHotHeadlines, getHeadlineDetail, createHeadline, updateHeadline, deleteHeadline, generateDailyHeadlines } from '@/services/newsService'
+import { getHeadlines, getHotHeadlines, generateDailyHeadlines, getEastmoneyLatestNews } from '@/services/newsService'
 import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
@@ -210,26 +135,12 @@ const pageSize = ref(10)
 const total = ref(0)
 
 // 管理状态
-const showModal = ref(false)
-const editingId = ref(null)
-const submitting = ref(false)
 const generating = ref(false)
-const formData = ref({
-  title: '',
-  summary: '',
-  tags: '',
-  content: '',
-  is_hot: false
-})
 
 // 计算总页数
 const totalPages = computed(() => {
   return Math.ceil(total.value / pageSize.value)
 })
-
-// 判断是否为编辑模式
-const isEditMode = computed(() => editingId.value !== null)
-const modalTitle = computed(() => isEditMode.value ? '编辑新闻' : '新增新闻')
 
 // 生成页码数组
 const pageNumbers = computed(() => {
@@ -365,121 +276,6 @@ const goToHotNews = (id) => {
   router.push(`/news-detail/${id}`)
 }
 
-// 打开创建弹窗
-const openCreateModal = () => {
-  editingId.value = null
-  formData.value = {
-    title: '',
-    summary: '',
-    tags: '',
-    content: '',
-    is_hot: false
-  }
-  showModal.value = true
-}
-
-// 打开编辑弹窗
-const openEditModal = async (item) => {
-  try {
-    editingId.value = item.id
-    // 获取完整详情（包含 content 和 is_hot）
-    const detail = await getHeadlineDetail(item.id)
-    const detailData = detail.data || detail
-    
-    formData.value = {
-      title: detailData.title || item.title,
-      summary: detailData.summary || item.summary,
-      tags: (detailData.tags || item.tags || []).join(', '),
-      content: detailData.content || '',
-      is_hot: detailData.is_hot || false
-    }
-    showModal.value = true
-  } catch (err) {
-    console.error('获取新闻详情失败:', err)
-    alert(err.message || '获取新闻详情失败')
-  }
-}
-
-// 关闭弹窗
-const closeModal = () => {
-  showModal.value = false
-  editingId.value = null
-}
-
-// 提交表单（创建或更新）
-const submitForm = async () => {
-  // 验证
-  if (!formData.value.title.trim()) {
-    alert('请输入新闻标题')
-    return
-  }
-  if (!formData.value.summary.trim()) {
-    alert('请输入新闻摘要')
-    return
-  }
-  
-  submitting.value = true
-  
-  try {
-    // 构建请求体
-    const payload = {
-      title: formData.value.title.trim(),
-      summary: formData.value.summary.trim(),
-      tags: formData.value.tags
-        .split(',')
-        .map(t => t.trim())
-        .filter(t => t),
-      content: formData.value.content.trim() || null,
-      is_hot: formData.value.is_hot
-    }
-    
-    if (isEditMode.value) {
-      // 更新
-      await updateHeadline(editingId.value, payload)
-      alert('更新成功')
-    } else {
-      // 创建
-      await createHeadline(payload)
-      alert('创建成功')
-    }
-    
-    closeModal()
-    // 刷新列表
-    await fetchHeadlines()
-    await fetchHotHeadlines()
-  } catch (err) {
-    console.error('提交失败:', err)
-    alert(err.message || '操作失败')
-  } finally {
-    submitting.value = false
-  }
-}
-
-// 删除新闻
-const handleDelete = async (id) => {
-  if (!confirm('确定要删除这条新闻吗？')) {
-    return
-  }
-  
-  try {
-    await deleteHeadline(id)
-    alert('删除成功')
-    
-    // 刷新列表
-    await fetchHeadlines()
-    await fetchHotHeadlines()
-    
-    // 处理分页边界
-    if (newsItems.value.length === 0 && currentPage.value > 1) {
-      currentPage.value--
-      await fetchHeadlines()
-    }
-  } catch (err) {
-    console.error('删除失败:', err)
-    alert(err.message || '删除失败')
-  }
-}
-
 // AI 生成今日头条
 const handleGenerateDaily = async () => {
   if (!confirm('确定要使用 AI 生成今日财经头条吗？\n\n将基于数据库中最新 10 条新闻生成，可能需要 30-60 秒。')) {
@@ -489,6 +285,13 @@ const handleGenerateDaily = async () => {
   generating.value = true
   
   try {
+    console.log('开始拉取最新新闻...')
+    await getEastmoneyLatestNews({
+      limit: 50,
+      refresh: true,
+      save_to_db: true
+    })
+
     console.log('开始生成今日头条...')
     const result = await generateDailyHeadlines({
       limit: 10,
@@ -499,7 +302,7 @@ const handleGenerateDaily = async () => {
     console.log('生成结果:', result)
     const data = result.data || result
     
-    alert(`生成成功！\n\n创建了 ${data.created_count} 条财经头条\n基于 ${data.source_news_count} 条源新闻`)
+    alert(`生成成功！\n\n创建了 ${data.created_count ?? 0} 条财经头条\n基于 ${data.source_news_count ?? 0} 条源新闻`)
     
     // 刷新列表
     currentPage.value = 1
@@ -797,11 +600,6 @@ onMounted(async () => {
   color: #ff7f00;
 }
 
-.ad-section img {
-  width: 100%;
-  border-radius: 8px;
-}
-
 /* 管理功能样式 */
 .section-header {
   display: flex;
@@ -838,201 +636,9 @@ onMounted(async () => {
   transform: none;
 }
 
-.btn-create {
-  padding: 8px 16px;
-  background: #ff7f00;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.3s;
-}
-
-.btn-create:hover {
-  background: #e67300;
-}
-
 .news-item-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.btn-icon {
-  padding: 4px 8px;
-  background: transparent;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s;
-  color: #666;
-}
-
-.btn-icon:hover {
-  border-color: #ff7f00;
-  color: #ff7f00;
-}
-
-.btn-edit:hover {
-  background: #fff6ee;
-}
-
-.btn-delete:hover {
-  border-color: #f56c6c;
-  color: #f56c6c;
-  background: #fef0f0;
-}
-
-/* 弹窗样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: #fff;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #eee;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.btn-close {
-  background: transparent;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  line-height: 1;
-  transition: color 0.3s;
-}
-
-.btn-close:hover {
-  color: #333;
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 14px;
-  color: #333;
-  font-weight: 500;
-}
-
-.required {
-  color: #f56c6c;
-}
-
-.form-group input[type="text"],
-.form-group textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  font-family: inherit;
-  transition: border-color 0.3s;
-  box-sizing: border-box;
-}
-
-.form-group input[type="text"]:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #ff7f00;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.checkbox-label input[type="checkbox"] {
-  margin-right: 6px;
-  cursor: pointer;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 20px;
-  border-top: 1px solid #eee;
-}
-
-.btn-cancel,
-.btn-submit {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s;
-}
-
-.btn-cancel {
-  background: #fff;
-  color: #666;
-  border: 1px solid #ddd;
-}
-
-.btn-cancel:hover:not(:disabled) {
-  background: #f5f5f5;
-}
-
-.btn-submit {
-  background: #ff7f00;
-  color: #fff;
-}
-
-.btn-submit:hover:not(:disabled) {
-  background: #e67300;
-}
-
-.btn-cancel:disabled,
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 </style>

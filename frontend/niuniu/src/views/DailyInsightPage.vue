@@ -32,14 +32,16 @@
       <div v-if="error && !loading" class="error-section">
         <div class="error-icon">⚠️</div>
         <p>{{ error }}</p>
-        <button class="retry-btn" @click="loadDailyData">重新加载</button>
+        <p v-if="generating" class="generating-tip">正在生成日报...</p>
+        <button class="retry-btn" :disabled="loading || generating" @click="loadDailyData">重新加载</button>
       </div>
 
       <!-- 空状态 -->
       <div v-if="!loading && !error && !reportData" class="empty-section">
         <div class="empty-icon">📭</div>
         <p>该日期暂无内参数据</p>
-        <button class="retry-btn" @click="loadDailyData">刷新</button>
+        <p v-if="generating" class="generating-tip">正在生成日报...</p>
+        <button class="retry-btn" :disabled="loading || generating" @click="loadDailyData">刷新</button>
       </div>
 
       <!-- 市场概览模块 -->
@@ -167,7 +169,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
-import { getDailyReportByDate, getLatestDailyReport } from '@/services/dailyReportService'
+import { getDailyReportByDate, getLatestDailyReport, generateDailyReport } from '@/services/dailyReportService'
 import {
   canAccessTodayReport,
   getTodayString,
@@ -183,6 +185,7 @@ const loading = ref(true)
 const error = ref('')
 const selectedDate = ref(new Date().toISOString().split('T')[0])
 const reportData = ref(null)
+const generating = ref(false)
 
 // 市场情绪（从 market_sentiment 获取）
 const marketSentiment = computed(() => {
@@ -297,10 +300,33 @@ const loadDailyData = async () => {
         throw new Error('数据格式异常')
       }
     } else {
-      // 指定日期没有报告，显示空状态，保持用户选择的日期
-      console.log(`${selectedDate.value} 日期无数据`)
-      error.value = `${formatDate(selectedDate.value)} 暂无内参数据`
-      reportData.value = null
+      // 指定日期没有报告，尝试生成后重新加载
+      console.log(`${selectedDate.value} 日期无数据，尝试生成日报`) 
+      generating.value = true
+      const generateResult = await generateDailyReport({ report_date: selectedDate.value })
+      if (generateResult.success) {
+        const refreshed = await getDailyReportByDate(selectedDate.value)
+        if (refreshed.success && refreshed.data) {
+          let data = refreshed.data
+          if (data.data && data.code === 0) {
+            data = data.data
+          }
+          if (data.id && data.report_date) {
+            reportData.value = data
+            error.value = ''
+            console.log('日报生成并加载成功:', data)
+          } else {
+            throw new Error('生成后数据格式异常')
+          }
+        } else {
+          error.value = `${formatDate(selectedDate.value)} 暂无内参数据`
+          reportData.value = null
+        }
+      } else {
+        error.value = `${formatDate(selectedDate.value)} 暂无内参数据`
+        reportData.value = null
+      }
+      generating.value = false
     }
   } catch (e) {
     // 处理 403 错误（后端返回的门禁拒绝）
@@ -317,6 +343,7 @@ const loadDailyData = async () => {
     reportData.value = null
   } finally {
     loading.value = false
+    generating.value = false
   }
 }
 
@@ -452,6 +479,17 @@ onMounted(() => {
 .loading-section {
   text-align: center;
   padding: 60px 20px;
+}
+
+.generating-tip {
+  color: #ff7f00;
+  margin: 10px 0;
+  font-size: 14px;
+}
+
+.retry-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .loading-spinner {

@@ -8,8 +8,14 @@
           <span class="slogan">专业理财平台</span>
         </div>
         <div class="top-middle">
-          <input type="text" placeholder="输入基金代码、名称或关键词" class="search-input" />
-          <button class="search-btn">搜索</button>
+          <input
+            v-model="keyword"
+            type="text"
+            placeholder="输入基金代码、名称或关键词"
+            class="search-input"
+            @keyup.enter="handleSearch"
+          />
+          <button class="search-btn" @click="handleSearch">搜索</button>
         </div>
         <div class="top-right">
           <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
@@ -57,7 +63,7 @@
           <div class="filter-toolbar">
             <div class="filter-group">
               <label>基金类型：</label>
-              <select class="filter-select">
+              <select v-model="publicFilter.fund_type" class="filter-select">
                 <option value="">全部</option>
                 <option value="stock">股票型基金</option>
                 <option value="hybrid">混合型基金</option>
@@ -66,14 +72,14 @@
               </select>
               
               <label>收益率区间：</label>
-              <select class="filter-select">
+              <select v-model="publicFilter.return_sign" class="filter-select">
                 <option value="">全部</option>
                 <option value="positive">正收益</option>
                 <option value="negative">负收益</option>
               </select>
               
               <label>排序方式：</label>
-              <select class="filter-select">
+              <select v-model="publicFilter.sort_by" class="filter-select">
                 <option value="default">默认</option>
                 <option value="return1w">近1周收益率</option>
                 <option value="return1m">近1月收益率</option>
@@ -112,115 +118,29 @@
               <div class="name-col">{{ fund.name }}</div>
               <div class="type-col">{{ fund.type }}</div>
               <div class="nav-col">{{ fund.nav }}</div>
-              <div :class="['change-col', fund.change >= 0 ? 'green' : 'red']">
+              <div :class="['change-col', fund.change >= 0 ? 'red' : 'green']">
                 {{ fund.change >= 0 ? '+' : '' }}{{ fund.change }}%
               </div>
-              <div :class="['return-col', fund.return1w >= 0 ? 'green' : 'red']">
+              <div :class="['return-col', fund.return1w >= 0 ? 'red' : 'green']">
                 {{ fund.return1w >= 0 ? '+' : '' }}{{ fund.return1w }}%
               </div>
-              <div :class="['return-col', fund.return1m >= 0 ? 'green' : 'red']">
+              <div :class="['return-col', fund.return1m >= 0 ? 'red' : 'green']">
                 {{ fund.return1m >= 0 ? '+' : '' }}{{ fund.return1m }}%
               </div>
-              <div :class="['return-col', fund.return3m >= 0 ? 'green' : 'red']">
+              <div :class="['return-col', fund.return3m >= 0 ? 'red' : 'green']">
                 {{ fund.return3m >= 0 ? '+' : '' }}{{ fund.return3m }}%
               </div>
-              <div :class="['return-col', fund.return6m >= 0 ? 'green' : 'red']">
+              <div :class="['return-col', fund.return6m >= 0 ? 'red' : 'green']">
                 {{ fund.return6m >= 0 ? '+' : '' }}{{ fund.return6m }}%
               </div>
-              <div :class="['return-col', fund.return1y >= 0 ? 'green' : 'red']">
+              <div :class="['return-col', fund.return1y >= 0 ? 'red' : 'green']">
                 {{ fund.return1y >= 0 ? '+' : '' }}{{ fund.return1y }}%
               </div>
-              <div :class="['return-col', fund.return3y >= 0 ? 'green' : 'red']">
+              <div :class="['return-col', fund.return3y >= 0 ? 'red' : 'green']">
                 {{ fund.return3y >= 0 ? '+' : '' }}{{ fund.return3y }}%
               </div>
               <div class="action-col">
                 <button class="fav-btn small" @click.stop="toggleFavorite(fund)">收藏</button>
-                <button class="buy-btn small" @click.stop="buyPublicFund(fund)">购买</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 私募基金排行榜 -->
-        <section class="private-fund-section">
-          <h3 class="sub-title">私募基金排行榜</h3>
-          <p class="private-notice">⚠️ 仅对合格投资者开放</p>
-          
-          <!-- 筛选和排序工具栏 -->
-          <div class="filter-toolbar">
-            <div class="filter-group">
-              <label>策略类型：</label>
-              <select class="filter-select">
-                <option value="">全部</option>
-                <option value="equity">股票策略</option>
-                <option value="futures">期货策略</option>
-                <option value="hedge">对冲策略</option>
-                <option value="composite">复合策略</option>
-              </select>
-              
-              <label>风险等级：</label>
-              <select class="filter-select">
-                <option value="">全部</option>
-                <option value="low">低风险</option>
-                <option value="medium">中风险</option>
-                <option value="high">高风险</option>
-              </select>
-              
-              <label>排序方式：</label>
-              <select class="filter-select">
-                <option value="default">默认</option>
-                <option value="return1y">近1年收益率</option>
-                <option value="sharpe">夏普比率</option>
-                <option value="maxdrawdown">最大回撤</option>
-              </select>
-            </div>
-          </div>
-          
-          <!-- 私募基金排行榜表格 -->
-          <div class="fund-rank-table">
-            <div class="table-header">
-              <div class="rank-col">排名</div>
-              <div class="name-col">基金名称</div>
-              <div class="strategy-col">策略类型</div>
-              <div class="established-col">成立时间</div>
-              <div class="return-col">近1月</div>
-              <div class="return-col">近3月</div>
-              <div class="return-col">近1年</div>
-              <div class="return-col">年化收益率</div>
-              <div class="risk-col">最大回撤</div>
-              <div class="risk-col">夏普比率</div>
-              <div class="action-col">操作</div>
-            </div>
-            
-            <div 
-              v-for="(fund, index) in privateFunds" 
-              :key="index" 
-              class="table-row"
-              @click="showFundDetail(fund)"
-            >
-              <div class="rank-col">
-                <span :class="getRankClass(index)">{{ index + 1 }}</span>
-              </div>
-              <div class="name-col">{{ fund.name }}</div>
-              <div class="strategy-col">{{ fund.strategy }}</div>
-              <div class="established-col">{{ fund.established }}</div>
-              <div class="return-col">
-                {{ isQualifiedInvestor ? (fund.return1m >= 0 ? '+' : '') + fund.return1m + '%' : '认证后可见' }}
-              </div>
-              <div class="return-col">
-                {{ isQualifiedInvestor ? (fund.return3m >= 0 ? '+' : '') + fund.return3m + '%' : '认证后可见' }}
-              </div>
-              <div class="return-col">
-                {{ isQualifiedInvestor ? (fund.return1y >= 0 ? '+' : '') + fund.return1y + '%' : '认证后可见' }}
-              </div>
-              <div class="return-col">
-                {{ isQualifiedInvestor ? (fund.annualizedReturn >= 0 ? '+' : '') + fund.annualizedReturn + '%' : '认证后可见' }}
-              </div>
-              <div class="risk-col">{{ isQualifiedInvestor ? fund.maxDrawdown + '%' : '认证后可见' }}</div>
-              <div class="risk-col">{{ isQualifiedInvestor ? fund.sharpeRatio : '认证后可见' }}</div>
-              <div class="action-col">
-                <button class="consult-btn small" @click.stop="showConsultModal(fund)">咨询</button>
-                <button class="buy-btn small" @click.stop="checkQualification(fund)">购买</button>
               </div>
             </div>
           </div>
@@ -235,49 +155,19 @@
             </div>
             <div class="modal-body">
               <div class="fund-info">
-                <p><strong>基金类型：</strong>{{ selectedFund.type || selectedFund.strategy }}</p>
-                <p><strong>单位净值：</strong>{{ selectedFund.nav || 'N/A' }}</p>
-                <p><strong>日涨跌幅：</strong>{{ selectedFund.change ? (selectedFund.change >= 0 ? '+' : '') + selectedFund.change + '%' : 'N/A' }}</p>
-                <p><strong>近1年收益率：</strong>{{ (selectedFund.return1y && isQualifiedInvestor) ? (selectedFund.return1y >= 0 ? '+' : '') + selectedFund.return1y + '%' : '认证后可见' }}</p>
-                <p><strong>成立时间：</strong>{{ selectedFund.established || 'N/A' }}</p>
-                <p><strong>年化收益率：</strong>{{ (selectedFund.annualizedReturn && isQualifiedInvestor) ? (selectedFund.annualizedReturn >= 0 ? '+' : '') + selectedFund.annualizedReturn + '%' : '认证后可见' }}</p>
-                <p><strong>最大回撤：</strong>{{ (selectedFund.maxDrawdown && isQualifiedInvestor) ? selectedFund.maxDrawdown + '%' : '认证后可见' }}</p>
-                <p><strong>夏普比率：</strong>{{ (selectedFund.sharpeRatio && isQualifiedInvestor) ? selectedFund.sharpeRatio : '认证后可见' }}</p>
+                <p v-if="hasValue(selectedFund.type || selectedFund.strategy)"><strong>基金类型：</strong>{{ selectedFund.type || selectedFund.strategy }}</p>
+                <p v-if="hasValue(selectedFund.nav)"><strong>单位净值：</strong>{{ selectedFund.nav }}</p>
+                <p v-if="hasValue(selectedFund.change)"><strong>日涨跌幅：</strong>{{ formatPercent(selectedFund.change) }}</p>
+                <p v-if="hasValue(selectedFund.return1y)"><strong>近1年收益率：</strong>{{ formatPercent(selectedFund.return1y) }}</p>
+                <p v-if="hasValue(selectedFund.established)"><strong>成立时间：</strong>{{ selectedFund.established }}</p>
+                <p v-if="hasValue(selectedFund.annualizedReturn)"><strong>年化收益率：</strong>{{ formatPercent(selectedFund.annualizedReturn) }}</p>
+                <p v-if="hasValue(selectedFund.maxDrawdown)"><strong>最大回撤：</strong>{{ formatPercent(selectedFund.maxDrawdown, false) }}</p>
+                <p v-if="hasValue(selectedFund.sharpeRatio)"><strong>夏普比率：</strong>{{ formatNumber(selectedFund.sharpeRatio) }}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 合格投资者验证弹窗 -->
-        <div v-if="showQualificationModal" class="modal-overlay" @click="closeQualificationModal">
-          <div class="modal-content" @click.stop>
-            <div class="modal-header">
-              <h3>合格投资者验证</h3>
-              <button class="close-btn" @click="closeQualificationModal">×</button>
-            </div>
-            <div class="modal-body">
-              <p>私募基金仅对合格投资者开放，购买前需要进行合格投资者认证。</p>
-              <div class="qualification-form">
-                <div class="form-group">
-                  <label>年收入证明（万元）：</label>
-                  <input type="number" v-model="qualification.income" placeholder="请输入年收入">
-                </div>
-                <div class="form-group">
-                  <label>金融资产证明（万元）：</label>
-                  <input type="number" v-model="qualification.assets" placeholder="请输入金融资产">
-                </div>
-                <div class="form-group">
-                  <label>投资经验（年）：</label>
-                  <input type="number" v-model="qualification.experience" placeholder="请输入投资经验">
-                </div>
-              </div>
-              <div class="modal-actions">
-                <button class="confirm-btn" @click="verifyQualification">提交验证</button>
-                <button class="cancel-btn" @click="closeQualificationModal">取消</button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </main>
 
@@ -292,12 +182,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
+import { getPublicFundRanking } from '@/services/fundRankingService'
 
 // 使用全局认证
-const { logged, userText, isQualifiedInvestor, openLoginModal, logout, requireAuth } = useAuth()
+const { logged, userText, openLoginModal, logout } = useAuth()
 
 const router = useRouter()
 const showUserMenu = ref(false)
@@ -353,43 +244,35 @@ function goToUserProfile() {
   router.push('/profile')
 }
 
-// 公募基金数据
-const publicFunds = ref([
-  { name: '中欧医疗健康混合C', type: '混合型基金', nav: '1.3609', change: 1.1, return1w: 2.9, return1m: 1.5, return3m: 4.2, return6m: 6.8, return1y: 12.5, return3y: 35.7 },
-  { name: '易方达蓝筹精选混合', type: '混合型基金', nav: '4.9100', change: -0.5, return1w: -1.2, return1m: 0.8, return3m: 3.1, return6m: 5.2, return1y: 9.8, return3y: 28.6 },
-  { name: '华夏能源革新股票A', type: '股票型基金', nav: '2.3179', change: 0.7, return1w: 1.8, return1m: 2.3, return3m: 5.6, return6m: 8.1, return1y: 15.2, return3y: 42.3 },
-  { name: '广发科技先锋混合', type: '混合型基金', nav: '1.7856', change: 2.3, return1w: 3.2, return1m: 4.1, return3m: 7.2, return6m: 10.5, return1y: 18.7, return3y: 51.2 },
-  { name: '汇添富消费行业混合', type: '混合型基金', nav: '3.2560', change: -0.8, return1w: -1.5, return1m: -0.5, return3m: 1.8, return6m: 3.2, return1y: 7.4, return3y: 22.1 },
-  { name: '富国天惠成长混合', type: '混合型基金', nav: '2.8950', change: 0.3, return1w: 0.8, return1m: 1.2, return3m: 2.5, return6m: 4.8, return1y: 8.9, return3y: 26.8 },
-  { name: '嘉实新兴产业股票', type: '股票型基金', nav: '2.4560', change: 1.5, return1w: 2.1, return1m: 2.8, return3m: 6.1, return6m: 9.2, return1y: 13.5, return3y: 38.4 },
-  { name: '南方中证500ETF联接', type: '指数型基金', nav: '1.2345', change: -0.2, return1w: -0.5, return1m: 0.5, return3m: 2.3, return6m: 4.1, return1y: 6.8, return3y: 19.7 },
-  { name: '博时黄金ETF', type: '商品基金', nav: '4.5678', change: 0.1, return1w: 0.3, return1m: 0.8, return3m: 1.5, return6m: 2.7, return1y: 4.2, return3y: 12.8 },
-  { name: '招商中证白酒指数', type: '指数型基金', nav: '1.1234', change: 1.8, return1w: 2.5, return1m: 3.2, return3m: 5.8, return6m: 7.4, return1y: 11.3, return3y: 31.6 }
-]);
+const keyword = ref('')
 
-// 私募基金数据
-const privateFunds = ref([
-  { name: '启林量化精选', strategy: '股票策略', established: '2018-03-15', return1m: 2.3, return3m: 5.6, return1y: 18.2, annualizedReturn: 16.8, maxDrawdown: -8.2, sharpeRatio: 1.8 },
-  { name: '九坤量化对冲', strategy: '对冲策略', established: '2017-06-20', return1m: 1.8, return3m: 4.2, return1y: 15.7, annualizedReturn: 14.3, maxDrawdown: -6.5, sharpeRatio: 2.1 },
-  { name: '明汯量化100', strategy: '股票策略', established: '2016-09-12', return1m: 1.5, return3m: 3.8, return1y: 17.4, annualizedReturn: 15.9, maxDrawdown: -7.1, sharpeRatio: 1.9 },
-  { name: '衍复宏观对冲', strategy: '宏观策略', established: '2019-01-08', return1m: 0.9, return3m: 2.1, return1y: 12.8, annualizedReturn: 13.2, maxDrawdown: -5.3, sharpeRatio: 1.6 },
-  { name: '诚奇多策略', strategy: '复合策略', established: '2018-11-30', return1m: 2.1, return3m: 4.9, return1y: 16.5, annualizedReturn: 15.7, maxDrawdown: -6.8, sharpeRatio: 1.7 },
-  { name: '灵均量化选股', strategy: '股票策略', established: '2017-04-15', return1m: 1.2, return3m: 3.4, return1y: 14.2, annualizedReturn: 13.8, maxDrawdown: -7.9, sharpeRatio: 1.5 },
-  { name: '淡水泉成长精选', strategy: '股票策略', established: '2015-08-22', return1m: 0.8, return3m: 2.7, return1y: 13.6, annualizedReturn: 12.9, maxDrawdown: -9.2, sharpeRatio: 1.4 },
-  { name: '高毅资产', strategy: '股票策略', established: '2019-05-10', return1m: 1.6, return3m: 3.9, return1y: 15.1, annualizedReturn: 14.6, maxDrawdown: -7.5, sharpeRatio: 1.6 },
-  { name: '景林全球配置', strategy: '股票策略', established: '2016-12-05', return1m: 1.3, return3m: 3.1, return1y: 12.4, annualizedReturn: 13.1, maxDrawdown: -8.7, sharpeRatio: 1.3 },
-  { name: '重阳战略', strategy: '股票策略', established: '2018-07-18', return1m: 0.9, return3m: 2.5, return1y: 11.8, annualizedReturn: 12.4, maxDrawdown: -8.1, sharpeRatio: 1.2 }
-]);
+// 公募/私募数据（由后端接口提供）
+const publicFunds = ref([])
+const publicTotal = ref(0)
+
+const loadingPublic = ref(false)
+const errorPublic = ref('')
+
+const publicFilter = ref({
+  fund_type: '',
+  return_sign: '',
+  sort_by: 'default'
+})
+
 
 // 模态框相关状态
 const showDetailModal = ref(false);
-const showQualificationModal = ref(false);
 const selectedFund = ref({});
-const qualification = ref({
-  income: null,
-  assets: null,
-  experience: null
-});
+
+const hasValue = (value) => value === 0 || value === 0.0 || (value !== null && value !== undefined && value !== '')
+
+const formatPercent = (value, withSign = true) => {
+  if (!hasValue(value)) return ''
+  const sign = withSign && value >= 0 ? '+' : ''
+  return `${sign}${value}%`
+}
+
+const formatNumber = (value) => (hasValue(value) ? String(value) : '')
 
 // 获取排名样式
 const getRankClass = (index) => {
@@ -401,18 +284,6 @@ const getRankClass = (index) => {
 
 // 显示基金详情
 const showFundDetail = (fund) => {
-  // 检查是否是私募基金且用户未认证
-  if (fund.strategy && !isQualifiedInvestor.value) {
-    if (!requireAuth()) {
-      // 未登录，已显示登录弹窗
-      return;
-    }
-    // 已登录但未认证，提醒去个人主页认证
-    alert('需要去个人主页进行合格投资者认证');
-    router.push('/profile');
-    return;
-  }
-  
   selectedFund.value = fund;
   showDetailModal.value = true;
 };
@@ -433,45 +304,56 @@ const showConsultModal = (fund) => {
   alert(`已向 ${fund.name} 发送咨询请求`);
 };
 
-// 检查购买资格
-const checkQualification = (fund) => {
-  if (!requireAuth()) return
-  
-  if (!isQualifiedInvestor.value) {
-    showQualificationModal.value = true
-    selectedFund.value = fund
-  } else {
-    // 已经认证为合格投资者，可以直接购买
-    alert('您已是合格投资者，可以进行私募基金购买操作')
-  }
-};
 
-// 公募基金购买函数
-const buyPublicFund = (fund) => {
-  if (!requireAuth()) return
-  
-  if (confirm(`确定要购买 ${fund.name} 吗？`)) {
-    alert(`成功购买 ${fund.name}，金额将自动从账户中扣除`)
-  }
-};
+async function loadPublicFunds(options = {}) {
+  loadingPublic.value = true
+  errorPublic.value = ''
+  try {
+    const params = {
+      fund_type: publicFilter.value.fund_type,
+      return_sign: publicFilter.value.return_sign,
+      sort_by: publicFilter.value.sort_by,
+      order: 'desc',
+      keyword: keyword.value,
+      page: 1,
+      page_size: 50,
+      ...(options.refresh ? { refresh: true } : {})
+    }
 
-// 关闭资格验证模态框
-const closeQualificationModal = () => {
-  showQualificationModal.value = false;
-  qualification.value = { income: null, assets: null, experience: null };
-};
+    const result = await getPublicFundRanking(params)
+    if (!result.success) {
+      errorPublic.value = result.message || '获取公募基金排行榜失败'
+      publicFunds.value = []
+      publicTotal.value = 0
+      return
+    }
 
-// 验证资格
-const verifyQualification = () => {
-  if (qualification.value.income >= 50 || qualification.value.assets >= 300 || qualification.value.experience >= 2) {
-    alert('资格验证通过，您已成为合格投资者')
-    isQualifiedInvestor.value = true
-    localStorage.setItem('qualifiedInvestor', 'certified')
-    closeQualificationModal()
-  } else {
-    alert('您不符合合格投资者标准，无法购买该私募基金')
+    const payload = result.data?.data
+    publicFunds.value = payload?.items || []
+    publicTotal.value = payload?.total || 0
+  } catch (e) {
+    errorPublic.value = e?.message || '获取公募基金排行榜失败'
+    publicFunds.value = []
+    publicTotal.value = 0
+  } finally {
+    loadingPublic.value = false
   }
-};
+}
+
+function handleSearch() {
+  loadPublicFunds({ refresh: true })
+}
+
+watch(
+  () => [publicFilter.value.fund_type, publicFilter.value.return_sign, publicFilter.value.sort_by],
+  () => {
+    loadPublicFunds()
+  }
+)
+
+onMounted(async () => {
+  await loadPublicFunds()
+})
 </script>
 
 <style scoped>

@@ -37,6 +37,16 @@ class User(SQLModel, table=True):
     password_hash: str = Field(nullable=False)
     role: str = Field(default="user", nullable=False)
     ai_tokens: int = Field(default=1000, nullable=False)
+    email: Optional[str] = Field(default=None)
+    phone: Optional[str] = Field(default=None)
+    qualified_investor: bool = Field(default=False, nullable=False)
+    investor_certified_at: Optional[datetime] = Field(default=None)
+    investor_risk_level: Optional[str] = Field(default=None)
+    investor_asset_type: Optional[str] = Field(default=None)
+    investor_tags: Optional[str] = Field(default=None)
+    investor_real_name: Optional[str] = Field(default=None)
+    investor_id_card_hash: Optional[str] = Field(default=None)
+    investor_id_card_last4: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
 
@@ -80,12 +90,21 @@ def get_user_by_username(session: Session, username: str) -> Optional[User]:
     return session.exec(stmt).first()
 
 
-def create_user(session: Session, username: str, password_hash: str, role: str = "user") -> User:
+def create_user(
+    session: Session,
+    username: str,
+    password_hash: str,
+    role: str = "user",
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> User:
     user = User(
         username=username,
         password_hash=password_hash,
         role=role,
-        ai_tokens=settings.default_ai_tokens
+        ai_tokens=settings.default_ai_tokens,
+        email=email,
+        phone=phone,
     )
     session.add(user)
     session.commit()
@@ -199,6 +218,84 @@ def migrate_product_detail_columns() -> None:
                         print(f"Migration note for {col_name}: {e}")
     except Exception as e:
         print(f"Product migration note: {e}")
+
+
+def migrate_add_investor_columns() -> None:
+    """迁移：为 user 表添加合格投资者相关列（如果不存在）"""
+    from sqlalchemy import text, inspect
+
+    new_columns = [
+        ("qualified_investor", "BOOLEAN", "0"),
+        ("investor_certified_at", "TEXT", None),
+        ("investor_risk_level", "TEXT", None),
+        ("investor_asset_type", "TEXT", None),
+        ("investor_tags", "TEXT", None),
+        ("investor_real_name", "TEXT", None),
+        ("investor_id_card_hash", "TEXT", None),
+        ("investor_id_card_last4", "TEXT", None),
+    ]
+
+    try:
+        with auth_engine.connect() as conn:
+            inspector = inspect(auth_engine)
+            columns = [col['name'] for col in inspector.get_columns('user')]
+
+            for col_name, col_type, default_val in new_columns:
+                if col_name in columns:
+                    continue
+
+                try:
+                    if settings.database_url.startswith("sqlite"):
+                        if default_val is not None:
+                            conn.execute(text(f"ALTER TABLE user ADD COLUMN {col_name} {col_type} NOT NULL DEFAULT {default_val}"))
+                        else:
+                            conn.execute(text(f"ALTER TABLE user ADD COLUMN {col_name} {col_type}"))
+                    else:
+                        # PostgreSQL
+                        pg_type = "BOOLEAN" if col_type == "BOOLEAN" else "TIMESTAMP" if col_name == "investor_certified_at" else "VARCHAR"
+                        if default_val is not None:
+                            pg_default = "FALSE" if col_type == "BOOLEAN" else default_val
+                            conn.execute(text(f"ALTER TABLE \"user\" ADD COLUMN {col_name} {pg_type} NOT NULL DEFAULT {pg_default}"))
+                        else:
+                            conn.execute(text(f"ALTER TABLE \"user\" ADD COLUMN {col_name} {pg_type}"))
+                    conn.commit()
+                    print(f"Migration: Added {col_name} column to user table")
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Migration note for {col_name}: {e}")
+    except Exception as e:
+        print(f"Investor migration note: {e}")
+
+
+def migrate_add_user_profile_columns() -> None:
+    """迁移：为 user 表添加 email/phone 列（如果不存在）"""
+    from sqlalchemy import text, inspect
+
+    new_columns = [
+        ("email", "TEXT"),
+        ("phone", "TEXT"),
+    ]
+
+    try:
+        with auth_engine.connect() as conn:
+            inspector = inspect(auth_engine)
+            columns = [col['name'] for col in inspector.get_columns('user')]
+
+            for col_name, col_type in new_columns:
+                if col_name in columns:
+                    continue
+                try:
+                    if settings.database_url.startswith("sqlite"):
+                        conn.execute(text(f"ALTER TABLE user ADD COLUMN {col_name} {col_type}"))
+                    else:
+                        conn.execute(text(f"ALTER TABLE \"user\" ADD COLUMN {col_name} VARCHAR"))
+                    conn.commit()
+                    print(f"Migration: Added {col_name} column to user table")
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Migration note for {col_name}: {e}")
+    except Exception as e:
+        print(f"User profile migration note: {e}")
 
 
 # ==================== Product CRUD ====================

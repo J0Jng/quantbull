@@ -230,53 +230,16 @@
         </div>
       </div>
       
-      <!-- 回测结果展示 -->
+      <!-- 回测结束提示与详情入口 -->
       <div v-if="backtestResult" class="section card">
-        <h2 class="section-title">回测结果</h2>
-        <div class="result-summary">
-          <div class="metric-card" v-for="(value, key) in backtestResult.metrics" :key="key">
-            <div class="metric-value">{{ formatMetricValue(key, value) }}</div>
-            <div class="metric-label">{{ getMetricLabel(key) }}</div>
-          </div>
-        </div>
-        
-        <div class="chart-container">
-          <h3>净值曲线</h3>
-          <div ref="chartContainer" class="chart-placeholder">
-            <!-- 图表将在这里渲染 -->
-            <p>净值图表区域</p>
-          </div>
-        </div>
-        
-        <div v-if="backtestResult.ai_review" class="ai-review card">
-          <h3>AI策略评价</h3>
-          <div class="review-grid">
-            <div class="review-item">
-              <div class="review-label">策略类型</div>
-              <div class="review-value">{{ backtestResult.ai_review.strategy_type }}</div>
-            </div>
-            <div class="review-item">
-              <div class="review-label">胜率</div>
-              <div class="review-value">{{ (backtestResult.ai_review.win_rate * 100).toFixed(2) }}%</div>
-            </div>
-            <div class="review-item">
-              <div class="review-label">交易次数</div>
-              <div class="review-value">{{ backtestResult.ai_review.trade_count }}</div>
-            </div>
-            <div class="review-item">
-              <div class="review-label">盈亏比</div>
-              <div class="review-value">{{ backtestResult.ai_review.profit_loss_ratio.toFixed(2) }}</div>
-            </div>
-            <div class="review-item">
-              <div class="review-label">波动率</div>
-              <div class="review-value">{{ (backtestResult.ai_review.volatility * 100).toFixed(2) }}%</div>
-            </div>
-            <div class="review-item">
-              <div class="review-label">最大连续亏损</div>
-              <div class="review-value">{{ backtestResult.ai_review.max_consecutive_loss }}</div>
-            </div>
-          </div>
-        </div>
+        <h2 class="section-title">回测已结束</h2>
+        <p class="info-text">回测结果已生成，请前往详情查看。</p>
+        <button
+          class="btn-view-detail"
+          @click="viewDetail(backtestResult.backtest_id || backtestResult.id)"
+        >
+          查看详情
+        </button>
       </div>
       
       <!-- 错误信息展示 -->
@@ -446,6 +409,39 @@ const builtinParamSchemas = {
     { key: 'risk_capital', label: '风险资本比例', type: 'number', default: 0.95, step: 0.01 },
     { key: 'max_leverage', label: '最大杠杆', type: 'number', default: 1.0, step: 0.1 },
     { key: 'force_cash', label: '强制空仓', type: 'boolean', default: false }
+  ],
+  legacy_backtrace_ma250: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 60, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'data_buffer', label: '数据缓冲区', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'printlog', label: '打印日志', type: 'boolean', default: false }
+  ],
+  legacy_climax_limitdown: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'limit_down_pct', label: '跌停百分比', type: 'number', default: -5, min: -10, step: 1 },
+    { key: 'vol_ratio_max', label: '最大成交量比率', type: 'number', default: 3.0, min: 1, step: 0.1 },
+    { key: 'printlog', label: '打印日志', type: 'boolean', default: false }
+  ],
+  legacy_enter: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 60, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 10, min: 1, step: 1 },
+  ],
+  legacy_keep_increasing: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 30, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 10, min: 1, step: 1 },
+  ],
+  legacy_low_atr: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 15, min: 1, step: 1 },
+  ],
+  legacy_low_backtrace: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 60, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 15, min: 1, step: 1 },
+  ],
+  legacy_turtle_trade: [
+    { key: 'threshold', label: '阈值', type: 'number', default: 60, min: 1, step: 1 },
+    { key: 'hold_bars', label: '持有周期', type: 'number', default: 10, min: 1, step: 1 },
   ],
 }
 

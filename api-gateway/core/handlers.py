@@ -14,7 +14,7 @@ async def http_exception_handler(request: Request, exc: Exception):
         status = 500
         detail = str(exc)
     payload = ApiResponse(code=status, message=str(detail), data=None).model_dump()
-    return JSONResponse(status_code=status, content=payload)
+    return JSONResponse(status_code=status, content=payload, media_type="application/json; charset=utf-8")
 
 
 async def validation_exception_handler(request: Request, exc: Exception):
@@ -26,10 +26,10 @@ async def validation_exception_handler(request: Request, exc: Exception):
         except Exception:
             msg = str(exc)
         payload = ApiResponse(code=422, message=msg, data=None).model_dump()
-        return JSONResponse(status_code=422, content=payload)
+        return JSONResponse(status_code=422, content=payload, media_type="application/json; charset=utf-8")
 
     payload = ApiResponse(code=500, message=str(exc), data=None).model_dump()
-    return JSONResponse(status_code=500, content=payload)
+    return JSONResponse(status_code=500, content=payload, media_type="application/json; charset=utf-8")
 
 
 async def generic_exception_handler(request: Request, exc: Exception):
@@ -38,7 +38,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
     Returns a unified envelope with HTTP 500 and the error message.
     """
     payload = ApiResponse(code=500, message=str(exc), data=None).model_dump()
-    return JSONResponse(status_code=500, content=payload)
+    return JSONResponse(status_code=500, content=payload, media_type="application/json; charset=utf-8")
 
 
 async def envelope_middleware(request: Request, call_next):
@@ -65,11 +65,14 @@ async def envelope_middleware(request: Request, call_next):
             
             new_headers = dict(response.headers)
             new_headers.pop("content-length", None)  # 关键修复：移除旧的Content-Length
+            new_headers.pop("content-type", None)
+            new_headers.pop("Content-Type", None)
             if isinstance(data, dict) and {"code", "message", "data"}.issubset(set(data.keys())):
                 return JSONResponse(
                     content=data, 
                     status_code=response.status_code, 
-                    headers=new_headers  # 使用新的headers
+                    headers=new_headers,  # 使用新的headers
+                    media_type="application/json; charset=utf-8",
                 )
             enveloped = ApiResponse(
                 code=0 if 200 <= response.status_code < 400 else response.status_code,
@@ -79,7 +82,8 @@ async def envelope_middleware(request: Request, call_next):
             return JSONResponse(
                 content=enveloped, 
                 status_code=response.status_code, 
-                headers=new_headers  # 使用新的headers
+                headers=new_headers,  # 使用新的headers
+                media_type="application/json; charset=utf-8",
             )
         except Exception:
             return response

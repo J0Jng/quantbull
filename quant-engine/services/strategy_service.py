@@ -179,10 +179,7 @@ class StrategyService:
             'pathlib', 'importlib', 'builtins', 'requests',
             '__builtin__', 'pickle', 'shelve', 'tempfile'
         }
-    
-    async def get_strategy_examples(self) -> list[dict]:
-        """获取策略示例代码"""
-        return get_strategy_examples()
+
         dangerous_calls = {
             'eval', 'exec', 'compile', 'open', '__import__', 
             'input', 'execfile', 'reload'
@@ -272,6 +269,10 @@ class StrategyService:
             warnings=warnings,
             message="策略代码验证通过" if valid else "策略代码验证失败",
         )
+
+    async def get_strategy_examples(self) -> list[dict]:
+        """获取策略示例代码"""
+        return get_strategy_examples()
 
     async def list_builtin_strategies(self) -> list[dict]:
         """列出内置策略元数据"""
