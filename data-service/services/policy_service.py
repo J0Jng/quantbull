@@ -5,10 +5,13 @@
 import asyncio
 import hashlib
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
+from urllib.parse import urljoin
 
 import httpx
+from lxml import html
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +25,7 @@ class PolicyAggregator:
     
     # 缓存 TTL（秒）
     CACHE_TTL = 3600  # 1 小时
+    CACHE_MAX_ITEMS = 50
     
     def __init__(
         self,
@@ -44,6 +48,121 @@ class PolicyAggregator:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         }
+
+    @staticmethod
+    def _clean_text(value: str) -> str:
+        text = re.sub(r"\s+", " ", value or "").strip()
+        return text
+
+    @staticmethod
+    def _normalize_date(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        value = value.replace('/', '-').replace('.', '-')
+        match = re.search(r"(\d{4})[-年](\d{1,2})[-月](\d{1,2})", value)
+        if match:
+            y, m, d = match.groups()
+            return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", value)
+        if match:
+            y, m, d = match.groups()
+            return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        return None
+
+    @staticmethod
+    def _extract_date(text: str) -> Optional[str]:
+        return PolicyAggregator._normalize_date(text)
+
+    @staticmethod
+    def _generate_id(source: str, title: str, date: str, url: Optional[str]) -> str:
+        raw = url or f"{source}|{title}|{date}"
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+    async def _get_text_with_retry(self, client: httpx.AsyncClient, url: str, params: Optional[dict] = None) -> Optional[str]:
+        for attempt in range(3):
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.text
+            except httpx.HTTPStatusError as exc:
+                status_code = exc.response.status_code
+                if status_code == 404:
+                    logger.warning(f"政策列表地址不存在: {url}")
+                    return None
+                if attempt == 2:
+                    logger.warning(f"获取政策列表失败: {exc}")
+                    return None
+                await asyncio.sleep(0.5 * (2 ** attempt))
+            except Exception as exc:
+                if attempt == 2:
+                    logger.warning(f"获取政策列表失败: {exc}")
+                    return None
+                await asyncio.sleep(0.5 * (2 ** attempt))
+        return None
+
+    async def _fetch_detail_summary(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
+        html_text = await self._get_text_with_retry(client, url)
+        if not html_text:
+            return None
+        try:
+            doc = html.fromstring(html_text)
+        except Exception:
+            return None
+        candidates = doc.xpath(
+            "//div[contains(@class,'TRS_Editor') or contains(@class,'content') or contains(@class,'article') or contains(@id,'content') or contains(@id,'zoom')]"
+        )
+        if not candidates:
+            candidates = doc.xpath("//article|//div[@class='article-content']")
+        texts: List[str] = []
+        for node in candidates:
+            text = self._clean_text(" ".join(node.itertext()))
+            if text:
+                texts.append(text)
+        if not texts:
+            return None
+        content = max(texts, key=len)
+        return content[:150]
+
+    def _extract_items_from_html(self, html_text: str, list_url: str, source_name: str) -> List[Dict[str, Any]]:
+        try:
+            doc = html.fromstring(html_text)
+        except Exception:
+            return []
+        anchors = doc.xpath("//a[@href and normalize-space(string()) != '']")
+        ignore_titles = {"更多", "下一页", "上一页", "首页", "尾页"}
+        items: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for anchor in anchors:
+            title = self._clean_text(anchor.text_content())
+            if not title or title in ignore_titles or len(title) < 6:
+                continue
+            href = anchor.get("href")
+            if not href:
+                continue
+            url = urljoin(list_url, href)
+            if url in seen:
+                continue
+            parent_text = self._clean_text(" ".join(anchor.getparent().itertext())) if anchor.getparent() is not None else ""
+            date_value = self._extract_date(parent_text)
+            if not date_value:
+                sibling_text = ""
+                if anchor.getparent() is not None:
+                    sibling_text = self._clean_text(" ".join(anchor.getparent().xpath("./span/text()|./em/text()|./p/text()")))
+                date_value = self._extract_date(sibling_text)
+            if not date_value:
+                continue
+            items.append({
+                "title": title,
+                "date": date_value,
+                "url": url,
+                "source": source_name,
+                "summary": ""
+            })
+            seen.add(url)
+        return items
     
     async def fetch_policies(self, limit: int = 10, keyword: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -57,69 +176,82 @@ class PolicyAggregator:
             政策列表
         """
         try:
-            # 这里提供模拟数据，真实场景需要爬取官方网站
-            policies = [
+            sources = [
                 {
-                    "id": f"policy_{datetime.now().timestamp()}_1",
-                    "title": "关于进一步优化资本市场融资环境的通知",
-                    "summary": "为进一步提升资本市场服务实体经济能力，优化企业融资环境，证监会发布通知，从简化审批流程、降低融资成本、支持科技创新等多个方面提出具体措施。",
-                    "source": "中国证监会",
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "url": "http://www.csrc.gov.cn/example1"
+                    "name": "中国证监会",
+                    "list_urls": [
+                        "http://www.csrc.gov.cn/csrc/c100028/common_list.shtml"
+                    ]
                 },
                 {
-                    "id": f"policy_{datetime.now().timestamp()}_2",
-                    "title": "关于加强金融科技监管的指导意见",
-                    "summary": "为规范金融科技创新发展，防范金融风险，央行联合多部门发布指导意见，明确金融科技创新的边界和监管要求，强化对金融科技平台的持牌经营和合规监管。",
-                    "source": "中国人民银行",
-                    "date": (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d"),
-                    "url": "http://www.pbc.gov.cn/example1"
-                },
-                {
-                    "id": f"policy_{datetime.now().timestamp()}_3",
-                    "title": "关于推进绿色金融发展的实施方案",
-                    "summary": "为贯彻落实碳达峰碳中和战略目标，推动绿色金融发展，相关部门联合制定实施方案，明确绿色金融发展路径，支持绿色产业和项目融资。",
-                    "source": "发展改革委、央行",
-                    "date": (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
-                    "url": "http://www.ndrc.gov.cn/example1"
-                },
-                {
-                    "id": f"policy_{datetime.now().timestamp()}_4",
-                    "title": "关于加强投资者保护工作的若干措施",
-                    "summary": "为切实保护投资者合法权益，证监会出台多项措施，包括完善投资者权益保护机制、加强信息披露监管、建立投资者赔偿制度等，全面提升投资者保护水平。",
-                    "source": "中国证监会",
-                    "date": (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d"),
-                    "url": "http://www.csrc.gov.cn/example2"
-                },
-                {
-                    "id": f"policy_{datetime.now().timestamp()}_5",
-                    "title": "关于规范私募基金管理人登记的通知",
-                    "summary": "为规范私募基金行业发展，基金业协会发布通知，进一步明确私募基金管理人登记要求，加强事中事后监管，打击违规展业行为。",
-                    "source": "中国证券投资基金业协会",
-                    "date": (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d"),
-                    "url": "http://www.amac.org.cn/example1"
-                },
+                    "name": "中国人民银行",
+                    "list_urls": [
+                        "http://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html"
+                    ]
+                }
             ]
-            
-            # 关键词过滤
-            if keyword:
-                keyword_lower = keyword.lower()
-                policies = [
-                    policy for policy in policies
-                    if keyword_lower in policy["title"].lower() or keyword_lower in policy["summary"].lower()
-                ]
-            
-            # 限制数量
-            policies = policies[:limit]
-            
-            logger.info(f"成功构造 {len(policies)} 条政策法规")
-            return policies
-            
+
+            async with httpx.AsyncClient(timeout=self.timeout, headers=self.headers, follow_redirects=True) as client:
+                items: List[Dict[str, Any]] = []
+                for src in sources:
+                    list_html = None
+                    list_url_used = None
+                    for list_url in src["list_urls"]:
+                        list_html = await self._get_text_with_retry(client, list_url)
+                        if list_html:
+                            list_url_used = list_url
+                            break
+                    if not list_html or not list_url_used:
+                        continue
+                    items.extend(self._extract_items_from_html(list_html, list_url_used, src["name"]))
+
+                if not items:
+                    return []
+
+                deduped: Dict[str, Dict[str, Any]] = {}
+                for item in items:
+                    key = item.get("url") or f"{item.get('source')}|{item.get('title')}|{item.get('date')}"
+                    if key not in deduped:
+                        deduped[key] = item
+
+                items = list(deduped.values())
+                items.sort(key=lambda x: x.get("date", ""), reverse=True)
+
+                detail_targets = [item for item in items if not item.get("summary")][:max(limit, 10)]
+                semaphore = asyncio.Semaphore(5)
+
+                async def enrich(item: Dict[str, Any]) -> None:
+                    if not item.get("url"):
+                        return
+                    async with semaphore:
+                        summary = await self._fetch_detail_summary(client, item["url"])
+                        if summary:
+                            item["summary"] = summary
+
+                await asyncio.gather(*(enrich(item) for item in detail_targets), return_exceptions=True)
+
+                for item in items:
+                    if not item.get("summary"):
+                        item["summary"] = item.get("title", "")[:120]
+                    item["id"] = self._generate_id(item["source"], item["title"], item["date"], item.get("url"))
+
+                if keyword:
+                    keyword_lower = keyword.lower()
+                    items = [
+                        item for item in items
+                        if keyword_lower in item["title"].lower() or keyword_lower in item["summary"].lower()
+                    ]
+
+                items = items[:limit]
+
+                logger.info(f"成功抓取 {len(items)} 条政策法规")
+                return items
+
         except Exception as e:
             logger.error(f"抓取政策法规失败：{e}")
             return []
     
-    async def get_from_cache(self, keyword: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_from_cache(self, keyword: Optional[str] = None, cache_limit: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         从数据库缓存获取数据
         
@@ -133,7 +265,7 @@ class PolicyAggregator:
             return None
         
         try:
-            cache_key = f"policies:{keyword or 'all'}"
+            cache_key = f"policies:{keyword or 'all'}:limit={cache_limit or self.CACHE_MAX_ITEMS}"
             
             stmt = select(FinanceChannelCache).where(
                 FinanceChannelCache.cache_key == cache_key
@@ -160,7 +292,7 @@ class PolicyAggregator:
             logger.error(f"从缓存读取政策数据失败：{e}")
             return None
     
-    async def save_to_cache(self, items: List[Dict[str, Any]], keyword: Optional[str] = None, source: str = "official") -> None:
+    async def save_to_cache(self, items: List[Dict[str, Any]], keyword: Optional[str] = None, source: str = "official", cache_limit: Optional[int] = None) -> None:
         """
         保存数据到数据库缓存
         
@@ -173,7 +305,7 @@ class PolicyAggregator:
             return
         
         try:
-            cache_key = f"policies:{keyword or 'all'}"
+            cache_key = f"policies:{keyword or 'all'}:limit={cache_limit or self.CACHE_MAX_ITEMS}"
             now = datetime.now()
             expires_at = now + timedelta(seconds=self.cache_ttl)
             
@@ -223,21 +355,24 @@ class PolicyAggregator:
         """
         try:
             # 1. 尝试从缓存读取
-            cached_data = await self.get_from_cache(keyword)
+            cache_limit = max(self.CACHE_MAX_ITEMS, limit)
+            cached_data = await self.get_from_cache(keyword, cache_limit=cache_limit)
             
             if cached_data and not cached_data["stale"]:
                 # 缓存有效，直接返回
                 logger.info(f"使用有效缓存的政策数据（keyword={keyword}）")
+                cached_data["items"] = cached_data.get("items", [])[:limit]
                 return cached_data
             
             # 2. 缓存过期或不存在，重新抓取
             logger.info(f"缓存过期或不存在，重新抓取政策数据（keyword={keyword}）")
-            items = await self.fetch_policies(limit=limit, keyword=keyword)
+            items = await self.fetch_policies(limit=cache_limit, keyword=keyword)
             
             if not items:
                 # 抓取失败，返回过期缓存（如果有）
                 if cached_data:
                     logger.warning("抓取失败，返回过期缓存数据")
+                    cached_data["items"] = cached_data.get("items", [])[:limit]
                     return cached_data
                 else:
                     logger.error("抓取失败且无缓存数据")
@@ -250,14 +385,14 @@ class PolicyAggregator:
                     }
             
             # 3. 保存到缓存
-            await self.save_to_cache(items, keyword=keyword, source="simulated")
+            await self.save_to_cache(items, keyword=keyword, source="official", cache_limit=cache_limit)
             
             # 4. 返回新数据
             return {
-                "items": items,
+                "items": items[:limit],
                 "cached": False,
                 "stale": False,
-                "source": "simulated",
+                "source": "official",
                 "updated_at": datetime.now().isoformat()
             }
             
@@ -265,9 +400,10 @@ class PolicyAggregator:
             logger.error(f"聚合政策数据失败：{e}", exc_info=True)
             
             # 降级：尝试返回缓存
-            cached_data = await self.get_from_cache(keyword)
+            cached_data = await self.get_from_cache(keyword, cache_limit=cache_limit)
             if cached_data:
                 logger.warning("发生异常，返回缓存数据")
+                cached_data["items"] = cached_data.get("items", [])[:limit]
                 return cached_data
             
             # 无缓存，返回空数据

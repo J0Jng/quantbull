@@ -209,9 +209,7 @@
                 <span class="stock-name">{{ item.name }}</span>
                 <span :class="item.tagClass">{{ item.tag }}</span>
               </div>
-              <div class="price">{{ item.priceLabel }}：<span class="current-price">{{ item.price }}</span></div>
-              <div class="profit">{{ item.profitLabel }}:<span class="profit-value" :class="{ 'positive': parseFloat(item.profit) > 0, 'negative': parseFloat(item.profit) < 0 }">{{ item.profit }}</span></div>
-              <ul class="report-tags">
+             <ul class="report-tags">
                 <li v-for="(tag, i) in item.tags" :key="i">{{ tag }}</li>
               </ul>
               <div style="clear:both;"></div>
@@ -236,6 +234,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { getReportSummaries } from '@/services/reportService'
 import { generateReport } from '@/services/aiService'
@@ -288,6 +287,8 @@ const ratingMapOld = {
   'sell': { tag: '卖出', tagClass: 'mai-chu' }
 }
 
+const sanitizeHtml = (html) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+
 // Markdown 渲染
 const renderedContent = computed(() => {
   if (!reportDetail.value || !reportDetail.value.report_content) {
@@ -295,10 +296,10 @@ const renderedContent = computed(() => {
   }
   
   try {
-    return marked(reportDetail.value.report_content)
+    return sanitizeHtml(marked(reportDetail.value.report_content))
   } catch (e) {
     console.error('Markdown 渲染失败:', e)
-    return `<pre>${reportDetail.value.report_content}</pre>`
+    return sanitizeHtml(`<pre>${reportDetail.value.report_content}</pre>`)
   }
 })
 

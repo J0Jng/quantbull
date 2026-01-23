@@ -10,7 +10,7 @@ from core.handlers import generic_exception_handler, http_exception_handler, env
 from core.logger import configure_logging
 from core.openapi_aggregator import OpenAPIAggregator, load_service_configs
 from core.response import success
-from middlewares import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
+from middlewares import AuthMiddleware, CsrfMiddleware, LoggingMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from routers import auth, gateway, proxy, admin
 import uvicorn
 
@@ -54,21 +54,29 @@ def create_app() -> FastAPI:
     
     # 添加中间件（注意顺序：后添加的先执行）
     # 1. CORS 中间件（最外层）
+    cors_allow_origins = ["*"] if settings.env == "local" else settings.cors_allow_origins
+    cors_allow_credentials = True if settings.env == "local" else settings.cors_allow_credentials
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 生产环境应限制具体域名
-        allow_credentials=True,
+        allow_origins=cors_allow_origins,
+        allow_credentials=cors_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     
-    # 2. 限流中间件
+    # 2. 安全响应头中间件
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # 3. CSRF 中间件
+    app.add_middleware(CsrfMiddleware)
+
+    # 4. 限流中间件
     app.add_middleware(RateLimitMiddleware)
-    
-    # 3. 日志中间件
+
+    # 5. 日志中间件
     app.add_middleware(LoggingMiddleware)
-    
-    # 4. 鉴权中间件（最内层，最后执行）
+
+    # 6. 鉴权中间件（最内层，最后执行）
     app.add_middleware(AuthMiddleware)
     
     # 全局异常处理与响应封装中间件

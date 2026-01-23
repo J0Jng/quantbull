@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,21 +15,21 @@ class Settings(BaseSettings):
     
     # DeepSeek R1 API 配置（偏文本生成、新闻、逻辑推理）
     # 默认使用阿里云 DashScope 的 OpenAI 兼容接口
-    deepseek_api_key: str = "sk-d0a22a6a95534cb4b168e2e8e020d1fd"
+    deepseek_api_key: str = ""
     deepseek_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     deepseek_model: str = "deepseek-chat"  # 或 "deepseek-r1" 根据实际模型名称调整
     deepseek_max_concurrency: int = 5
     deepseek_rpm: int = 60
     
     # 通义千问 Qwen2.5 API 配置（偏结构化输出、代码生成、投研摘要）
-    qwen_api_key: str = "sk-d0a22a6a95534cb4b168e2e8e020d1fd"
+    qwen_api_key: str = ""
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     qwen_model: str = "qwen-turbo"  # 或 "qwen2.5-7b-chat" 根据实际模型名称调整
     qwen_max_concurrency: int = 3
     qwen_rpm: int = 60
     
     # OpenAI 兼容配置（用于其他模型）
-    openai_api_key: str = "sk-d0a22a6a95534cb4b168e2e8e020d1fd"
+    openai_api_key: str = ""
     openai_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     
     # 数字人服务配置（示例）
@@ -63,6 +64,20 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False
     )
+
+    @model_validator(mode="after")
+    def _validate_secrets(self):
+        if (self.env or "").lower() != "local":
+            missing = []
+            if not self.deepseek_api_key:
+                missing.append("DEEPSEEK_API_KEY")
+            if not self.qwen_api_key:
+                missing.append("QWEN_API_KEY")
+            if not self.openai_api_key:
+                missing.append("OPENAI_API_KEY")
+            if missing:
+                raise ValueError(f"Missing required secrets for non-local env: {', '.join(missing)}")
+        return self
 
 
 @lru_cache

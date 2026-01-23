@@ -26,10 +26,6 @@
           <h1 class="logo">量化牛牛</h1>
           <span class="slogan">专业理财平台</span>
         </div>
-        <div class="top-middle">
-          <input v-model="search" type="text" placeholder="输入股票代码、名称或关键词" class="search-input" />
-          <button class="search-btn">查行情</button>
-        </div>
         <div class="top-right">
           <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
             <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
@@ -79,14 +75,17 @@
           
           <!-- 新闻内容 -->
           <template v-else>
-            <div class="news-banner">
-              <img :src="bannerNews?.img || '/1.png'" alt="财经头条主图" />
-              <div class="banner-mask" @click="goToNewsDetail(bannerNews?.id || 1)">
-                <h3 class="mask-title">{{ bannerNews?.title || '央行：将再降准0.5个百分点 释放资金约1万亿元' }}</h3>
-                <p class="mask-desc">{{ bannerNews?.summary || '本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。' }}</p>
+            <div v-if="bannerNews" class="news-banner" @click="goToNewsDetail(bannerNews.id)">
+              <div class="banner-text">
+                <h3 class="mask-title">{{ bannerNews.title }}</h3>
+                <p class="mask-desc">{{ bannerNews.summary || '暂无摘要' }}</p>
+                <span class="banner-cta">查看详情</span>
               </div>
             </div>
-            <div class="news-list">
+            <div v-else class="empty-news">
+              <p>{{ newsError || '暂无财经头条' }}</p>
+            </div>
+            <div class="news-list" v-if="newsList.length">
               <ul>
                 <li v-for="news in newsList" :key="news.id">
                   <a href="#" @click.prevent="goToNewsDetail(news.id)">{{ news.title }}</a>
@@ -96,12 +95,6 @@
           </template>
         </section>
 
-        <!-- 广告横幅 -->
-        <section class="ad-banner">
-            <a href="#">
-            <img src="/2.png" alt="理财广告" />
-          </a>
-        </section>
 
         <!-- 龙虎榜板块（新增切换内容容器） -->
         <h2 class="section-title">{{ dragonFailed ? '大盘指数' : '龙虎榜' }}</h2>
@@ -127,17 +120,17 @@
                     <th>指数名称</th>
                     <th>最新价</th>
                     <th>涨跌幅</th>
-                    <th>成交量</th>
-                    <th>成交额</th>
+                    <th>涨跌额</th>
+                    <th>更新时间</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(row, idx) in marketIndexData" :key="idx">
                     <td>{{ row.name }}</td>
                     <td>{{ row.price }}</td>
-                    <td><span :class="row.change > 0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
-                    <td>{{ row.volume }}</td>
-                    <td>{{ row.amount }}</td>
+                    <td><span :class="row.change > 0 ? 'red' : 'green'">{{ row.changeText }}</span></td>
+                    <td>{{ row.changeAmount }}</td>
+                    <td>{{ row.updatedAt }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -173,6 +166,9 @@
                       <th>涨跌幅</th>
                       <th>涨跌</th>
                       <th>净买入(亿)</th>
+                      <th>买入额(亿)</th>
+                      <th>卖出额(亿)</th>
+                      <th>上榜次数</th>
                       <th>上榜理由</th>
                     </tr>
                   </thead>
@@ -183,6 +179,9 @@
                       <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
                       <td>{{ row.delta }}</td>
                       <td>{{ row.net }}</td>
+                      <td>{{ row.buy }}</td>
+                      <td>{{ row.sell }}</td>
+                      <td>{{ row.appearCount }}</td>
                       <td>{{ row.reason }}</td>
                     </tr>
                   </tbody>
@@ -208,6 +207,9 @@
                       <th>涨跌幅</th>
                       <th>涨跌</th>
                       <th>净买入(亿)</th>
+                      <th>买入额(亿)</th>
+                      <th>卖出额(亿)</th>
+                      <th>上榜次数</th>
                       <th>上榜理由</th>
                     </tr>
                   </thead>
@@ -218,6 +220,9 @@
                       <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
                       <td>{{ row.delta }}</td>
                       <td>{{ row.net }}</td>
+                      <td>{{ row.buy }}</td>
+                      <td>{{ row.sell }}</td>
+                      <td>{{ row.appearCount }}</td>
                       <td>{{ row.reason }}</td>
                     </tr>
                   </tbody>
@@ -243,6 +248,9 @@
                       <th>涨跌幅</th>
                       <th>涨跌</th>
                       <th>净买入(亿)</th>
+                      <th>买入额(亿)</th>
+                      <th>卖出额(亿)</th>
+                      <th>上榜次数</th>
                       <th>上榜理由</th>
                     </tr>
                   </thead>
@@ -253,6 +261,9 @@
                       <td><span :class="row.change>0 ? 'green' : 'red'">{{ row.changeText }}</span></td>
                       <td>{{ row.delta }}</td>
                       <td>{{ row.net }}</td>
+                      <td>{{ row.buy }}</td>
+                      <td>{{ row.sell }}</td>
+                      <td>{{ row.appearCount }}</td>
                       <td>{{ row.reason }}</td>
                     </tr>
                   </tbody>
@@ -388,14 +399,35 @@
         </section>
 
         <!-- 基金排行榜板块 -->
-        <h2 class="section-title">基金排行榜</h2>
+        <div class="section-header-inline">
+          <h2 class="section-title">基金排行榜</h2>
+          <div class="header-actions">
+            <router-link to="/fund-ranking" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
+          </div>
+        </div>
         <section class="fund-rank">
-          <div class="fund-list">
+          <div v-if="fundsLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>正在加载基金排行榜...</p>
+          </div>
+          <div v-else-if="fundsError && funds.length === 0" class="error-state">
+            <p>{{ fundsError }}</p>
+            <button @click="loadFundRanking" class="retry-btn">重试</button>
+          </div>
+          <div v-else class="fund-list">
+            <div class="fund-item fund-header">
+              <div class="fund-col name-col">基金名称</div>
+              <div class="fund-col data-col">单位净值</div>
+              <div class="fund-col trend-col">日涨跌幅</div>
+              <div class="fund-col data-col">近1周</div>
+              <div class="fund-col data-col">近1月</div>
+              <div class="fund-col data-col">近3月</div>
+              <div class="fund-col data-col">近6月</div>
+              <div class="fund-col data-col">近1年</div>
+              <div class="fund-col data-col">近3年</div>
+              <div class="fund-col btn-col">操作</div>
+            </div>
             <div class="fund-item" v-for="(fund, idx) in funds" :key="idx">
-              <div class="fund-col check-col">
-                <input type="radio" name="fund-radio" :id="'fund'+idx" />
-              </div>
-              <div class="fund-col num-col">{{ fund.rank }}</div>
               <div class="fund-col name-col">
                 <div class="fund-name">{{ fund.name }}</div>
                 <div class="fund-type">{{ fund.type }}</div>
@@ -406,15 +438,11 @@
               </div>
               <div class="fund-col trend-col" :class="fund.trendColor">{{ fund.trend }}</div>
 
-              <div class="fund-col data-col" v-for="(d, i) in fund.periods" :key="i">
-                <div class="data-value">{{ d }}</div>
+              <div class="fund-col data-col" v-for="(p, i) in fund.periods" :key="i">
+                <div class="data-value" :class="p.class">{{ p.text }}</div>
               </div>
 
-              <div class="fund-col trend-img-col">
-                <img :src="'/3.png'" alt="上涨走势" class="trend-img" />
-              </div>
               <div class="fund-col btn-col">
-                <button class="buy-btn small" @click="$router.push('/fund-ranking')">立即购买</button>
                 <button class="fav-btn small" @click="$router.push('/fund-ranking')">自选</button>
               </div>
             </div>
@@ -638,12 +666,14 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from './FooterComponent.vue'
-import { getTopListSummary, getMarketOverview, getRealtimeQuotes } from '@/services/marketService'
+import { getTopListSummary } from '@/services/marketService'
+import { getMarketData } from '@/services/financeChannelService'
 import { generateNewsAnalysis, generateStrategy as generateStrategyApi, generateSummary as generateSummaryApi, generateReport as generateReportApi } from '@/services/aiService'
 import { getLatestDailyReport, getDailyReportList } from '@/services/dailyReportService'
 import { getCompanyResearchList } from '@/services/companyResearchService'
 import { getProducts, formatPrice as serviceFormatPrice } from '@/services/productService'
-import { getEastmoneyLatestNews } from '@/services/newsService'
+import { getHeadlines } from '@/services/newsService'
+import { getPublicFundRanking } from '@/services/fundRankingService'
 import http from '@/services/http'
 import { useAuth } from '@/composables/useAuth'
 import chatService from '@/services/chatService'
@@ -687,6 +717,11 @@ const newsLoading = ref(false)
 const newsError = ref('')
 const newsList = ref([])
 const bannerNews = ref(null)
+
+// 基金排行榜数据状态
+const funds = ref([])
+const fundsLoading = ref(false)
+const fundsError = ref('')
 
 // 用户菜单相关状态
 const showUserMenu = ref(false)
@@ -759,57 +794,37 @@ const loadNews = async () => {
   try {
     newsLoading.value = true
     newsError.value = ''
-    const result = await getEastmoneyLatestNews({ limit: 6 })
-    
-    if (result.success && result.data?.data?.items) {
-      const items = result.data.data.items
-      if (items.length > 0) {
-        // 第一条作为banner
-        bannerNews.value = {
-          id: items[0].id || 1,
-          title: items[0].title || '暂无标题',
-          summary: items[0].summary || '暂无摘要',
-          img: items[0].img || '/1.png'
-        }
-        // 其余作为列表
-        newsList.value = items.slice(1, 6).map((item, index) => ({
-          id: item.id || (index + 2),
-          title: item.title || '暂无标题'
-        }))
-      }
-    } else {
-      // 使用占位数据
+    const response = await getHeadlines({ page: 1, page_size: 6 })
+
+    let items = []
+    if (response?.items) {
+      items = response.items
+    } else if (response?.data?.items) {
+      items = response.data.items
+    } else if (Array.isArray(response)) {
+      items = response
+    }
+
+    if (items.length > 0) {
       bannerNews.value = {
-        id: 1,
-        title: '央行：将再降准0.5个百分点 释放资金约1万亿元',
-        summary: '本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。',
+        id: items[0].id,
+        title: items[0].title || '暂无标题',
+        summary: items[0].summary || '暂无摘要',
         img: '/1.png'
       }
-      newsList.value = [
-        { id: 2, title: '24H：A三大集团集体高开 宁德时代涨5.1%' },
-        { id: 3, title: '国际油价涨超1% 报103美元/桶 WTI升4%' },
-        { id: 4, title: '房地产"超预期政策"密集发布 多家房企发公告' },
-        { id: 5, title: '人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口' },
-        { id: 6, title: '工信部：加快推进新能源汽车充电桩建设 年内新增超20万个' }
-      ]
+      newsList.value = items.slice(1).map(item => ({
+        id: item.id,
+        title: item.title || '暂无标题'
+      }))
+    } else {
+      bannerNews.value = null
+      newsList.value = []
     }
   } catch (e) {
     console.error('加载财经新闻失败:', e)
     newsError.value = '加载失败'
-    // 使用占位数据
-    bannerNews.value = {
-      id: 1,
-      title: '央行：将再降准0.5个百分点 释放资金约1万亿元',
-      summary: '本次降准旨在优化流动性结构，降低实体经济融资成本，预计将带动市场融资成本进一步下行，利好中小企业和实体经济发展。',
-      img: '/1.png'
-    }
-    newsList.value = [
-      { id: 2, title: '24H：A三大集团集体高开 宁德时代涨5.1%' },
-      { id: 3, title: '国际油价涨超1% 报103美元/桶 WTI升4%' },
-      { id: 4, title: '房地产"超预期政策"密集发布 多家房企发公告' },
-      { id: 5, title: '人民币汇率企稳回升 离岸人民币兑美元涨破7.10关口' },
-      { id: 6, title: '工信部：加快推进新能源汽车充电桩建设 年内新增超20万个' }
-    ]
+    bannerNews.value = null
+    newsList.value = []
   } finally {
     newsLoading.value = false
   }
@@ -828,6 +843,79 @@ const loadMallProducts = async () => {
     console.error('Failed to load mall products:', error)
   } finally {
     mallProductsLoading.value = false
+  }
+}
+
+// 加载基金排行榜数据（公募）
+const loadFundRanking = async () => {
+  fundsLoading.value = true
+  fundsError.value = ''
+
+  try {
+    const result = await getPublicFundRanking({
+      sort_by: 'return1m',
+      order: 'desc',
+      page: 1,
+      page_size: 3
+    })
+
+    if (!result.success) {
+      fundsError.value = result.message || '加载基金排行榜失败'
+      funds.value = []
+      return
+    }
+
+    const payload = result.data?.data
+    const items = payload?.items || []
+
+    const uniqueByType = new Map()
+    const fallback = []
+    items.forEach((item) => {
+      const typeKey = item.type || '—'
+      if (!uniqueByType.has(typeKey)) {
+        uniqueByType.set(typeKey, item)
+      } else {
+        fallback.push(item)
+      }
+    })
+
+    const picked = Array.from(uniqueByType.values()).slice(0, 3)
+    if (picked.length < 3) {
+      picked.push(...fallback.slice(0, 3 - picked.length))
+    }
+
+    funds.value = picked.map((item, idx) => {
+      const change = Number(item.change ?? 0)
+      const trendText = `${change >= 0 ? '+' : ''}${change}%`
+      const formatVal = (val) => {
+        if (val === undefined || val === null || val === '—') return { text: '—', class: '' }
+        const num = parseFloat(val)
+        if (isNaN(num)) return { text: val, class: '' }
+        const text = `${num >= 0 ? '+' : ''}${num.toFixed(2)}%`
+        return { text, class: num < 0 ? 'green' : 'red' }
+      }
+
+      return {
+        name: item.name || '—',
+        type: item.type || '—',
+        nav: item.nav ?? '—',
+        trend: trendText,
+        trendColor: trendText.includes('-') ? 'green' : 'red',
+        periods: [
+          formatVal(item.return1w),
+          formatVal(item.return1m),
+          formatVal(item.return3m),
+          formatVal(item.return6m),
+          formatVal(item.return1y),
+          formatVal(item.return3y)
+        ]
+      }
+    })
+  } catch (error) {
+    fundsError.value = error?.message || '加载基金排行榜失败'
+    funds.value = []
+  } finally {
+    fundsLoading.value = false
   }
 }
 
@@ -856,6 +944,7 @@ onMounted(() => {
   loadNews()
   loadCompanyReports()
   loadMallProducts()
+  loadFundRanking()
 })
 
 // AI服务相关状态
@@ -1172,6 +1261,9 @@ const loadDragonData = async (days = 1) => {
         changeText: item.pct_change ? `${item.pct_change > 0 ? '+' : ''}${item.pct_change.toFixed(2)}%` : '-',
         delta: item.pct_change?.toFixed(2) || '-',
         net: item.net_amount ? (item.net_amount / 100000000).toFixed(2) : '-', // 转换为亿
+        buy: item.total_buy ? (item.total_buy / 100000000).toFixed(2) : (item.l_buy ? (item.l_buy / 100000000).toFixed(2) : '-'),
+        sell: item.total_sell ? (item.total_sell / 100000000).toFixed(2) : (item.l_sell ? (item.l_sell / 100000000).toFixed(2) : '-'),
+        appearCount: item.appear_count || 1,
         reason: item.reason || '-'
       }))
       
@@ -1211,40 +1303,29 @@ const loadMarketIndex = async () => {
   marketIndexError.value = ''
   
   try {
-    const result = await getMarketOverview()
-    
-    if (result.success && result.data) {
-      // 转换 API 数据为前端格式
-      // data-service 返回: {"trade_date", "market_status", "indices": [...], "total_turnover"}
-      const data = result.data.data || result.data
-      if (data.indices && data.indices.length > 0) {
-        // 指数名称映射
-        const indexNameMap = {
-          '000001.SH': '上证指数',
-          '399001.SZ': '深证成指',
-          '399006.SZ': '创业板指',
-          '000016.SH': '上证50',
-          '000300.SH': '沪深300',
-          '000905.SH': '中证500',
-          '000688.SH': '科创50'
+    const result = await getMarketData()
+
+    if (result?.data?.items && result.data.items.length > 0) {
+      const items = result.data.items
+      marketIndexData.value = items.map(item => {
+        const price = Number(item.value)
+        const pct = Number(item.change_pct)
+        const changeAmount = Number.isFinite(price) && Number.isFinite(pct)
+          ? (price * (pct / 100)).toFixed(2)
+          : '-'
+        const changeText = Number.isFinite(pct)
+          ? `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`
+          : '-'
+
+        return {
+          name: item.title || item.code || '-',
+          price: Number.isFinite(price) ? price.toFixed(2) : '-',
+          change: Number.isFinite(pct) ? pct : 0,
+          changeText,
+          changeAmount: Number.isFinite(Number(changeAmount)) ? `${pct > 0 ? '+' : ''}${changeAmount}` : '-',
+          updatedAt: item.updated_at ? item.updated_at.replace('T', ' ').slice(0, 19) : '-'
         }
-        
-        marketIndexData.value = data.indices.map(item => {
-          const symbol = item.symbol || item.code || ''
-          return {
-            name: indexNameMap[symbol] || item.name || symbol,
-            price: item.close?.toFixed(2) || item.latest_price?.toFixed(2) || '-',
-            change: item.pct_change || item.change || 0,
-            changeText: item.pct_change 
-              ? `${item.pct_change > 0 ? '+' : ''}${item.pct_change.toFixed(2)}%` 
-              : '-',
-            volume: item.vol ? (item.vol / 100000000).toFixed(2) + '亿' : '-',
-            amount: item.amount ? (item.amount / 100000000).toFixed(2) + '亿' : '-'
-          }
-        })
-      } else {
-        marketIndexError.value = '数据丢失'
-      }
+      })
     } else {
       marketIndexError.value = '数据丢失'
     }
@@ -1274,12 +1355,6 @@ const loadDailyReports = async () => {
   try {
     console.log('开始加载每日内参数据...')
     console.log('当前时间是否可访问今日报告:', canAccessTodayReport())
-    
-    // 检查认证状态
-    const token = localStorage.getItem('access_token')
-    if (!token) {
-      console.warn('未找到访问令牌')
-    }
     
     // 加载最新报告（后端会自动过滤今天的报告如果<16:00）
     const latestResult = await getLatestDailyReport()
@@ -1375,14 +1450,9 @@ watch(dragonTab, (newTab) => {
 
 // 页面加载时检查API状态并加载龙虎榜
 onMounted(() => {
-  // 检查认证状态
-  const token = localStorage.getItem('access_token')
-  const userInfo = localStorage.getItem('user_info')
   console.log('认证状态检查:', {
     logged: logged.value,
-    hasToken: !!token,
-    tokenLength: token ? token.length : 0,
-    hasUserInfo: !!userInfo,
+    sessionActive: localStorage.getItem('session_active') === 'true',
     userText: userText.value
   })
   
@@ -1452,11 +1522,6 @@ const formatDate = (dateStr) => {
   }
 }
 
-const funds = [
-  { rank: '01', name: '中欧医疗健康混合C', type: '混合型基金', nav: '1.3609', trend: '+1.1%', trendColor: 'green', periods: ['25.90%', '16.92%', '13.54%', '16.04%', '24.75%', '230.90%', '72.47%'] },
-  { rank: '02', name: '易方达蓝筹精选混合', type: '混合型基金', nav: '4.9100', trend: '-0.5%', trendColor: 'red', periods: ['30.50%', '84.71%', '11.29%', '5.85%', '26.76%', '367.42%', '14.27%'] },
-  { rank: '03', name: '华夏能源革新股票A', type: '股票型基金', nav: '2.3179', trend: '+0.7%', trendColor: 'green', periods: ['11.76%', '115.85%', '15.43%', '17.62%', '24.40%', '137.09%', '173.36%'] }
-]
 </script>
 
 <style scoped>
@@ -1537,6 +1602,100 @@ const funds = [
 
 .retry-btn:hover {
   background: #ff6a00;
+}
+
+.fund-header {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+/* 财经头条展示优化 */
+.news-section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+}
+
+.news-banner {
+  background: linear-gradient(135deg, #fff6ee 0%, #ffffff 100%);
+  border: 1px solid #ffe0c0;
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.news-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 127, 36, 0.18);
+}
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mask-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  line-height: 1.4;
+}
+
+.mask-desc {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.banner-cta {
+  align-self: flex-start;
+  font-size: 12px;
+  color: #ff7f24;
+  background: #fff;
+  border: 1px solid #ff7f24;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.news-list {
+  margin-top: 12px;
+}
+
+.news-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.news-list li a {
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease;
+  background: #fff8f0;
+}
+
+.news-list li a:hover {
+  color: #ff7f24;
+  background: #fff1e3;
+}
+
+.empty-news {
+  padding: 16px;
+  text-align: center;
+  color: #999;
+  background: #fff8f0;
+  border-radius: 8px;
+  margin-top: 8px;
 }
 
 /* 用户菜单样式 */
@@ -2020,6 +2179,19 @@ const funds = [
   border-radius: 3px;
   margin-bottom: 8px;
   font-weight: 500;
+}
+
+.active {
+  color: #ff7f24;
+  font-weight: bold;
+}
+
+.red {
+  color: #eb445a; /* 红色表示上涨 */
+}
+
+.green {
+  color: #2dd36f; /* 绿色表示下跌 */
 }
 
 /* 响应式设计 */

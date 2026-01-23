@@ -10,6 +10,8 @@ from .weibo_news import WeiboNews
 from .eastmoney_news import EastmoneyNews
 from .finance_channel_cache import FinanceChannelCache
 from .headline_news import HeadlineNews
+from .public_fund_ranking_cache import PublicFundRankingCache
+from .public_fund_ranking_item import PublicFundRankingItemModel
 
-__all__ = ["DataRecord", "RealtimeQuote", "DailyQuote", "StockBasic", "ETFBasic", "IndustryRank", "SentimentScore", "HotScore", "WeiboNews", "EastmoneyNews", "FinanceChannelCache", "HeadlineNews"]
+__all__ = ["DataRecord", "RealtimeQuote", "DailyQuote", "StockBasic", "ETFBasic", "IndustryRank", "SentimentScore", "HotScore", "WeiboNews", "EastmoneyNews", "FinanceChannelCache", "HeadlineNews", "PublicFundRankingCache", "PublicFundRankingItemModel"]
 

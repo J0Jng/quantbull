@@ -14,12 +14,18 @@ import http from './http'
  * @returns {Promise<Object>} 新闻列表响应
  */
 export async function getEastmoneyLatestNews(params = {}) {
-  const { limit = 20, keyword } = params
+  const { limit = 20, keyword, refresh = false, save_to_db = false } = params
   const queryParams = new URLSearchParams()
   
   queryParams.append('limit', limit)
   if (keyword) {
     queryParams.append('keyword', keyword)
+  }
+  if (refresh) {
+    queryParams.append('refresh', 'true')
+  }
+  if (save_to_db) {
+    queryParams.append('save_to_db', 'true')
   }
   
   return http.get(`/news/eastmoney/latest?${queryParams.toString()}`)
@@ -116,46 +122,6 @@ export async function getHeadlineDetail(id) {
 }
 
 /**
- * 创建财经头条（管理员）
- * @param {Object} payload - 创建请求
- * @param {string} payload.title - 标题（必填，1-200字符）
- * @param {string} payload.summary - 摘要（必填，1-500字符）
- * @param {string[]} payload.tags - 标签数组（可选）
- * @param {string} payload.content - 正文（可选）
- * @param {string} payload.source - 来源（可选，默认"手动添加"）
- * @param {string} payload.url - 原文链接（可选）
- * @param {boolean} payload.is_hot - 是否热点（可选，默认false）
- * @returns {Promise<Object>} 创建的头条详情
- */
-export async function createHeadline(payload) {
-  return http.post('/news/headlines', payload)
-}
-
-/**
- * 更新财经头条（管理员）
- * @param {number} id - 新闻 ID
- * @param {Object} payload - 更新请求
- * @param {string} payload.title - 标题（可选）
- * @param {string} payload.summary - 摘要（可选）
- * @param {string[]} payload.tags - 标签数组（可选）
- * @param {string} payload.content - 正文（可选）
- * @param {boolean} payload.is_hot - 是否热点（可选）
- * @returns {Promise<Object>} 更新后的头条详情
- */
-export async function updateHeadline(id, payload) {
-  return http.put(`/news/headlines/${id}`, payload)
-}
-
-/**
- * 删除财经头条（管理员）
- * @param {number} id - 新闻 ID
- * @returns {Promise<Object>} 删除结果
- */
-export async function deleteHeadline(id) {
-  return http.delete(`/news/headlines/${id}`)
-}
-
-/**
  * AI 生成今日财经头条（管理员）
  * @param {Object} payload - 生成请求
  * @param {number} payload.limit - 生成数量，默认 10
@@ -179,8 +145,5 @@ export default {
   getHeadlines,
   getHotHeadlines,
   getHeadlineDetail,
-  createHeadline,
-  updateHeadline,
-  deleteHeadline,
   generateDailyHeadlines
 }

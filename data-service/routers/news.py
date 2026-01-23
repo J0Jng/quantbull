@@ -70,7 +70,10 @@ class NewsListResponse(BaseModel):
 )
 async def get_eastmoney_latest_news(
     limit: int = Query(20, ge=1, le=100, description="返回的最大条数"),
-    keyword: Optional[str] = Query(None, description="关键词过滤")
+    keyword: Optional[str] = Query(None, description="关键词过滤"),
+    refresh: bool = Query(False, description="是否强制刷新（不使用缓存）"),
+    save_to_db: bool = Query(False, description="是否保存到数据库"),
+    db: AsyncSession = Depends(get_async_session)
 ):
     """
     获取东方财富网最新财经新闻
@@ -83,8 +86,12 @@ async def get_eastmoney_latest_news(
         NewsListResponse
     """
     try:
-        aggregator = get_eastmoney_news_aggregator()
-        result = await aggregator.aggregate_news(limit=limit, keyword=keyword)
+        aggregator = EastmoneyNewsAggregator(db_session=db) if save_to_db else get_eastmoney_news_aggregator()
+        result = await aggregator.aggregate_news(
+            limit=limit,
+            keyword=keyword,
+            use_cache=not refresh
+        )
         return result
     except Exception as e:
         logger.error(f"获取东方财富网新闻失败：{e}", exc_info=True)
@@ -810,13 +817,22 @@ async def generate_daily_headlines(
         
         # 3. 批量写入数据库
         from datetime import datetime
+        from sqlalchemy import text
         now = datetime.now()
         created_items = []
+
+        # 同步主键序列，避免重复主键
+        await db.execute(
+            text(
+                "SELECT setval(pg_get_serial_sequence('headline_news','id'), "
+                "COALESCE((SELECT MAX(id) FROM headline_news), 1), true)"
+            )
+        )
         
         for item in generated:
             headline = HeadlineNews(
                 title=item["title"],
-                date=now.strftime("%Y-%m-%d %H:%M"),
+                date_text=now.strftime("%Y-%m-%d %H:%M"),
                 summary=item["summary"],
                 tags=item["tags"],
                 content=item.get("content"),

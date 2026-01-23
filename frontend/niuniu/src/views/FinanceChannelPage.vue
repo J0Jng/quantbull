@@ -90,10 +90,11 @@
       <div class="calendar-grid" v-else>
         <div class="calendar-card" v-for="(item, i) in calendarItems" :key="'cal'+i">
           <div class="calendar-date">{{ item.date }}</div>
-          <div class="calendar-event">{{ item.event }}</div>
+          <div class="calendar-event" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.event }}</div>
           <div class="calendar-importance" :class="'importance-'+item.importance">
             重要性: {{ item.importance_text }}
           </div>
+          <div class="calendar-source" v-if="item.source">来源：{{ item.source }}</div>
         </div>
       </div>
 
@@ -133,7 +134,7 @@
       </div>
       <div class="policy-grid" v-else>
         <div class="policy-card" v-for="(item, i) in policyItems" :key="'policy'+i">
-          <div class="policy-title">{{ item.title }}</div>
+          <div class="policy-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.title }}</div>
           <div class="policy-summary">{{ item.summary }}</div>
           <div class="policy-meta">
             <span class="policy-source">{{ item.source }}</span>
@@ -244,6 +245,11 @@ function onDropdownLeave() {
 function handleLogout() {
   logout()
   showUserMenu.value = false
+}
+
+function openUrl(url) {
+  if (!url) return
+  window.open(url, '_blank')
 }
 
 // 加载微博财经新闻
@@ -475,7 +481,10 @@ body{background-color:#fff8f0;color:#333}
 .calendar-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:8px}
 .calendar-date{font-size:16px;color:#ff7f24;font-weight:bold}
 .calendar-event{font-size:14px;color:#333;line-height:1.5}
+.calendar-event.clickable{color:#ff7f24;cursor:pointer}
+.calendar-event.clickable:hover{text-decoration:underline}
 .calendar-importance{font-size:12px;padding:4px 8px;border-radius:3px;align-self:flex-start;margin-top:auto}
+.calendar-source{font-size:12px;color:#999;margin-top:4px}
 .importance-1, .importance-2{color:#27ae60;background:#e8f5e9}
 .importance-3{color:#f39c12;background:#fff3e0}
 .importance-4, .importance-5{color:#e74c3c;background:#ffebee}
@@ -490,6 +499,8 @@ body{background-color:#fff8f0;color:#333}
 .policy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
 .policy-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
 .policy-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}
+.policy-title.clickable{color:#ff7f24;cursor:pointer}
+.policy-title.clickable:hover{text-decoration:underline}
 .policy-summary{font-size:14px;color:#666;line-height:1.6;flex:1}
 .policy-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px;border-top:1px solid #f0f0f0}
 .policy-source{color:#666}

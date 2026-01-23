@@ -8,8 +8,9 @@
       <div class="success-tips" v-show="successVisible">{{ successMessage }}</div>
       <form class="login-form" @submit.prevent>
         <input v-model="loginForm.username" type="text" placeholder="请输入账号" />
-        <input v-model="loginForm.password" type="password" placeholder="请输入密码" />
-        <input v-if="isRegisterMode" v-model="loginForm.confirmPassword" type="password" placeholder="请确认密码" />
+        <input v-model="loginForm.password" type="password" placeholder="请输入密码" minlength="6" />
+        <input v-if="isRegisterMode" v-model="loginForm.confirmPassword" type="password" placeholder="请确认密码" minlength="6" />
+        <input v-if="isRegisterMode" v-model="loginForm.phone" type="tel" placeholder="请输入手机号（必填）" />
         <input v-if="isRegisterMode" v-model="loginForm.email" type="email" placeholder="请输入邮箱（可选）" />
         <button v-if="!isRegisterMode" type="button" class="login-btn" @click="submitLogin" :disabled="loginLoading">
           {{ loginLoading ? '登录中...' : '登录' }}

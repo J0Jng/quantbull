@@ -13,17 +13,45 @@ const http = axios.create({
   baseURL: API_BASE_URL,
   // 延长超时时间以支持后端模型降级重试
   timeout: 120000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-// 请求拦截器 - 添加认证 token
+const csrfCookieNames = [
+  import.meta.env.VITE_CSRF_COOKIE_NAME,
+  'quantbull_csrf',
+  'qb_csrf'
+].filter(Boolean)
+
+const getCookie = (name) => {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+const getCsrfToken = () => {
+  for (const name of csrfCookieNames) {
+    const token = getCookie(name)
+    if (token) return token
+  }
+  return null
+}
+
+// 请求拦截器 - 添加 CSRF token（仅对非幂等请求）
 http.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token')
     if (token) {
+      config.headers = config.headers || {}
       config.headers.Authorization = `Bearer ${token}`
+    }
+    const method = (config.method || 'get').toLowerCase()
+    if (['post', 'put', 'patch', 'delete'].includes(method)) {
+      const csrfToken = getCsrfToken()
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken
+      }
     }
     return config
   },
@@ -48,10 +76,11 @@ http.interceptors.response.use(
         message = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
       } else if (status === 401) {
         message = '认证失败，请重新登录'
-        // 清理 token 并触发重新登录事件
+        // 清理会话标记并触发重新登录事件
+        localStorage.removeItem('session_active')
         localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user_info')
+        localStorage.removeItem('token_type')
+        localStorage.removeItem('user_id')
         window.dispatchEvent(new CustomEvent('auth:required'))
       } else if (status === 403) {
         message = '无权限访问该资源'
