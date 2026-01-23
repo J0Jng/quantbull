@@ -26,7 +26,6 @@
     <div class="category-nav">
       <a href="#finance-news" class="category-item" :class="{ active: activeCategory==='finance-news' }" @click.prevent="go('finance-news')">财经资讯</a>
       <a href="#market-data" class="category-item" :class="{ active: activeCategory==='market-data' }" @click.prevent="go('market-data')">市场数据</a>
-      <a href="#financial-calendar" class="category-item" :class="{ active: activeCategory==='financial-calendar' }" @click.prevent="go('financial-calendar')">财经日历</a>
       <a href="#investment-ideas" class="category-item" :class="{ active: activeCategory==='investment-ideas' }" @click.prevent="go('investment-ideas')">投资观点</a>
       <a href="#policy-regulation" class="category-item" :class="{ active: activeCategory==='policy-regulation' }" @click.prevent="go('policy-regulation')">政策法规</a>
     </div>
@@ -76,27 +75,6 @@
         </div>
       </div>
 
-      <!-- 财经日历 -->
-      <h2 class="section-title" id="financial-calendar">
-        财经日历
-        <span v-if="calendarCached" class="cache-badge">缓存数据</span>
-      </h2>
-      <div v-if="calendarLoading" style="text-align: center; padding: 40px; color: #999;">
-        加载中...
-      </div>
-      <div v-else-if="calendarError" style="text-align: center; padding: 40px; color: #ff4444;">
-        {{ calendarError }}
-      </div>
-      <div class="calendar-grid" v-else>
-        <div class="calendar-card" v-for="(item, i) in calendarItems" :key="'cal'+i">
-          <div class="calendar-date">{{ item.date }}</div>
-          <div class="calendar-event" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.event }}</div>
-          <div class="calendar-importance" :class="'importance-'+item.importance">
-            重要性: {{ item.importance_text }}
-          </div>
-          <div class="calendar-source" v-if="item.source">来源：{{ item.source }}</div>
-        </div>
-      </div>
 
       <!-- 投资观点 -->
       <h2 class="section-title" id="investment-ideas">
@@ -158,7 +136,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { getWeiboMediaNews } from '@/services/newsService'
-import { getMarketData, getCalendar, getIdeas, getPolicies } from '@/services/financeChannelService'
+import { getMarketData, getIdeas, getPolicies } from '@/services/financeChannelService'
 
 // 使用全局认证
 const { logged, userText, isQualifiedInvestor, openLoginModal, logout } = useAuth()
@@ -179,11 +157,6 @@ const marketLoading = ref(false)
 const marketError = ref('')
 const marketCached = ref(false)
 
-// 财经日历相关
-const calendarItems = ref([])
-const calendarLoading = ref(false)
-const calendarError = ref('')
-const calendarCached = ref(false)
 
 // 投资观点相关
 const ideasItems = ref([])
@@ -311,34 +284,6 @@ async function loadMarketData() {
   }
 }
 
-// 加载财经日历
-async function loadCalendar() {
-  calendarLoading.value = true
-  calendarError.value = ''
-  
-  try {
-    const response = await getCalendar()
-    const payload = response?.data || response
-    
-    if (payload && payload.items && payload.items.length > 0) {
-      calendarItems.value = payload.items
-      calendarCached.value = payload.cached || false
-      
-      if (payload.stale) {
-        console.warn('日历数据使用了过期缓存')
-      }
-    } else {
-      calendarError.value = '暂无日历数据'
-      calendarItems.value = []
-    }
-  } catch (error) {
-    console.error('加载财经日历失败:', error)
-    calendarError.value = '加载失败'
-    calendarItems.value = []
-  } finally {
-    calendarLoading.value = false
-  }
-}
 
 // 加载投资观点
 async function loadIdeas(keyword = null) {
@@ -410,7 +355,6 @@ function handleSearch() {
 onMounted(() => {
   loadWeiboNews()
   loadMarketData()
-  loadCalendar()
   loadIdeas()
   loadPolicies()
 })
@@ -456,7 +400,6 @@ body{background-color:#fff8f0;color:#333}
 #finance-news.section-title,
 #market-data.section-title,
 #company-research.section-title,
-#financial-calendar.section-title,
 #investment-ideas.section-title,
 #policy-regulation.section-title {
   color: #ffffff;
@@ -477,17 +420,6 @@ body{background-color:#fff8f0;color:#333}
 .data-change.positive{color:#e74c3c}
 .data-change.negative{color:#27ae60}
 .data-time{font-size:11px;color:#999;margin-top:auto}
-.calendar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:15px;margin-bottom:30px}
-.calendar-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:8px}
-.calendar-date{font-size:16px;color:#ff7f24;font-weight:bold}
-.calendar-event{font-size:14px;color:#333;line-height:1.5}
-.calendar-event.clickable{color:#ff7f24;cursor:pointer}
-.calendar-event.clickable:hover{text-decoration:underline}
-.calendar-importance{font-size:12px;padding:4px 8px;border-radius:3px;align-self:flex-start;margin-top:auto}
-.calendar-source{font-size:12px;color:#999;margin-top:4px}
-.importance-1, .importance-2{color:#27ae60;background:#e8f5e9}
-.importance-3{color:#f39c12;background:#fff3e0}
-.importance-4, .importance-5{color:#e74c3c;background:#ffebee}
 .ideas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
 .ideas-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
 .ideas-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}

@@ -13,23 +13,6 @@ export async function getMarketData() {
   return http.get('/finance-channel/market')
 }
 
-/**
- * 获取财经日历
- * @param {Object} params - 查询参数
- * @param {string} params.start_date - 开始日期（可选）
- * @param {string} params.end_date - 结束日期（可选）
- * @returns {Promise<Object>} 日历数据响应
- */
-export async function getCalendar(params = {}) {
-  const { start_date, end_date } = params
-  const queryParams = new URLSearchParams()
-  
-  if (start_date) queryParams.append('start_date', start_date)
-  if (end_date) queryParams.append('end_date', end_date)
-  
-  const queryString = queryParams.toString()
-  return http.get(`/finance-channel/calendar${queryString ? '?' + queryString : ''}`)
-}
 
 /**
  * 获取投资观点
@@ -88,7 +71,6 @@ export async function getFinanceChannelOverview(params = {}) {
 
 export default {
   getMarketData,
-  getCalendar,
   getIdeas,
   getPolicies,
   getFinanceChannelOverview

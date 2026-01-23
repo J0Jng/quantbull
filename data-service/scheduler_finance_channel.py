@@ -1,7 +1,7 @@
 """
 财经频道数据定时刷新调度器
 
-功能：每小时自动刷新财经频道所有模块的数据（市场数据、日历、观点、政策）
+功能：每小时自动刷新财经频道所有模块的数据（市场数据、观点、政策）
 """
 import asyncio
 import logging
@@ -13,7 +13,6 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from core.database import get_async_session
 from services.market_data_service import get_market_data_aggregator
-from services.calendar_service import get_calendar_aggregator
 from services.ideas_service import get_ideas_aggregator
 from services.policy_service import get_policy_aggregator
 
@@ -46,7 +45,6 @@ class FinanceChannelScheduler:
                     # 并发刷新所有模块
                     tasks = [
                         self._refresh_market_data(db_session),
-                        self._refresh_calendar(db_session),
                         self._refresh_ideas(db_session),
                         self._refresh_policies(db_session),
                     ]
@@ -66,7 +64,7 @@ class FinanceChannelScheduler:
                     )
                     
                     # 记录失败的模块
-                    module_names = ["市场数据", "财经日历", "投资观点", "政策法规"]
+                    module_names = ["市场数据", "投资观点", "政策法规"]
                     for i, result in enumerate(results):
                         if isinstance(result, Exception):
                             logger.error(f"{module_names[i]}刷新失败: {result}")
@@ -87,17 +85,6 @@ class FinanceChannelScheduler:
             return result
         except Exception as e:
             logger.error(f"市场数据刷新失败: {e}")
-            raise
-    
-    async def _refresh_calendar(self, db_session):
-        """刷新财经日历"""
-        try:
-            aggregator = get_calendar_aggregator(db_session)
-            result = await aggregator.aggregate_calendar()
-            logger.info(f"财经日历刷新成功，共 {len(result.get('items', []))} 条")
-            return result
-        except Exception as e:
-            logger.error(f"财经日历刷新失败: {e}")
             raise
     
     async def _refresh_ideas(self, db_session):
