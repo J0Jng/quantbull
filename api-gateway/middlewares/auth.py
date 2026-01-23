@@ -21,6 +21,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/ai/health/",
         "/api/strategy/builtin",
         "/api/strategy/builtin/",
+        "/api/strategy/validate",
         "/api/auth/login",
         "/api/auth/login/json",
         "/api/auth/register"
@@ -31,6 +32,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/docs",
         r"^/openapi",
         r"^/redoc",
+        r"^/api/company-research",  # 公司研报接口不需要认证
+        r"^/api/market/overview",  # 市场概览不需要认证
+        r"^/api/finance-channel",  # 财经频道前台页面公开访问
+        r"^/api/news/eastmoney",  # 东方财富新闻公开访问
+        r"^/api/funds",  # 基金排行榜公开访问
     ]
     
     def __init__(self, app):
@@ -41,7 +47,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             for prefix in settings.route_mapping.keys()
         )
     
-    def is_whitelisted(self, path: str) -> bool:
+    def is_whitelisted(self, path: str, method: str) -> bool:
         """检查路径是否在白名单中"""
         if path in self.WHITELIST_PATHS:
             return True
@@ -50,10 +56,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if pattern.match(path):
                 return True
         
+        # 特殊处理：/api/news/headlines 仅 GET 放行
+        if path.startswith("/api/news/headlines") and method.upper() == "GET":
+            return True
+
+        # 商城商品列表/详情允许匿名访问（仅 GET 放行）
+        if path.startswith("/api/products") and method.upper() == "GET":
+            return True
+        
         return False
 
     def requires_auth(self, path: str) -> bool:
         """检查路径是否需要鉴权（基于服务前缀）"""
+        if path.startswith("/api/gateway"):
+            return True
         return any(path.startswith(prefix) for prefix in self.protected_prefixes)
     
     async def dispatch(self, request: Request, call_next):
@@ -63,29 +79,29 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 检查是否在白名单中
-        if self.is_whitelisted(request.url.path):
+        if self.is_whitelisted(request.url.path, request.method):
             return await call_next(request)
 
         # 仅保护指定的业务前缀
         if not self.requires_auth(request.url.path):
             return await call_next(request)
 
+        token = None
         authorization = request.headers.get("authorization")
-        if not authorization:
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"code": status.HTTP_401_UNAUTHORIZED, "message": "缺少 Authorization 请求头", "data": None},
-            )
+        if authorization:
+            scheme, _, raw = authorization.partition(" ")
+            if scheme.lower() == "bearer" and raw.strip():
+                token = raw.strip()
 
-        scheme, _, token = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not token.strip():
+        if token is None:
+            cookie_token = request.cookies.get(settings.auth_cookie_name)
+            if cookie_token:
+                token = cookie_token
+
+        if not token:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={
-                    "code": status.HTTP_401_UNAUTHORIZED,
-                    "message": "无效的 Authorization 格式，需使用 'Bearer <token>'",
-                    "data": None,
-                },
+                content={"code": status.HTTP_401_UNAUTHORIZED, "message": "缺少认证信息", "data": None},
             )
 
         # 网关层统一校验 token（委托 user-service），并注入 request.state.user

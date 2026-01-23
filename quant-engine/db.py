@@ -5,6 +5,11 @@ from core.config import settings
 
 
 def _build_database_url() -> str:
+    if settings.database_url:
+        # quant-engine 使用同步引擎，确保使用同步驱动
+        if settings.database_url.startswith("postgresql+asyncpg://"):
+            return settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+        return settings.database_url
     return (
         f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}"
         f"@{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"

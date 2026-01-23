@@ -175,12 +175,26 @@
 
         <!-- 操作按钮 -->
         <div class="action-buttons">
-          <router-link :to="`/factors/${factor.id}/edit`" class="btn-edit">
+          <router-link 
+            v-if="!isBuiltinFactor(factor.id)"
+            :to="`/factors/${factor.id}/edit`" 
+            class="btn-edit"
+          >
             编辑因子
           </router-link>
-          <button @click="deleteFactor" class="btn-delete">
+          <span v-else class="btn-edit disabled" title="内置因子不可编辑">
+            编辑因子
+          </span>
+          <button 
+            v-if="!isBuiltinFactor(factor.id)"
+            @click="deleteFactor" 
+            class="btn-delete"
+          >
             删除因子
           </button>
+          <span v-else class="btn-delete disabled" title="内置因子不可删除">
+            删除因子
+          </span>
           <router-link to="/factors" class="btn-secondary">
             返回列表
           </router-link>
@@ -263,22 +277,62 @@ const fetchFactor = async () => {
 // 运行因子计算
 const runCalculation = async () => {
   calculating.value = true
+  error.value = ''
   
   try {
+    // 构造符合后端 API 格式的请求参数
+    const requestParams = {
+      factor_id: route.params.id,
+      symbol: calculationParams.value.symbol,
+      start_date: calculationParams.value.startDate,
+      end_date: calculationParams.value.endDate
+    }
+    
     const result = await factorStore.calculateFactorValue(
       route.params.id,
-      calculationParams.value
+      requestParams
     )
     
     if (factorStore.error) {
       error.value = factorStore.error
-    } else {
-      calculationResult.value = result
+    } else if (result) {
+      // 处理返回的计算结果
+      calculationResult.value = {
+        duration: result.duration || 0,
+        dataPoints: result.total_points || result.values?.length || 0,
+        data: (result.values || []).map((item, index, arr) => ({
+          date: item.date,
+          value: item.value,
+          change: index > 0 && arr[index - 1].value !== 0 
+            ? (item.value - arr[index - 1].value) / Math.abs(arr[index - 1].value)
+            : null
+        })),
+        stats: calculateStats(result.values || [])
+      }
     }
   } catch (err) {
     error.value = `因子计算失败: ${err.message}`
   } finally {
     calculating.value = false
+  }
+}
+
+// 计算统计数据
+const calculateStats = (values) => {
+  if (!values || values.length === 0) return { mean: 0, std: 0, min: 0, max: 0 }
+  
+  const nums = values.map(v => v.value).filter(v => !isNaN(v))
+  if (nums.length === 0) return { mean: 0, std: 0, min: 0, max: 0 }
+  
+  const mean = nums.reduce((a, b) => a + b, 0) / nums.length
+  const variance = nums.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / nums.length
+  const std = Math.sqrt(variance)
+  
+  return {
+    mean,
+    std,
+    min: Math.min(...nums),
+    max: Math.max(...nums)
   }
 }
 
@@ -306,6 +360,11 @@ const getCategoryClass = (category) => {
     'category-fundamental': category === 'fundamental',
     'category-macro': category === 'macro'
   }
+}
+
+// 判断是否为内置因子（不可编辑/删除）
+const isBuiltinFactor = (factorId) => {
+  return factorId && factorId.startsWith('builtin')
 }
 
 const getCategoryText = (category) => {
@@ -702,6 +761,20 @@ onMounted(() => {
 .btn-edit:hover { background-color: #f57c00; }
 .btn-delete:hover { background-color: #d32f2f; }
 .btn-secondary:hover { background-color: #0077ea; }
+
+/* 禁用状态的按钮样式 */
+.btn-edit.disabled,
+.btn-delete.disabled {
+  background-color: #ccc;
+  color: #888;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-edit.disabled:hover,
+.btn-delete.disabled:hover {
+  background-color: #ccc;
+}
 
 .not-found {
   text-align: center;

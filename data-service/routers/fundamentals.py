@@ -51,15 +51,21 @@ async def get_industry_rank(
     """
     from datetime import datetime
     
+    def _normalize_month(value: str) -> str:
+        parts = value.split("-")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            return f"{int(parts[0]):04d}-{int(parts[1]):02d}"
+        return value
+
     service = FundamentalsService()
-    actual_month = month or datetime.now().strftime("%Y-%m")
+    actual_month = _normalize_month(month) if month else datetime.now().strftime("%Y-%m")
     
-    # 优先从数据库读取
-    items = service.load_industry_rank_from_db(actual_month)
-    
-    # 如果数据库没有且允许自动计算
-    if not items and auto_calculate:
-        items = service.calculate_industry_rank(month=month, force_recalculate=True)
+    # auto_calculate=true 时强制重新计算，忽略数据库缓存
+    if auto_calculate:
+        items = service.calculate_industry_rank(month=actual_month, force_recalculate=False)
+    else:
+        # 优先从数据库读取
+        items = service.load_industry_rank_from_db(actual_month)
     
     return IndustryRankResponse(
         month=actual_month,

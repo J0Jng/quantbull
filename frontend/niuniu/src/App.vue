@@ -18,12 +18,12 @@ const handleAuthRequired = () => {
 }
 
 // 页面加载时设置默认位置
-onMounted(() => {
+onMounted(async () => {
   // 初始化认证状态
-  initAuth()
+  const authed = await initAuth()
   
   // 如果未登录，自动弹出登录框
-  if (!isAuthenticated()) {
+  if (!authed && !isAuthenticated()) {
     openLoginModal()
   }
   

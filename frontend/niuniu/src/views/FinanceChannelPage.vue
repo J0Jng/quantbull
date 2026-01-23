@@ -18,15 +18,14 @@
 
     <!-- 搜索栏 -->
     <div class="search-bar">
-      <input v-model="searchQuery" type="text" placeholder="搜索财经资讯、研报、数据等" />
-      <button class="search-btn">搜索</button>
+      <input v-model="searchQuery" type="text" placeholder="搜索财经资讯、研报、数据等" @keyup.enter="handleSearch" />
+      <button class="search-btn" @click="handleSearch">搜索</button>
     </div>
 
     <!-- 分类导航 -->
     <div class="category-nav">
       <a href="#finance-news" class="category-item" :class="{ active: activeCategory==='finance-news' }" @click.prevent="go('finance-news')">财经资讯</a>
       <a href="#market-data" class="category-item" :class="{ active: activeCategory==='market-data' }" @click.prevent="go('market-data')">市场数据</a>
-      <a href="#company-research" class="category-item" :class="{ active: activeCategory==='company-research' }" @click.prevent="go('company-research')">公司研报</a>
       <a href="#financial-calendar" class="category-item" :class="{ active: activeCategory==='financial-calendar' }" @click.prevent="go('financial-calendar')">财经日历</a>
       <a href="#investment-ideas" class="category-item" :class="{ active: activeCategory==='investment-ideas' }" @click.prevent="go('investment-ideas')">投资观点</a>
       <a href="#policy-regulation" class="category-item" :class="{ active: activeCategory==='policy-regulation' }" @click.prevent="go('policy-regulation')">政策法规</a>
@@ -36,14 +35,19 @@
     <div class="container">
       <!-- 财经资讯 -->
       <h2 class="section-title" id="finance-news">财经资讯</h2>
-      <div class="news-grid">
-        <div class="news-card" v-for="(item, i) in newsItems" :key="'news'+i">
-          <img :src="item.img" alt="" class="news-img" loading="lazy">
+      <div v-if="newsLoading" style="text-align: center; padding: 40px; color: #999;">
+        加载中...
+      </div>
+      <div v-else-if="newsError" style="text-align: center; padding: 40px; color: #ff4444;">
+        {{ newsError }}
+      </div>
+      <div class="news-grid" v-else>
+        <div class="news-card" v-for="(item, i) in newsItems" :key="item.id || 'news'+i">
           <div class="news-info">
             <div class="news-title">{{ item.title }}</div>
             <div class="news-summary">{{ item.summary }}</div>
             <div class="news-meta">
-              <span class="news-source">{{ item.source }}</span>
+              <span class="news-source">{{ item.source }}{{ item.author ? ' · ' + item.author : '' }}</span>
               <span class="news-time">{{ item.time }}</span>
             </div>
           </div>
@@ -51,64 +55,91 @@
       </div>
 
       <!-- 市场数据 -->
-      <h2 class="section-title" id="market-data">市场数据</h2>
-      <div class="data-grid">
+      <h2 class="section-title" id="market-data">
+        市场数据
+        <span v-if="marketCached" class="cache-badge">缓存数据</span>
+      </h2>
+      <div v-if="marketLoading" style="text-align: center; padding: 40px; color: #999;">
+        加载中...
+      </div>
+      <div v-else-if="marketError" style="text-align: center; padding: 40px; color: #ff4444;">
+        {{ marketError }}
+      </div>
+      <div class="data-grid" v-else>
         <div class="data-card" v-for="(item, i) in marketDataItems" :key="'data'+i">
           <div class="data-title">{{ item.title }}</div>
           <div class="data-value">{{ item.value }}</div>
-          <div class="data-change" :class="item.change > 0 ? 'positive' : 'negative'">
-            {{ item.change > 0 ? '+' : '' }}{{ item.change }}%
+          <div class="data-change" :class="item.change_pct > 0 ? 'positive' : 'negative'">
+            {{ item.change_pct > 0 ? '+' : '' }}{{ item.change_pct }}%
           </div>
-          <div class="data-chart">
-            <img :src="item.chart" alt="数据图表" />
-          </div>
-        </div>
-      </div>
-
-      <!-- 公司研报 -->
-      <h2 class="section-title" id="company-research">公司研报</h2>
-      <div class="research-grid">
-        <div class="research-card" v-for="(item, i) in researchItems" :key="'research'+i">
-          <div class="research-title">{{ item.title }}</div>
-          <div class="research-company">{{ item.company }}</div>
-          <div class="research-content">{{ item.content }}</div>
-          <div class="research-meta">
-            <span class="research-date">{{ item.date }}</span>
-            <span class="research-author">{{ item.author }}</span>
-          </div>
+          <div class="data-time">{{ item.updated_at }}</div>
         </div>
       </div>
 
       <!-- 财经日历 -->
-      <h2 class="section-title" id="financial-calendar">财经日历</h2>
-      <div class="calendar-grid">
+      <h2 class="section-title" id="financial-calendar">
+        财经日历
+        <span v-if="calendarCached" class="cache-badge">缓存数据</span>
+      </h2>
+      <div v-if="calendarLoading" style="text-align: center; padding: 40px; color: #999;">
+        加载中...
+      </div>
+      <div v-else-if="calendarError" style="text-align: center; padding: 40px; color: #ff4444;">
+        {{ calendarError }}
+      </div>
+      <div class="calendar-grid" v-else>
         <div class="calendar-card" v-for="(item, i) in calendarItems" :key="'cal'+i">
           <div class="calendar-date">{{ item.date }}</div>
-          <div class="calendar-event">{{ item.event }}</div>
+          <div class="calendar-event" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.event }}</div>
           <div class="calendar-importance" :class="'importance-'+item.importance">
-            重要性: {{ item.importanceText }}
+            重要性: {{ item.importance_text }}
           </div>
+          <div class="calendar-source" v-if="item.source">来源：{{ item.source }}</div>
         </div>
       </div>
 
       <!-- 投资观点 -->
-      <h2 class="section-title" id="investment-ideas">投资观点</h2>
-      <div class="ideas-grid">
+      <h2 class="section-title" id="investment-ideas">
+        投资观点
+        <span v-if="ideasCached" class="cache-badge">缓存数据</span>
+      </h2>
+      <div v-if="ideasLoading" style="text-align: center; padding: 40px; color: #999;">
+        加载中...
+      </div>
+      <div v-else-if="ideasError" style="text-align: center; padding: 40px; color: #ff4444;">
+        {{ ideasError }}
+      </div>
+      <div class="ideas-grid" v-else>
         <div class="ideas-card" v-for="(item, i) in ideasItems" :key="'idea'+i">
           <div class="ideas-title">{{ item.title }}</div>
           <div class="ideas-author">{{ item.author }}</div>
           <div class="ideas-content">{{ item.content }}</div>
-          <div class="ideas-date">{{ item.date }}</div>
+          <div class="ideas-meta">
+            <span class="ideas-source">{{ item.source }}</span>
+            <span class="ideas-date">{{ item.date }}</span>
+          </div>
         </div>
       </div>
 
       <!-- 政策法规 -->
-      <h2 class="section-title" id="policy-regulation">政策法规</h2>
-      <div class="policy-grid">
+      <h2 class="section-title" id="policy-regulation">
+        政策法规
+        <span v-if="policyCached" class="cache-badge">缓存数据</span>
+      </h2>
+      <div v-if="policyLoading" style="text-align: center; padding: 40px; color: #999;">
+        加载中...
+      </div>
+      <div v-else-if="policyError" style="text-align: center; padding: 40px; color: #ff4444;">
+        {{ policyError }}
+      </div>
+      <div class="policy-grid" v-else>
         <div class="policy-card" v-for="(item, i) in policyItems" :key="'policy'+i">
-          <div class="policy-title">{{ item.title }}</div>
+          <div class="policy-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.title }}</div>
           <div class="policy-summary">{{ item.summary }}</div>
-          <div class="policy-date">{{ item.date }}</div>
+          <div class="policy-meta">
+            <span class="policy-source">{{ item.source }}</span>
+            <span class="policy-date">{{ item.date }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -126,6 +157,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { getWeiboMediaNews } from '@/services/newsService'
+import { getMarketData, getCalendar, getIdeas, getPolicies } from '@/services/financeChannelService'
 
 // 使用全局认证
 const { logged, userText, isQualifiedInvestor, openLoginModal, logout } = useAuth()
@@ -133,6 +166,36 @@ const { logged, userText, isQualifiedInvestor, openLoginModal, logout } = useAut
 const showUserMenu = ref(false)
 const searchQuery = ref('')
 const activeCategory = ref('finance-news')
+
+// 新闻数据相关
+const newsItems = ref([])
+const newsLoading = ref(false)
+const newsError = ref('')
+const newsCached = ref(false)
+
+// 市场数据相关
+const marketDataItems = ref([])
+const marketLoading = ref(false)
+const marketError = ref('')
+const marketCached = ref(false)
+
+// 财经日历相关
+const calendarItems = ref([])
+const calendarLoading = ref(false)
+const calendarError = ref('')
+const calendarCached = ref(false)
+
+// 投资观点相关
+const ideasItems = ref([])
+const ideasLoading = ref(false)
+const ideasError = ref('')
+const ideasCached = ref(false)
+
+// 政策法规相关
+const policyItems = ref([])
+const policyLoading = ref(false)
+const policyError = ref('')
+const policyCached = ref(false)
 
 const router = useRouter()
 
@@ -184,78 +247,173 @@ function handleLogout() {
   showUserMenu.value = false
 }
 
-// 模拟数据
-const newsItems = ref([
-  { 
-    img: 'https://picsum.photos/400/200?random=30', 
-    title: '央行降准释放流动性，金融市场迎来利好', 
-    summary: '央行宣布下调金融机构存款准备金率0.5个百分点，释放长期资金约1万亿元，对金融市场产生积极影响', 
-    source: '财经日报', 
-    time: '2小时前' 
-  },
-  { 
-    img: 'https://picsum.photos/400/200?random=31', 
-    title: '科技股大涨，创业板指数创新高', 
-    summary: '科技板块全面爆发，多只龙头股涨停，市场情绪明显回暖', 
-    source: '证券时报', 
-    time: '4小时前' 
-  },
-  { 
-    img: 'https://picsum.photos/400/200?random=32', 
-    title: '新能源汽车销量持续增长，产业链受益', 
-    summary: '多家新能源汽车厂商公布销售数据，同比增长超过50%，相关产业链公司业绩预期乐观', 
-    source: '经济观察报', 
-    time: '6小时前' 
-  },
-  { 
-    img: 'https://picsum.photos/400/200?random=33', 
-    title: '国际油价大幅上涨，能源板块走强', 
-    summary: '受地缘政治影响，国际油价突破新高，能源板块成为市场焦点', 
-    source: '金融界', 
-    time: '8小时前' 
+function openUrl(url) {
+  if (!url) return
+  window.open(url, '_blank')
+}
+
+// 加载微博财经新闻
+async function loadWeiboNews(keyword = null) {
+  newsLoading.value = true
+  newsError.value = ''
+  
+  try {
+    const response = await getWeiboMediaNews({ limit: 20, keyword })
+    const payload = response?.data || response
+    
+    if (payload && payload.items && payload.items.length > 0) {
+      newsItems.value = payload.items
+      newsCached.value = payload.cached || false
+      
+      // 如果数据过期（stale），显示提示
+      if (payload.stale) {
+        console.warn('使用了过期的缓存数据')
+      }
+    } else {
+      newsError.value = '暂无新闻数据'
+      newsItems.value = []
+    }
+  } catch (error) {
+    console.error('加载微博新闻失败:', error)
+    newsError.value = '加载失败'
+    newsItems.value = []
+  } finally {
+    newsLoading.value = false
   }
-])
+}
 
-const marketDataItems = ref([
-  { title: '上证指数', value: '3,245.67', change: 1.25, chart: 'https://picsum.photos/200/100?random=40' },
-  { title: '深证成指', value: '10,876.32', change: -0.34, chart: 'https://picsum.photos/200/100?random=41' },
-  { title: '创业板指', value: '2,356.89', change: 2.10, chart: 'https://picsum.photos/200/100?random=42' },
-  { title: '沪深300', value: '4,123.56', change: 0.78, chart: 'https://picsum.photos/200/100?random=43' },
-  { title: '黄金期货', value: '456.78', change: 0.55, chart: 'https://picsum.photos/200/100?random=44' },
-  { title: '美元/人民币', value: '7.1234', change: -0.23, chart: 'https://picsum.photos/200/100?random=45' }
-])
+// 加载市场数据
+async function loadMarketData() {
+  marketLoading.value = true
+  marketError.value = ''
+  
+  try {
+    const response = await getMarketData()
+    const payload = response?.data || response
+    
+    if (payload && payload.items && payload.items.length > 0) {
+      marketDataItems.value = payload.items
+      marketCached.value = payload.cached || false
+      
+      if (payload.stale) {
+        console.warn('市场数据使用了过期缓存')
+      }
+    } else {
+      marketError.value = '暂无市场数据'
+      marketDataItems.value = []
+    }
+  } catch (error) {
+    console.error('加载市场数据失败:', error)
+    marketError.value = '加载失败'
+    marketDataItems.value = []
+  } finally {
+    marketLoading.value = false
+  }
+}
 
-const researchItems = ref([
-  { title: '新能源汽车产业链深度分析', company: '比亚迪', content: '随着新能源汽车市场的快速发展，产业链上下游均迎来发展机遇。本报告深入分析了新能源汽车产业链的各个环节，包括电池、电机、电控等核心技术的发展趋势。', date: '2025-01-15', author: '李研究员' },
-  { title: '人工智能技术在金融行业的应用前景', company: '招商银行', content: '人工智能技术正在深刻改变金融行业，从风控到客户服务，AI的应用越来越广泛。本报告分析了AI在金融行业的主要应用场景及未来发展趋势。', date: '2025-01-14', author: '王分析师' },
-  { title: '光伏行业政策调整对产业链影响分析', company: '隆基绿能', content: '近期光伏行业政策调整，对产业链各环节产生了深远影响。本报告详细分析了政策变化对上游硅料、中游组件及下游电站建设的影响。', date: '2025-01-13', author: '张专家' },
-  { title: '半导体国产化替代进程加速', company: '中芯国际', content: '在国际贸易环境变化的背景下，半导体国产化替代进程明显加速。本报告分析了国内半导体产业链的发展现状及未来机遇。', date: '2025-01-12', author: '赵博士' }
-])
+// 加载财经日历
+async function loadCalendar() {
+  calendarLoading.value = true
+  calendarError.value = ''
+  
+  try {
+    const response = await getCalendar()
+    const payload = response?.data || response
+    
+    if (payload && payload.items && payload.items.length > 0) {
+      calendarItems.value = payload.items
+      calendarCached.value = payload.cached || false
+      
+      if (payload.stale) {
+        console.warn('日历数据使用了过期缓存')
+      }
+    } else {
+      calendarError.value = '暂无日历数据'
+      calendarItems.value = []
+    }
+  } catch (error) {
+    console.error('加载财经日历失败:', error)
+    calendarError.value = '加载失败'
+    calendarItems.value = []
+  } finally {
+    calendarLoading.value = false
+  }
+}
 
-const calendarItems = ref([
-  { date: '2025-01-20', event: '美国CPI数据发布', importance: 3, importanceText: '高' },
-  { date: '2025-01-22', event: '央行货币政策会议', importance: 5, importanceText: '极高' },
-  { date: '2025-01-25', event: '上市公司Q4财报发布', importance: 4, importanceText: '高' },
-  { date: '2025-01-28', event: 'GDP季度数据公布', importance: 5, importanceText: '极高' },
-  { date: '2025-02-01', event: '制造业PMI数据', importance: 3, importanceText: '中' },
-  { date: '2025-02-05', event: '美联储利率决议', importance: 5, importanceText: '极高' }
-])
+// 加载投资观点
+async function loadIdeas(keyword = null) {
+  ideasLoading.value = true
+  ideasError.value = ''
+  
+  try {
+    const response = await getIdeas({ limit: 10, keyword })
+    const payload = response?.data || response
+    
+    if (payload && payload.items && payload.items.length > 0) {
+      ideasItems.value = payload.items
+      ideasCached.value = payload.cached || false
+      
+      if (payload.stale) {
+        console.warn('观点数据使用了过期缓存')
+      }
+    } else {
+      ideasError.value = '暂无观点数据'
+      ideasItems.value = []
+    }
+  } catch (error) {
+    console.error('加载投资观点失败:', error)
+    ideasError.value = '加载失败'
+    ideasItems.value = []
+  } finally {
+    ideasLoading.value = false
+  }
+}
 
-const ideasItems = ref([
-  { title: '2025年投资策略：科技与消费的平衡', author: '知名投资顾问 张三', content: '在当前市场环境下，建议投资者关注科技和消费两大板块的平衡配置，以应对市场波动。', date: '2025-01-15' },
-  { title: '价值投资在当前市场的应用', author: '资深分析师 李四', content: '价值投资策略在当前市场依然有效，建议关注低估值、高分红的优质企业。', date: '2025-01-14' },
-  { title: 'ESG投资理念的实践与思考', author: '绿色投资专家 王五', content: 'ESG投资已成为全球趋势，建议投资者将环境、社会和治理因素纳入投资决策考量。', date: '2025-01-13' },
-  { title: '量化策略在A股市场的应用', author: '量化研究员 赵六', content: '量化策略在A股市场的有效性不断提升，建议投资者关注多因子模型和机器学习方法的应用。', date: '2025-01-12' }
-])
+// 加载政策法规
+async function loadPolicies(keyword = null) {
+  policyLoading.value = true
+  policyError.value = ''
+  
+  try {
+    const response = await getPolicies({ limit: 10, keyword })
+    const payload = response?.data || response
+    
+    if (payload && payload.items && payload.items.length > 0) {
+      policyItems.value = payload.items
+      policyCached.value = payload.cached || false
+      
+      if (payload.stale) {
+        console.warn('政策数据使用了过期缓存')
+      }
+    } else {
+      policyError.value = '暂无政策数据'
+      policyItems.value = []
+    }
+  } catch (error) {
+    console.error('加载政策法规失败:', error)
+    policyError.value = '加载失败'
+    policyItems.value = []
+  } finally {
+    policyLoading.value = false
+  }
+}
 
-const policyItems = ref([
-  { title: '关于规范金融科技创新发展的指导意见', summary: '为进一步规范金融科技创新发展，防范金融风险，监管部门发布指导意见，明确金融科技创新的边界和要求。', date: '2025-01-15' },
-  { title: '关于进一步优化资本市场环境的通知', summary: '为提升资本市场服务实体经济能力，监管部门发布通知，从多个方面优化资本市场环境。', date: '2025-01-10' },
-  { title: '关于加强投资者保护工作的若干措施', summary: '为切实保护投资者合法权益，监管部门出台多项措施，强化投资者保护工作。', date: '2025-01-05' },
-  { title: '关于推进绿色金融发展的实施方案', summary: '为推动绿色金融发展，支持经济绿色转型，相关部门联合制定实施方案，明确发展目标和路径。', date: '2024-12-28' }
-])
+// 搜索处理
+function handleSearch() {
+  const keyword = searchQuery.value.trim()
+  loadWeiboNews(keyword)
+  loadIdeas(keyword)
+  loadPolicies(keyword)
+}
 
-// 移除重复的函数定义 - 这些功能已经在前面部分实现
+// 页面加载时获取所有数据
+onMounted(() => {
+  loadWeiboNews()
+  loadMarketData()
+  loadCalendar()
+  loadIdeas()
+  loadPolicies()
+})
 </script>
 
 <style scoped>
@@ -292,7 +450,8 @@ body{background-color:#fff8f0;color:#333}
 .category-item{display:inline-block;color:white;text-decoration:none;padding:6px 18px;margin-right:8px;border-radius:4px;font-size:15px;cursor:pointer}
 .category-item.active{background-color:#ff7f24;font-weight:bold}
 .container{max-width:1200px;margin:0 auto;padding:20px}
-.section-title{font-size:20px;color:#ff7f24;border-left:1px solid #ff7f24;padding-left:10px;margin:20px 0 15px}
+.section-title{font-size:20px;color:#ff7f24;border-left:1px solid #ff7f24;padding-left:10px;margin:20px 0 15px;display:flex;align-items:center;gap:10px}
+.cache-badge{font-size:12px;color:#999;background:#f0f0f0;padding:2px 8px;border-radius:3px;font-weight:normal}
 /* 指定分类标题使用白色字体以匹配设计，并整体左移微调视觉对齐 */
 #finance-news.section-title,
 #market-data.section-title,
@@ -304,46 +463,48 @@ body{background-color:#fff8f0;color:#333}
   transform: translateX(-1px);
 }
 .news-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
-.news-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;transition:transform .2s}
+.news-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;transition:transform .2s;padding:15px}
 .news-card:hover{transform:translateY(-5px);box-shadow:0 4px 12px rgba(255,127,36,.15)}
-.news-img{width:100%;height:150px;object-fit:cover}
-.news-info{padding:15px}
-.news-title{font-size:16px;margin-bottom:8px;color:#333;font-weight:bold;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.news-summary{font-size:14px;margin-bottom:10px;color:#666;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.news-meta{display:flex;justify-content:space-between;font-size:12px;color:#999}
+.news-info{display:flex;flex-direction:column;gap:8px}
+.news-title{font-size:16px;color:#333;font-weight:bold;white-space:normal;word-break:break-word}
+.news-summary{font-size:14px;color:#666;white-space:normal;word-break:break-word;line-height:1.5}
+.news-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px}
 .data-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:15px;margin-bottom:30px}
-.data-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;padding:15px;text-align:center}
-.data-title{font-size:14px;margin-bottom:8px;color:#333}
-.data-value{font-size:18px;font-weight:bold;margin-bottom:5px;color:#ff7f24}
-.data-change{font-size:14px;margin-bottom:10px;font-weight:bold}
+.data-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;text-align:center;display:flex;flex-direction:column;gap:8px}
+.data-title{font-size:14px;color:#333;font-weight:bold}
+.data-value{font-size:22px;font-weight:bold;color:#ff7f24}
+.data-change{font-size:16px;font-weight:bold}
 .data-change.positive{color:#e74c3c}
 .data-change.negative{color:#27ae60}
-.data-chart img{width:100%;height:60px;object-fit:cover}
-.research-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin-bottom:30px}
-.research-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;padding:15px}
-.research-title{font-size:16px;margin-bottom:8px;color:#333;font-weight:bold}
-.research-company{font-size:14px;margin-bottom:10px;color:#ff7f24;font-weight:bold}
-.research-content{font-size:14px;margin-bottom:10px;color:#666;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-.research-meta{display:flex;justify-content:space-between;font-size:12px;color:#999}
+.data-time{font-size:11px;color:#999;margin-top:auto}
 .calendar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:15px;margin-bottom:30px}
-.calendar-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;padding:15px}
-.calendar-date{font-size:16px;margin-bottom:8px;color:#ff7f24;font-weight:bold}
-.calendar-event{font-size:14px;margin-bottom:10px;color:#333}
-.calendar-importance{font-size:12px;color:#666}
-.importance-1, .importance-2{color:#27ae60}
-.importance-3{color:#f39c12}
-.importance-4, .importance-5{color:#e74c3c}
+.calendar-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:8px}
+.calendar-date{font-size:16px;color:#ff7f24;font-weight:bold}
+.calendar-event{font-size:14px;color:#333;line-height:1.5}
+.calendar-event.clickable{color:#ff7f24;cursor:pointer}
+.calendar-event.clickable:hover{text-decoration:underline}
+.calendar-importance{font-size:12px;padding:4px 8px;border-radius:3px;align-self:flex-start;margin-top:auto}
+.calendar-source{font-size:12px;color:#999;margin-top:4px}
+.importance-1, .importance-2{color:#27ae60;background:#e8f5e9}
+.importance-3{color:#f39c12;background:#fff3e0}
+.importance-4, .importance-5{color:#e74c3c;background:#ffebee}
 .ideas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
-.ideas-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;padding:15px}
-.ideas-title{font-size:16px;margin-bottom:8px;color:#333;font-weight:bold}
-.ideas-author{font-size:14px;margin-bottom:10px;color:#ff7f24}
-.ideas-content{font-size:14px;margin-bottom:10px;color:#666}
-.ideas-date{font-size:12px;color:#999;text-align:right}
+.ideas-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
+.ideas-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}
+.ideas-author{font-size:14px;color:#ff7f24}
+.ideas-content{font-size:14px;color:#666;line-height:1.6;flex:1}
+.ideas-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px;border-top:1px solid #f0f0f0}
+.ideas-source{color:#666}
+.ideas-date{text-align:right}
 .policy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
-.policy-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;padding:15px}
-.policy-title{font-size:16px;margin-bottom:8px;color:#333;font-weight:bold}
-.policy-summary{font-size:14px;margin-bottom:10px;color:#666}
-.policy-date{font-size:12px;color:#999;text-align:right}
+.policy-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
+.policy-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}
+.policy-title.clickable{color:#ff7f24;cursor:pointer}
+.policy-title.clickable:hover{text-decoration:underline}
+.policy-summary{font-size:14px;color:#666;line-height:1.6;flex:1}
+.policy-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px;border-top:1px solid #f0f0f0}
+.policy-source{color:#666}
+.policy-date{text-align:right}
 .footer{background-color:#ff7f24;color:white;text-align:center;padding:20px;margin-top:40px}
 
 /* 动态风险提示样式 */

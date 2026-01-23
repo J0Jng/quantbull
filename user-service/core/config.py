@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,13 +18,25 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-prod"
     jwt_algorithm: str = "HS256"
     access_token_expire_seconds: int = 3600
+    jwt_issuer: str = "quantbull"
+    jwt_audience: str = "quantbull-api"
+
+    # CORS 配置（生产环境应配置白名单）
+    cors_allow_origins: list[str] = []
+    cors_allow_credentials: bool = False
+
+    # 可信代理（用于登录/注册限流真实 IP）
+    trusted_proxies: list[str] = []
 
     # Seed admin
     admin_username: str = "admin"
     admin_password: str = "admin123"
 
     # AI Token 配置
-    default_ai_tokens: int = 1000
+    default_ai_tokens: int = 3000
+
+    # Investor ID hash salt
+    investor_id_salt: str = "investor-salt"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -31,6 +44,20 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def _validate_security(self):
+        env = (self.env or "local").lower()
+        if env != "local":
+            if not self.cors_allow_origins:
+                raise ValueError("CORS_ALLOW_ORIGINS is required in non-local env")
+            if "*" in self.cors_allow_origins:
+                raise ValueError("CORS_ALLOW_ORIGINS must be a whitelist in non-local env")
+            if self.jwt_secret in {"change-me-in-prod", "", None}:
+                raise ValueError("JWT_SECRET must be set to a strong value in non-local env")
+            if self.admin_password in {"admin123", "", None}:
+                raise ValueError("ADMIN_PASSWORD must be set to a strong value in non-local env")
+        return self
 
 
 @lru_cache

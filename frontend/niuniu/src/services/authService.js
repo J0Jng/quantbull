@@ -18,14 +18,16 @@ export const login = async (credentials) => {
   
   // 后端返回格式: {code: 0, message: "ok", data: {access_token: ..., user_id: ...}}
   // handleRequest 包装后: {success: true, data: {code: 0, message: "ok", data: {...}}}
-  const tokenData = result.data?.data || result.data
-  
-  if (result.success && tokenData?.access_token) {
-    // 保存 token 到本地存储
-    localStorage.setItem('access_token', tokenData.access_token)
-    if (tokenData.refresh_token) {
-      localStorage.setItem('refresh_token', tokenData.refresh_token)
+  if (result.success) {
+    const payload = result.data?.data || result.data || {}
+    if (payload.access_token) {
+      localStorage.setItem('access_token', payload.access_token)
+      localStorage.setItem('token_type', payload.token_type || 'bearer')
     }
+    if (payload.user_id) {
+      localStorage.setItem('user_id', String(payload.user_id))
+    }
+    localStorage.setItem('session_active', 'true')
   }
   
   return result
@@ -40,7 +42,19 @@ export const login = async (credentials) => {
  * @param {string} userData.email - 邮箱（可选）
  */
 export const register = async (userData) => {
-  return handleRequest(() => http.post('/auth/register', userData))
+  const result = await handleRequest(() => http.post('/auth/register', userData))
+  if (result.success) {
+    const payload = result.data?.data || result.data || {}
+    if (payload.access_token) {
+      localStorage.setItem('access_token', payload.access_token)
+      localStorage.setItem('token_type', payload.token_type || 'bearer')
+    }
+    if (payload.user_id) {
+      localStorage.setItem('user_id', String(payload.user_id))
+    }
+    localStorage.setItem('session_active', 'true')
+  }
+  return result
 }
 
 /**
@@ -62,10 +76,13 @@ export const verifyToken = async () => {
 /**
  * 退出登录
  */
-export const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
+export const logout = async () => {
+  await handleRequest(() => http.post('/auth/logout'))
+  localStorage.removeItem('session_active')
   localStorage.removeItem('user_info')
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('token_type')
+  localStorage.removeItem('user_id')
 }
 
 /**
@@ -73,7 +90,7 @@ export const logout = () => {
  * @returns {boolean}
  */
 export const isAuthenticated = () => {
-  return !!localStorage.getItem('access_token')
+  return localStorage.getItem('session_active') === 'true' && !!localStorage.getItem('access_token')
 }
 
 /**

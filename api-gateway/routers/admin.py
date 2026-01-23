@@ -24,6 +24,11 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
 
 
+class UserAiTokensUpdateRequest(BaseModel):
+    """更新用户 AI Token 请求"""
+    ai_tokens: int
+
+
 @router.get("/users", summary="获取用户列表", description="管理员获取所有用户列表（支持分页）")
 async def list_users(
     limit: int = Query(100, description="每页数量"),
@@ -69,3 +74,13 @@ async def delete_user(
 ) -> dict:
     """删除用户 - 仅管理员可访问"""
     return await AuthService.admin_delete_user(token, user_id)
+
+
+@router.patch("/users/{user_id}/ai-tokens", summary="更新用户 AI Token", description="管理员更新用户 AI Token 余额")
+async def update_user_ai_tokens(
+    user_id: int,
+    payload: UserAiTokensUpdateRequest,
+    token: str = Depends(oauth2_scheme)
+) -> dict:
+    """更新用户 AI Token 余额 - 仅管理员可访问"""
+    return await AuthService.admin_update_user_ai_tokens(token, user_id, payload.ai_tokens)

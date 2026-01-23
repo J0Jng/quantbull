@@ -58,13 +58,21 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # 生成 date 列（字符串格式 YYYY-MM-DD）
     df["date"] = df.index.strftime("%Y-%m-%d")
     
+    # 确保数值列为 float64 类型（TA-Lib 需要）
+    numeric_cols = ["open", "high", "low", "close", "volume"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(np.float64)
+    
     # 生成 p_change 列（百分比涨跌幅）
     df["p_change"] = df["close"].pct_change() * 100
-    df["p_change"] = df["p_change"].fillna(0.0)
+    df["p_change"] = df["p_change"].fillna(0.0).astype(np.float64)
     
     # 生成 amount 列（成交额近似值 = close * volume）
     if "amount" not in df.columns:
-        df["amount"] = df["close"] * df["volume"]
+        df["amount"] = (df["close"] * df["volume"]).astype(np.float64)
+    else:
+        df["amount"] = df["amount"].astype(np.float64)
     
     # 处理 NaN 和 inf
     df = df.replace([np.inf, -np.inf], 0.0)
@@ -190,6 +198,16 @@ def get_indicator_value(
         "psy", "psyma",
         # BRAR
         "ar", "br",
+        # MA - 各种周期移动平均线
+        "ma5", "ma6", "ma12", "ma20", "ma24", "ma30", "ma60", "ma120", "ma200", "ma250",
+        "MA_5", "MA_6", "MA_10", "MA_12", "MA_20", "MA_24", "MA_30", "MA_60", "MA_120", "MA_200", "MA_250",
+        # EMA
+        "ema5", "ema10", "ema12", "ema20", "ema26", "ema60",
+        "EMA_5", "EMA_10", "EMA_12", "EMA_20", "EMA_26", "EMA_60",
+        # VOL MA
+        "vol_5", "vol_10",
+        # BIAS
+        "bias", "bias_12", "bias_24",
     }
     
     # 情况1：expression 直接是列名

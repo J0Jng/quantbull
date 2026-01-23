@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +44,11 @@ class Settings(BaseSettings):
         "/etf": "data_service_url",
         "/stock": "data_service_url",
         "/fundamentals": "data_service_url",
+        "/news": "data_service_url",  # 新增：微博财经媒体新闻
+        "/finance-channel": "data_service_url",  # 新增：财经频道聚合
+
+        # funds
+        "/funds": "data_service_url",
 
         # quant-engine（下游首段：backtest/strategy/factor）
         "/backtest": "quant_engine_url",
@@ -53,6 +58,7 @@ class Settings(BaseSettings):
         # daily-report
         "/report": "daily_report_url",
         "/daily-report": "daily_report_url",
+        "/company-research": "daily_report_url",
 
         # task-service
         "/tasks": "task_service_url",
@@ -61,16 +67,32 @@ class Settings(BaseSettings):
         "/auth": "user_service_url",
         "/admin": "user_service_url",
         "/tokens": "user_service_url",
+        "/products": "user_service_url",
+        "/investor": "user_service_url",
     }
     
     # 鉴权配置
     jwt_secret: str = "your-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
     token_expire_minutes: int = 30
+
+    # 认证 Cookie 配置
+    auth_cookie_name: str = "quantbull_access"
+    csrf_cookie_name: str = "quantbull_csrf"
+    cookie_secure: bool = True
+    cookie_samesite: str = "Lax"
+    cookie_domain: str | None = None
+
+    # CORS 配置（生产环境应配置白名单）
+    cors_allow_origins: list[str] = []
+    cors_allow_credentials: bool = False
     
     # 限流配置
     rate_limit_per_minute: int = 60
     rate_limit_per_hour: int = 1000
+
+    # 可信代理（仅当请求来自这些 IP 时才读取 X-Forwarded-For）
+    trusted_proxies: list[str] = []
     
     # 代理配置
     proxy_timeout: float = 200.0  # 下游请求超时时间（秒）
@@ -82,6 +104,18 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore"  # 忽略未定义的环境变量，避免 Pydantic 验证错误
     )
+
+    @model_validator(mode="after")
+    def _validate_security(self):
+        env = (self.env or "local").lower()
+        if env != "local":
+            if not self.cors_allow_origins:
+                raise ValueError("CORS_ALLOW_ORIGINS is required in non-local env")
+            if "*" in self.cors_allow_origins:
+                raise ValueError("CORS_ALLOW_ORIGINS must be a whitelist in non-local env")
+            if self.jwt_secret in {"your-secret-key-change-in-production", "", None}:
+                raise ValueError("JWT_SECRET must be set to a strong value in non-local env")
+        return self
     
     def get_service_url(self, route_prefix: str) -> str:
         """根据路由前缀获取服务地址"""

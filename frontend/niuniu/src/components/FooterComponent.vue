@@ -10,8 +10,8 @@
         <div class="footer-column">
           <h3 class="column-title">关于</h3>
           <div class="link-list">
-            <a href="/about" class="footer-link">关于我们</a>
-            <a href="/contact" class="footer-link">联系我们</a>
+            <router-link to="/about" class="footer-link">关于我们</router-link>
+            <router-link to="/contact" class="footer-link">联系我们</router-link>
             <a href="/join" class="footer-link">加入我们</a>
           </div>
         </div>
@@ -21,18 +21,12 @@
           <h3 class="column-title">帮助</h3>
           <div class="link-list">
             <a href="/faq" class="footer-link">常见问题</a>
-            <a href="/api" class="footer-link">API文档</a>
-            <a href="/tutorial" class="footer-link">Python教程</a>
-            <a href="/python2to3" class="footer-link">Python 2 to 3</a>
           </div>
         </div>
 
         <!-- 友情链接 -->
         <div class="footer-column">
           <h3 class="column-title">友情链接</h3>
-          <div class="link-list">
-            <a href="https://www.guoren.com" class="footer-link">果仁网</a>
-          </div>
         </div>
 
         <!-- 关注我们 -->

@@ -39,7 +39,7 @@ class AuthService:
             return None
 
         if response.status_code != 200:
-            logger.warning(f"verify token failed with status {response.status_code}: {response.text}")
+            logger.warning(f"verify token failed with status {response.status_code}")
             return None
 
         payload = response.json()
@@ -49,11 +49,28 @@ class AuthService:
         data = payload.get("data") or {}
         user_id = data.get("user_id")
         username = data.get("username")
+        role = data.get("role", "user")
+        qualified_investor = data.get("qualified_investor")
+        investor_tags = data.get("investor_tags")
+        investor_certified_at = data.get("investor_certified_at")
+        email = data.get("email")
+        phone = data.get("phone")
+        created_at = data.get("created_at")
         if payload.get("code") != 0 or user_id is None or not isinstance(username, str):
             return None
 
         try:
-            return TokenData(username=username, user_id=int(user_id))
+            return TokenData(
+                username=username,
+                user_id=int(user_id),
+                role=role,
+                qualified_investor=qualified_investor if isinstance(qualified_investor, bool) else None,
+                investor_tags=investor_tags if isinstance(investor_tags, list) else None,
+                investor_certified_at=investor_certified_at if isinstance(investor_certified_at, str) else None,
+                email=email if isinstance(email, str) else None,
+                phone=phone if isinstance(phone, str) else None,
+                created_at=created_at if isinstance(created_at, str) else None,
+            )
         except (TypeError, ValueError):
             return None
 
@@ -67,11 +84,11 @@ class AuthService:
         return AuthService._handle_passthrough_response(response)
 
     @staticmethod
-    async def register(username: str, password: str) -> dict:
+    async def register(username: str, password: str, phone: str, email: Optional[str] = None) -> dict:
         """用户注册，透传 user-service 响应。"""
         url = f"{settings.user_service_url.rstrip('/')}/api/auth/register"
         async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
-            response = await client.post(url, json={"username": username, "password": password})
+            response = await client.post(url, json={"username": username, "password": password, "phone": phone, "email": email})
         return AuthService._handle_passthrough_response(response)
 
     @staticmethod
@@ -156,4 +173,13 @@ class AuthService:
         headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
             response = await client.delete(url, headers=headers)
+        return AuthService._handle_passthrough_response(response)
+
+    @staticmethod
+    async def admin_update_user_ai_tokens(token: str, user_id: int, ai_tokens: int) -> dict:
+        """管理员更新用户 AI Token 余额"""
+        url = f"{settings.user_service_url.rstrip('/')}/api/admin/users/{user_id}/ai-tokens"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+            response = await client.patch(url, headers=headers, json={"ai_tokens": ai_tokens})
         return AuthService._handle_passthrough_response(response)

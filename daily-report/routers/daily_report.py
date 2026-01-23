@@ -3,6 +3,11 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from core.logger import get_logger
+from core.access_control import (
+    can_access_today_report,
+    get_china_today,
+    get_access_denied_message,
+)
 from schemas.daily_report import (
     DailyReportResponse,
     DailyReportListResponse,
@@ -28,13 +33,24 @@ async def generate_report(request: GenerateReportRequest) -> DailyReportResponse
     
     - 如果不提供 report_date，则使用今日日期
     - 如果 force=True，即使已存在也会重新生成
+    - 当天报告需在 16:00 后才能生成
     """
     try:
+        # 门禁检查：如果要生成今天的报告，需要在16:00之后
+        target_date = request.report_date or get_china_today()
+        if target_date == get_china_today() and not can_access_today_report():
+            raise HTTPException(
+                status_code=403,
+                detail=get_access_denied_message()
+            )
+        
         report = await report_service.generate_daily_report(
             report_date=request.report_date,
             force=request.force
         )
         return report
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"生成报告失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"生成报告失败: {str(e)}")
@@ -46,11 +62,23 @@ async def generate_report(request: GenerateReportRequest) -> DailyReportResponse
     summary="获取最新的投资方案"
 )
 async def get_latest_report() -> DailyReportResponse:
-    """获取最新的投资方案"""
+    """
+    获取最新的投资方案
+    
+    - 16:00 前不返回当天报告，返回最近的历史报告
+    """
     try:
-        report = await report_service.get_latest_report()
+        # 门禁检查：16:00前不允许返回今天的报告
+        exclude_today = not can_access_today_report()
+        report = await report_service.get_latest_report(exclude_today=exclude_today)
         if not report:
-            raise HTTPException(status_code=404, detail="暂无投资方案")
+            if exclude_today:
+                raise HTTPException(
+                    status_code=404,
+                    detail="暂无历史投资方案，今日方案需在 16:00 后查看"
+                )
+            else:
+                raise HTTPException(status_code=404, detail="暂无投资方案")
         return report
     except HTTPException:
         raise
@@ -69,8 +97,16 @@ async def get_report_by_date(report_date: str) -> DailyReportResponse:
     根据日期获取投资方案
     
     - report_date: 日期格式 YYYY-MM-DD
+    - 当天报告需在 16:00 后才能查看
     """
     try:
+        # 门禁检查：如果请求今天的报告，需要在16:00之后
+        if report_date == get_china_today() and not can_access_today_report():
+            raise HTTPException(
+                status_code=403,
+                detail=get_access_denied_message()
+            )
+        
         report = await report_service.get_report_by_date(report_date)
         if not report:
             raise HTTPException(status_code=404, detail=f"{report_date} 的投资方案不存在")
@@ -116,12 +152,16 @@ async def list_reports(
     
     - 支持分页（limit, offset）
     - 支持按状态过滤（status: draft/published/archived）
+    - 16:00 前不返回当天报告
     """
     try:
+        # 门禁检查：16:00前过滤掉今天的报告
+        exclude_today = not can_access_today_report()
         return await report_service.list_daily_reports(
             limit=limit,
             offset=offset,
             status=status,
+            exclude_today=exclude_today
         )
     except Exception as e:
         logger.error(f"列出报告失败: {e}", exc_info=True)
