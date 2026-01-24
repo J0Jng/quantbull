@@ -1,17 +1,43 @@
 from functools import lru_cache
+from pathlib import Path
+import os
 
-from pydantic import model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _find_env_file() -> str | None:
+    """Find the most appropriate .env file.
+
+    Priority:
+    1) Explicit AI_HUB_ENV_FILE
+    2) Nearest parent that contains docker-compose.yml and has a .env
+    3) Local ai-hub/.env (backwards compatibility)
+    """
+    explicit = (os.getenv("AI_HUB_ENV_FILE") or "").strip()
+    if explicit:
+        return explicit
+
+    here = Path(__file__).resolve()
+
+    for parent in [here.parent, *here.parents]:
+        compose = parent / "docker-compose.yml"
+        if compose.exists():
+            candidate = parent / ".env"
+            return str(candidate) if candidate.exists() else None
+
+    local_candidate = here.parents[1] / ".env"  # ai-hub/.env
+    return str(local_candidate) if local_candidate.exists() else None
 
 
 class Settings(BaseSettings):
     """AI Hub 服务配置"""
-    env: str = "local"
-    log_level: str = "INFO"
+    env: str = Field(default="local", validation_alias=AliasChoices("AI_HUB_ENV", "ENV"))
+    log_level: str = Field(default="INFO", validation_alias=AliasChoices("AI_HUB_LOG_LEVEL", "LOG_LEVEL"))
     
     # 服务端口
-    port: int = 8002
-    host: str = "0.0.0.0"
+    port: int = Field(default=8002, validation_alias=AliasChoices("AI_HUB_PORT", "PORT", "SERVICE_PORT"))
+    host: str = Field(default="0.0.0.0", validation_alias=AliasChoices("AI_HUB_HOST", "HOST"))
     
     # DeepSeek R1 API 配置（偏文本生成、新闻、逻辑推理）
     # 默认使用阿里云 DashScope 的 OpenAI 兼容接口
@@ -60,9 +86,10 @@ class Settings(BaseSettings):
     request_timeout: int = 180
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_find_env_file(),
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        extra="ignore",
     )
 
     @model_validator(mode="after")

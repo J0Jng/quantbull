@@ -4,6 +4,10 @@
     <header class="header">
       <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
       <div class="header-nav">
+        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
+        <router-link to="/financial-report">财报</router-link>
+        <router-link to="/fund-source">资金流动</router-link>
+        <router-link to="/company-research">公司研报</router-link>
         <router-link to="/quant-analysis">量化策略</router-link>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
@@ -1214,7 +1218,9 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-.header-nav .active {
+.header-nav .active,
+.header-nav .router-link-active,
+.header-nav .router-link-exact-active {
   text-decoration: underline;
 }
 

@@ -33,13 +33,12 @@
     <nav class="main-nav">
       <div class="container">
         <ul class="nav-list">
-          <li><router-link to="/">首页</router-link></li>
+          <li><a href="#">首页</a></li>
           <li><router-link to="/finance-channel">财经频道</router-link></li>
           <li><router-link to="/daily-insight">每日内参</router-link></li>
-          <li><router-link to="/company-research">公司研报</router-link></li>
           <li><router-link to="/shop">商城</router-link></li>
-          <li><router-link to="/fund-ranking" class="active">基金排行榜</router-link></li>
-          <li><a href="#" style="color:#ff7f00">更多&gt;</a></li>
+          <li><router-link to="/fund-ranking">基金排行榜</router-link></li>
+          <li><router-link to="/stock-data">数据中心</router-link></li>
         </ul>
       </div>
     </nav>

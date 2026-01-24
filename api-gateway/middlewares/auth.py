@@ -37,6 +37,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/api/finance-channel",  # 财经频道前台页面公开访问
         r"^/api/news/eastmoney",  # 东方财富新闻公开访问
         r"^/api/funds",  # 基金排行榜公开访问
+        r"^/api/fundflow",  # 资金流向公开访问
+        r"^/api/financial-report",  # 财报数据公开访问
+        r"^/api/lhb",  # 龙虎榜公开访问
     ]
     
     def __init__(self, app):

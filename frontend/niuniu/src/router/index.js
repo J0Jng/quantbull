@@ -13,6 +13,9 @@ import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
 import DailyInsightPage from '@/views/DailyInsightPage.vue'
 import FundRankingPage from '@/views/FundRankingPage.vue'
 import StockDataPage from '@/views/StockDataPage.vue'
+import FundSourcePage from '@/views/FundSourcePage.vue'
+import FinancialReportPage from '@/views/FinancialReportPage.vue'
+import DragonTigerListPage from '@/views/DragonTigerListPage.vue'
 import GoodsDetail from '@/views/GoodsDetail.vue'
 import CartPage from '@/views/CartPage.vue'
 import OrderPage from '@/views/OrderPage.vue'
@@ -127,6 +130,23 @@ const routes = [
     path: '/stock-data',
     name: 'StockData',
     component: StockDataPage
+  },
+  {
+    path: '/fund-source',
+    name: 'FundSource',
+    component: FundSourcePage
+  },
+  {
+    path: '/financial-report',
+    name: 'FinancialReport',
+    component: FinancialReportPage,
+    meta: { title: '财报' }
+  },
+  {
+    path: '/dragon-tiger-list',
+    name: 'DragonTigerList',
+    component: DragonTigerListPage,
+    meta: { title: '龙虎榜' }
   },
   {
     path: '/shop/goods-detail/:id',

@@ -19,9 +19,9 @@ services:
     restart: always
     environment:
       ENV: "${ENV}"
-      POSTGRES_USER: quantbull
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: quantbull_db
+      POSTGRES_USER: "${POSTGRES_USER:-quantbull}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-quantbull_db}"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d
@@ -67,7 +67,7 @@ services:
       - "8000:8000" # 仅暴露网关端口到宿主机
     environment:
       ENV: "${ENV}"
-      DATABASE_URL: "postgresql+asyncpg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -108,7 +108,7 @@ services:
     restart: always
     environment:
       ENV: "${ENV}"
-      DATABASE_URL: "postgresql+psycopg2://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+psycopg2://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       JWT_SECRET: "${JWT_SECRET}"
       JWT_ISSUER: "${JWT_ISSUER}"
       JWT_AUDIENCE: "${JWT_AUDIENCE}"
@@ -137,8 +137,8 @@ services:
       ENV: "${ENV}"
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS}"
       CORS_ALLOW_CREDENTIALS: "${CORS_ALLOW_CREDENTIALS}"
-      SYNC_DATABASE_URL: "postgresql+psycopg2://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
-      DATABASE_URL: "postgresql+asyncpg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      SYNC_DATABASE_URL: "postgresql+psycopg2://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -167,9 +167,29 @@ services:
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS}"
       CORS_ALLOW_CREDENTIALS: "${CORS_ALLOW_CREDENTIALS}"
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL}"
+      DEEPSEEK_MAX_CONCURRENCY: "${DEEPSEEK_MAX_CONCURRENCY}"
+      DEEPSEEK_RPM: "${DEEPSEEK_RPM}"
       QWEN_API_KEY: "${QWEN_API_KEY}"
+      QWEN_BASE_URL: "${QWEN_BASE_URL}"
+      QWEN_MODEL: "${QWEN_MODEL}"
+      QWEN_MAX_CONCURRENCY: "${QWEN_MAX_CONCURRENCY}"
+      QWEN_RPM: "${QWEN_RPM}"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
-      DATABASE_URL: "postgresql+asyncpg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+
+      DEFAULT_MODEL: "${DEFAULT_MODEL}"
+      DEFAULT_MODEL_FOR_NEWS: "${DEFAULT_MODEL_FOR_NEWS}"
+      DEFAULT_MODEL_FOR_SUMMARY: "${DEFAULT_MODEL_FOR_SUMMARY}"
+      DEFAULT_MODEL_FOR_STRATEGY: "${DEFAULT_MODEL_FOR_STRATEGY}"
+
+      MAX_TOKENS: "${MAX_TOKENS}"
+      TEMPERATURE: "${TEMPERATURE}"
+      REQUEST_TIMEOUT: "${REQUEST_TIMEOUT}"
+
+      DIGITAL_HUMAN_API_URL: "${DIGITAL_HUMAN_API_URL}"
+      DIGITAL_HUMAN_API_KEY: "${DIGITAL_HUMAN_API_KEY}"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -199,10 +219,26 @@ services:
       ENV: "${ENV}"
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS}"
       CORS_ALLOW_CREDENTIALS: "${CORS_ALLOW_CREDENTIALS}"
-      DATABASE_URL: "postgresql+asyncpg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
+
+      # quant-engine 代码使用 redis_host/port/db/password，而非 REDIS_URL
+      REDIS_HOST: "${REDIS_HOST:-redis}"
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_DB: "${REDIS_DB:-0}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
       REDIS_URL: "redis://redis:6379/0"
-      TDENGINE_HOST: "tdengine"
-      TDENGINE_PORT: "6030"
+
+      # quant-engine 的 TDengine REST 查询需要 user/password/REST 配置
+      TDENGINE_HOST: "${TDENGINE_HOST:-tdengine}"
+      TDENGINE_PORT: "${TDENGINE_PORT:-6030}"
+      TDENGINE_USER: "${TDENGINE_USER:-root}"
+      TDENGINE_PASSWORD: "${TDENGINE_PASSWORD}"
+      TDENGINE_DATABASE: "${TDENGINE_DATABASE:-quantbull}"
+      TDENGINE_REST_PORT: "${TDENGINE_REST_PORT:-6041}"
+      TDENGINE_REST_PATH: "${TDENGINE_REST_PATH:-/rest/sql}"
+      TDENGINE_REST_SCHEME: "${TDENGINE_REST_SCHEME:-http}"
+      TDENGINE_REST_TIMEOUT: "${TDENGINE_REST_TIMEOUT:-10.0}"
+
       SERVICE_PORT: "8003"
       TUSHARE_TOKEN: "${TUSHARE_TOKEN}"
       DATA_SERVICE_URL: "http://data-service:8001"
@@ -229,7 +265,7 @@ services:
     # 生产环境不应直接对外暴露 task-service；请通过 api-gateway 统一入口访问
     environment:
       ENV: "${ENV}"
-      DATABASE_URL: "postgresql+psycopg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       REDIS_URL: "redis://redis:6379/0"
       SERVICE_PORT: "9000"
       DATA_SERVICE_URL: "http://data-service:8001"
@@ -251,7 +287,7 @@ services:
     restart: always
     environment:
       ENV: "${ENV}"
-      DATABASE_URL: "postgresql+psycopg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       REDIS_URL: "redis://redis:6379/0"
       SERVICE_PORT: "9000"
       DATA_SERVICE_URL: "http://data-service:8001"
@@ -277,7 +313,7 @@ services:
       ENV: "${ENV}"
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS}"
       CORS_ALLOW_CREDENTIALS: "${CORS_ALLOW_CREDENTIALS}"
-      DATABASE_URL: "postgresql+asyncpg://quantbull:${POSTGRES_PASSWORD}@postgres:5432/quantbull_db"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-quantbull}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-quantbull_db}"
       REDIS_URL: "redis://redis:6379/0"
       TDENGINE_HOST: "tdengine"
       TDENGINE_PORT: "6030"
@@ -288,11 +324,11 @@ services:
       API_GATEWAY_URL: "http://api-gateway:8000"
       AI_HUB_URL: "http://ai-hub:8002"
       DB_TYPE: "postgresql"
-      POSTGRES_HOST: "postgres"
-      POSTGRES_PORT: "5432"
+      POSTGRES_HOST: "${POSTGRES_HOST:-postgres}"
+      POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
       POSTGRES_USER: "daily_report_user"
       POSTGRES_PASSWORD: "${DAILY_REPORT_DB_PASSWORD}"
-      POSTGRES_DB: "quantbull_db"
+      POSTGRES_DB: "${POSTGRES_DB:-quantbull_db}"
       POSTGRES_SCHEMA: "daily_report"
     depends_on:
       - ai-hub
