@@ -89,12 +89,12 @@
       </div>
       <div class="ideas-grid" v-else>
         <div class="ideas-card" v-for="(item, i) in ideasItems" :key="'idea'+i">
-          <div class="ideas-title">{{ item.title }}</div>
-          <div class="ideas-author">{{ item.author }}</div>
+          <div class="ideas-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.title }}</div>
+          <div class="ideas-author" v-if="item.author">{{ item.author }}</div>
           <div class="ideas-content">{{ item.content }}</div>
           <div class="ideas-meta">
             <span class="ideas-source">{{ item.source }}</span>
-            <span class="ideas-date">{{ item.date }}</span>
+            <span class="ideas-date">{{ formatIdeaDate(item.date) }}</span>
           </div>
         </div>
       </div>
@@ -223,6 +223,16 @@ function handleLogout() {
 function openUrl(url) {
   if (!url) return
   window.open(url, '_blank')
+}
+
+function formatIdeaDate(value) {
+  if (!value) return ''
+  const normalized = String(value).replace('T', ' ').trim()
+  const match = normalized.match(/^(\d{4}-\d{2}-\d{2})(?:\s*(\d{2}:\d{2}))?/)
+  if (match) {
+    return match[2] ? `${match[1]} ${match[2]}` : match[1]
+  }
+  return normalized
 }
 
 // 加载微博财经新闻
@@ -423,8 +433,10 @@ body{background-color:#fff8f0;color:#333}
 .ideas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
 .ideas-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
 .ideas-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}
+.ideas-title.clickable{color:#ff7f24;cursor:pointer}
+.ideas-title.clickable:hover{text-decoration:underline}
 .ideas-author{font-size:14px;color:#ff7f24}
-.ideas-content{font-size:14px;color:#666;line-height:1.6;flex:1}
+.ideas-content{font-size:14px;color:#666;line-height:1.6;flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .ideas-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px;border-top:1px solid #f0f0f0}
 .ideas-source{color:#666}
 .ideas-date{text-align:right}

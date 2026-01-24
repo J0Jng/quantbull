@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     
     # Tushare 配置 - 优先读取环境变量 TUSHARE_TOKEN
     tushare_token: str = ""  # 通过环境变量设置，不应在代码中硬编码
+
+    # 内部刷新接口 Token（可选）
+    finance_channel_refresh_token: str = ""
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
     
