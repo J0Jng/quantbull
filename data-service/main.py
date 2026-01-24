@@ -119,6 +119,45 @@ def create_app() -> FastAPI:
             logger = logging.getLogger(__name__)
             logger.warning(f"公募基金排行榜定时任务启动失败: {e}")
 
+        # 启动资金流向预热任务
+        try:
+            from scheduler_fund_flow import get_fund_flow_scheduler
+            flow_scheduler = get_fund_flow_scheduler(interval_minutes=15)
+            flow_scheduler.start()
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("资金流向定时任务已启动（预热每15分钟）")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"资金流向定时任务启动失败: {e}")
+
+        # 启动财报（年报季报）定时任务
+        try:
+            from scheduler_financial_report import get_financial_report_scheduler
+            report_scheduler = get_financial_report_scheduler()
+            report_scheduler.start(cron_hour=3, cron_minute=20, yysj_interval_hours=6)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("财报定时任务已启动（每日预热 + 预约披露定时更新）")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"财报定时任务启动失败: {e}")
+
+        # 启动龙虎榜定时任务
+        try:
+            from scheduler_lhb import get_lhb_scheduler
+            lhb_scheduler = get_lhb_scheduler()
+            lhb_scheduler.start(cron_hour=18, cron_minute=10)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("龙虎榜定时任务已启动（每日收盘后预热）")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"龙虎榜定时任务启动失败: {e}")
+
         # 启动每日财经头条生成任务（每日 03:00）
         try:
             from scheduler_headlines import get_daily_headlines_scheduler
@@ -155,6 +194,30 @@ def create_app() -> FastAPI:
             from scheduler_public_fund_ranking import get_public_fund_ranking_scheduler
             fund_scheduler = get_public_fund_ranking_scheduler()
             fund_scheduler.stop()
+        except Exception:
+            pass
+
+        # 停止资金流向定时任务
+        try:
+            from scheduler_fund_flow import get_fund_flow_scheduler
+            flow_scheduler = get_fund_flow_scheduler()
+            flow_scheduler.stop()
+        except Exception:
+            pass
+
+        # 停止财报定时任务
+        try:
+            from scheduler_financial_report import get_financial_report_scheduler
+            report_scheduler = get_financial_report_scheduler()
+            report_scheduler.stop()
+        except Exception:
+            pass
+
+        # 停止龙虎榜定时任务
+        try:
+            from scheduler_lhb import get_lhb_scheduler
+            lhb_scheduler = get_lhb_scheduler()
+            lhb_scheduler.stop()
         except Exception:
             pass
 

@@ -26,6 +26,9 @@ export * from './reportService'
 // 市场数据服务
 export * from './marketService'
 
+// 资金流向服务
+export * from './fundFlowService'
+
 // AI 服务
 export * from './aiService'
 
