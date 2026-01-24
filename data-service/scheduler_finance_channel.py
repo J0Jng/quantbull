@@ -91,8 +91,11 @@ class FinanceChannelScheduler:
         """刷新投资观点"""
         try:
             aggregator = get_ideas_aggregator(db_session)
-            result = await aggregator.aggregate_ideas(limit=20)
-            logger.info(f"投资观点刷新成功，共 {len(result.get('items', []))} 条")
+            result = await aggregator.refresh_ideas(pages=2, limit=50)
+            logger.info(
+                f"投资观点刷新成功，共 {len(result.get('items', []))} 条，"
+                f"新增 {result.get('saved', 0)}，更新 {result.get('updated', 0)}"
+            )
             return result
         except Exception as e:
             logger.error(f"投资观点刷新失败: {e}")

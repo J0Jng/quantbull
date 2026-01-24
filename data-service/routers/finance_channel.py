@@ -8,7 +8,7 @@
 - 政策法规（监管政策、法规通知）
 """
 from typing import Optional
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Query, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
@@ -22,6 +22,7 @@ from services.market_data_service import get_market_data_aggregator
 from services.ideas_service import get_ideas_aggregator
 from services.policy_service import get_policy_aggregator
 from services.eastmoney_news_service import get_eastmoney_news_aggregator
+from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ async def get_market_data(
     description="""
     获取投资观点、研报摘要、分析师评论。
     
-    **数据来源**：模拟数据（生产环境需爬取真实网站）
+    **数据来源**：同花顺原创“独家公告解读”列表页
     **更新频率**：30分钟缓存
     **支持功能**：关键词搜索、分页
     
@@ -78,12 +79,44 @@ async def get_market_data(
 async def get_ideas(
     limit: int = Query(10, ge=1, le=50, description="返回条数"),
     keyword: Optional[str] = Query(None, description="关键词过滤"),
-    page: int = Query(1, ge=1, description="页码（暂未实现分页）"),
+    page: int = Query(1, ge=1, description="页码"),
     db_session: AsyncSession = Depends(get_async_session)
 ):
     """获取投资观点"""
     aggregator = get_ideas_aggregator(db_session)
-    return await aggregator.aggregate_ideas(limit=limit, keyword=keyword)
+    return await aggregator.aggregate_ideas(limit=limit, keyword=keyword, page=page)
+
+
+@router.post(
+    "/ideas/refresh",
+    summary="手动刷新投资观点",
+    description="""
+    触发投资观点抓取与入库，忽略缓存。
+
+    **权限控制**：
+    - 本地环境（ENV=local）可直接访问
+    - 其他环境需传入请求头 X-Internal-Token
+    """
+)
+async def refresh_ideas(
+    pages: int = Query(1, ge=1, le=5, description="抓取页数"),
+    limit: int = Query(50, ge=1, le=50, description="每页最大条数"),
+    internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+    db_session: AsyncSession = Depends(get_async_session)
+):
+    if settings.env != "local":
+        if not internal_token or internal_token != settings.finance_channel_refresh_token:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+    aggregator = get_ideas_aggregator(db_session)
+    result = await aggregator.refresh_ideas(pages=pages, limit=limit)
+    return {
+        "items": result.get("items", []),
+        "saved": result.get("saved", 0),
+        "updated": result.get("updated", 0),
+        "pages": result.get("pages", pages),
+        "duration": result.get("duration", 0),
+    }
 
 
 # ==================== 政策法规 ====================
