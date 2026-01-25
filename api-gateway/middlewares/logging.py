@@ -24,15 +24,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # 读取请求体（如果需要记录）
         request_body = None
         if request.method in ["POST", "PUT", "PATCH"]:
-            content_type = (request.headers.get("content-type") or "").lower()
-            content_length_raw = request.headers.get("content-length")
-            try:
-                content_length = int(content_length_raw) if content_length_raw else 0
-            except Exception:
-                content_length = 0
-
-            # multipart/大请求不读取 body，避免占用内存并影响后续处理（例如文件上传）。
-            if "multipart/form-data" not in content_type and (not content_length or content_length <= 1024 * 1024):
             try:
                 body = await request.body()
                 if body:
