@@ -103,7 +103,6 @@ class Settings(BaseSettings):
     # 代理配置
     proxy_timeout: float = 200.0  # 下游请求超时时间（秒）
     proxy_max_retries: int = 2  # 最大重试次数
-    proxy_streaming_threshold_mb: int = 5  # 超过该大小（MB）时，网关对请求体采用流式转发
     
     model_config = SettingsConfigDict(
         env_file=".env",

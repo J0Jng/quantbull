@@ -16,15 +16,23 @@ class AuthService:
     @staticmethod
     async def login_with_form(username: str, password: str) -> dict:
         url = f"{settings.user_service_url.rstrip('/')}/api/auth/login"
-        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
-            response = await client.post(url, data={"username": username, "password": password})
+        try:
+            async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+                response = await client.post(url, data={"username": username, "password": password})
+        except httpx.RequestError as exc:
+            logger.error(f"login_with_form failed: {exc}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="用户服务不可用，请稍后重试")
         return AuthService._handle_login_response(response)
 
     @staticmethod
     async def login_with_json(username: str, password: str) -> dict:
         url = f"{settings.user_service_url.rstrip('/')}/api/auth/login/json"
-        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
-            response = await client.post(url, json={"username": username, "password": password})
+        try:
+            async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+                response = await client.post(url, json={"username": username, "password": password})
+        except httpx.RequestError as exc:
+            logger.error(f"login_with_json failed: {exc}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="用户服务不可用，请稍后重试")
         return AuthService._handle_login_response(response)
 
     @staticmethod
@@ -34,7 +42,7 @@ class AuthService:
         try:
             async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
                 response = await client.get(url, headers=headers)
-        except Exception as exc:  # pragma: no cover - network errors
+        except httpx.RequestError as exc:  # pragma: no cover - network errors
             logger.error(f"verify token failed: {exc}")
             return None
 
@@ -79,16 +87,24 @@ class AuthService:
         """直接透传 user-service 的 verify 响应，保持错误码与结构一致。"""
         url = f"{settings.user_service_url.rstrip('/')}/api/auth/verify"
         headers = {"Authorization": f"Bearer {token}"}
-        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
-            response = await client.get(url, headers=headers)
+        try:
+            async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+                response = await client.get(url, headers=headers)
+        except httpx.RequestError as exc:
+            logger.error(f"verify_raw failed: {exc}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="用户服务不可用，请稍后重试")
         return AuthService._handle_passthrough_response(response)
 
     @staticmethod
     async def register(username: str, password: str, phone: str, email: Optional[str] = None) -> dict:
         """用户注册，透传 user-service 响应。"""
         url = f"{settings.user_service_url.rstrip('/')}/api/auth/register"
-        async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
-            response = await client.post(url, json={"username": username, "password": password, "phone": phone, "email": email})
+        try:
+            async with httpx.AsyncClient(timeout=settings.user_service_timeout) as client:
+                response = await client.post(url, json={"username": username, "password": password, "phone": phone, "email": email})
+        except httpx.RequestError as exc:
+            logger.error(f"register failed: {exc}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="用户服务不可用，请稍后重试")
         return AuthService._handle_passthrough_response(response)
 
     @staticmethod
