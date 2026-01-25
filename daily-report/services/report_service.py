@@ -23,7 +23,7 @@ from schemas.report import (
     ReportListResponse,
     ReportSummaryResponse,
 )
-from services.data_client import DataServiceClient
+from services.data_client import DataServiceClient, MarketDataDateMismatchError
 from services.ai_client import AIHubClient
 
 logger = get_logger(__name__)
@@ -54,7 +54,7 @@ class ReportService:
         """
         # 确定报告日期
         if report_date is None:
-            report_date = datetime.now().strftime("%Y-%m-%d")
+            report_date = get_china_today()
         
         logger.info(f"开始生成 {report_date} 的投资方案")
         
@@ -92,7 +92,10 @@ class ReportService:
             try:
                 # 步骤1: 获取市场数据（来自 data-service）
                 logger.info("步骤1: 获取市场数据")
-                market_data = await self.data_client.fetch_market_data(report_date)
+                market_data = await self.data_client.fetch_market_data(
+                    report_date,
+                    strict_date=True,
+                )
                 
                 # 步骤2: 调用 AI 生成内容（调用 ai-hub）
                 logger.info("步骤2: 调用 AI 生成内容")
@@ -130,6 +133,16 @@ class ReportService:
                 else:
                     raise Exception("报告记录不存在")
                     
+            except MarketDataDateMismatchError as e:
+                report = db.query(DailyInvestmentReport).filter(
+                    DailyInvestmentReport.id == report_id
+                ).first()
+                if report:
+                    report.generation_status = "failed"
+                    report.generation_error = str(e)
+                    db.commit()
+                logger.error(f"生成报告失败: {e}", exc_info=True)
+                raise
             except Exception as e:
                 # 更新错误状态
                 report = db.query(DailyInvestmentReport).filter(

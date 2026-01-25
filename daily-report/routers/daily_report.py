@@ -14,6 +14,7 @@ from schemas.daily_report import (
     GenerateReportRequest,
 )
 from services.report_service import ReportService
+from services.data_client import MarketDataDateMismatchError
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -33,10 +34,10 @@ async def generate_report(request: GenerateReportRequest) -> DailyReportResponse
     
     - 如果不提供 report_date，则使用今日日期
     - 如果 force=True，即使已存在也会重新生成
-    - 当天报告需在 16:00 后才能生成
+    - 当天报告需在 15:30 后才能生成
     """
     try:
-        # 门禁检查：如果要生成今天的报告，需要在16:00之后
+        # 门禁检查：如果要生成今天的报告，需要在15:30之后
         target_date = request.report_date or get_china_today()
         if target_date == get_china_today() and not can_access_today_report():
             raise HTTPException(
@@ -45,10 +46,12 @@ async def generate_report(request: GenerateReportRequest) -> DailyReportResponse
             )
         
         report = await report_service.generate_daily_report(
-            report_date=request.report_date,
+            report_date=target_date,
             force=request.force
         )
         return report
+    except MarketDataDateMismatchError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -65,17 +68,17 @@ async def get_latest_report() -> DailyReportResponse:
     """
     获取最新的投资方案
     
-    - 16:00 前不返回当天报告，返回最近的历史报告
+    - 15:30 前不返回当天报告，返回最近的历史报告
     """
     try:
-        # 门禁检查：16:00前不允许返回今天的报告
+        # 门禁检查：15:30前不允许返回今天的报告
         exclude_today = not can_access_today_report()
         report = await report_service.get_latest_report(exclude_today=exclude_today)
         if not report:
             if exclude_today:
                 raise HTTPException(
                     status_code=404,
-                    detail="暂无历史投资方案，今日方案需在 16:00 后查看"
+                    detail="暂无历史投资方案，今日方案需在 15:30 后查看"
                 )
             else:
                 raise HTTPException(status_code=404, detail="暂无投资方案")
@@ -97,10 +100,10 @@ async def get_report_by_date(report_date: str) -> DailyReportResponse:
     根据日期获取投资方案
     
     - report_date: 日期格式 YYYY-MM-DD
-    - 当天报告需在 16:00 后才能查看
+    - 当天报告需在 15:30 后才能查看
     """
     try:
-        # 门禁检查：如果请求今天的报告，需要在16:00之后
+        # 门禁检查：如果请求今天的报告，需要在15:30之后
         if report_date == get_china_today() and not can_access_today_report():
             raise HTTPException(
                 status_code=403,
@@ -152,10 +155,10 @@ async def list_reports(
     
     - 支持分页（limit, offset）
     - 支持按状态过滤（status: draft/published/archived）
-    - 16:00 前不返回当天报告
+    - 15:30 前不返回当天报告
     """
     try:
-        # 门禁检查：16:00前过滤掉今天的报告
+        # 门禁检查：15:30前过滤掉今天的报告
         exclude_today = not can_access_today_report()
         return await report_service.list_daily_reports(
             limit=limit,

@@ -456,11 +456,10 @@
             href="javascript:;" 
             :class="{ active: reportTab==='report-latest', disabled: !canAccessTodayReport() }" 
             @click.prevent="handleLatestTabClick"
-            :title="canAccessTodayReport() ? '查看最新内参' : '今日内参需在16:00后查看'"
+            :title="canAccessTodayReport() ? '查看最新内参' : '今日内参需在15:30后查看'"
           >
-            最新{{ canAccessTodayReport() ? '' : ' (16:00后可用)' }}
+            最新{{ canAccessTodayReport() ? '' : ' (15:30后可用)' }}
           </a>
-          <a href="javascript:;" :class="{ active: reportTab==='report-yesterday' }" @click.prevent="reportTab='report-yesterday'">昨日</a>
         </div>
         <section class="daily-report">
           <!-- 加载状态 -->
@@ -663,10 +662,10 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from './FooterComponent.vue'
-import { getTopListSummary } from '@/services/marketService'
+import { getTopListSummary, getMarketOverview } from '@/services/marketService'
 import { getMarketData } from '@/services/financeChannelService'
 import { generateNewsAnalysis, generateStrategy as generateStrategyApi, generateSummary as generateSummaryApi, generateReport as generateReportApi } from '@/services/aiService'
-import { getLatestDailyReport, getDailyReportList } from '@/services/dailyReportService'
+import { getLatestDailyReport, getDailyReportList, getDailyReportByDate } from '@/services/dailyReportService'
 import { getCompanyResearchList } from '@/services/companyResearchService'
 import { getProducts, formatPrice as serviceFormatPrice } from '@/services/productService'
 import { getHeadlines } from '@/services/newsService'
@@ -1218,8 +1217,8 @@ const isToday = (dateStr) => {
 // 处理"最新"标签点击
 const handleLatestTabClick = () => {
   if (!canAccessTodayReport()) {
-    // 16:00前不允许查看最新（今天），自动切换到昨日
-    alert('今日内参需在 16:00 后查看，已为您切换至昨日内参')
+    // 15:30前不允许查看最新（今天），自动切换到昨日
+    alert('今日内参需在 15:30 后查看，已为您切换至昨日内参')
     reportTab.value = 'report-yesterday'
     return
   }
@@ -1336,7 +1335,7 @@ const loadMarketIndex = async () => {
 
 // 加载每日内参数据
 const loadDailyReports = async () => {
-  // 如果已经有数据且不是今天（或今天且已过16:00），则不重复加载
+  // 如果已经有数据且不是今天（或今天且已过15:30），则不重复加载
   if (latestDailyReport.value) {
     const reportDate = latestDailyReport.value.report_date
     const reportIsToday = isToday(reportDate)
@@ -1352,44 +1351,73 @@ const loadDailyReports = async () => {
   try {
     console.log('开始加载每日内参数据...')
     console.log('当前时间是否可访问今日报告:', canAccessTodayReport())
-    
-    // 加载最新报告（后端会自动过滤今天的报告如果<16:00）
-    const latestResult = await getLatestDailyReport()
-    console.log('最新报告API响应:', latestResult)
-    
-    if (latestResult.success && latestResult.data) {
-      // 后端返回格式: {code: 0, message: "ok", data: {报告数据}}
-      // handleRequest包装后: {success: true, data: {code: 0, message: "ok", data: {报告数据}}}
-      let reportData = latestResult.data
-      
-      // 如果有嵌套的data字段，提取出来
-      if (reportData.data && reportData.code === 0) {
-        reportData = reportData.data
+
+    // 优先加载最新交易日的报告
+    const overviewResult = await getMarketOverview()
+    let latestTradeDate = ''
+    if (overviewResult.success && overviewResult.data) {
+      let overviewData = overviewResult.data
+      if (overviewData.data && overviewData.code === 0) {
+        overviewData = overviewData.data
       }
-      
-      // 现在reportData应该是真正的报告数据
-      if (reportData.id && reportData.report_date) {
-        latestDailyReport.value = reportData
-        console.log('最新报告加载成功:', reportData)
-      } else {
-        console.warn('最新报告数据格式异常:', reportData)
+      latestTradeDate = overviewData.trade_date || overviewData.tradeDate || ''
+    }
+
+    if (latestTradeDate) {
+      const latestByDate = await getDailyReportByDate(latestTradeDate)
+      if (latestByDate.success && latestByDate.data) {
+        let reportData = latestByDate.data
+        if (reportData.data && reportData.code === 0) {
+          reportData = reportData.data
+        }
+        if (reportData.id && reportData.report_date) {
+          latestDailyReport.value = reportData
+          console.log('最新交易日报告加载成功:', reportData)
+        } else {
+          console.warn('最新交易日报告数据格式异常:', reportData)
+        }
       }
-    } else {
-      console.warn('最新报告加载失败:', latestResult.message || '未知错误')
+    }
+
+    if (!latestDailyReport.value) {
+      // 兜底：加载最新报告（后端会自动过滤今天的报告如果<15:30）
+      const latestResult = await getLatestDailyReport()
+      console.log('最新报告API响应:', latestResult)
       
-      // 兜底：如果是404且当前<16:00，提示用户
-      if (latestResult.status === 404 && !canAccessTodayReport()) {
-        dailyReportError.value = '今日内参需在 16:00 后查看'
-      } else if (latestResult.status === 401) {
-        dailyReportError.value = '认证失败，请重新登录'
-      } else if (latestResult.status === 404) {
-        dailyReportError.value = '暂无最新报告'
+      if (latestResult.success && latestResult.data) {
+        // 后端返回格式: {code: 0, message: "ok", data: {报告数据}}
+        // handleRequest包装后: {success: true, data: {code: 0, message: "ok", data: {报告数据}}}
+        let reportData = latestResult.data
+        
+        // 如果有嵌套的data字段，提取出来
+        if (reportData.data && reportData.code === 0) {
+          reportData = reportData.data
+        }
+        
+        // 现在reportData应该是真正的报告数据
+        if (reportData.id && reportData.report_date) {
+          latestDailyReport.value = reportData
+          console.log('最新报告加载成功:', reportData)
+        } else {
+          console.warn('最新报告数据格式异常:', reportData)
+        }
       } else {
-        dailyReportError.value = latestResult.message || '加载失败'
+        console.warn('最新报告加载失败:', latestResult.message || '未知错误')
+        
+        // 兜底：如果是404且当前<15:30，提示用户
+        if (latestResult.status === 404 && !canAccessTodayReport()) {
+          dailyReportError.value = '今日内参需在 15:30 后查看'
+        } else if (latestResult.status === 401) {
+          dailyReportError.value = '认证失败，请重新登录'
+        } else if (latestResult.status === 404) {
+          dailyReportError.value = '暂无最新报告'
+        } else {
+          dailyReportError.value = latestResult.message || '加载失败'
+        }
       }
     }
     
-    // 加载历史报告（后端会自动过滤今天的报告如果<16:00）
+    // 加载历史报告（后端会自动过滤今天的报告如果<15:30）
     const historyResult = await getDailyReportList({ limit: 10 })
     console.log('历史报告API响应:', historyResult)
     

@@ -22,6 +22,7 @@ import CartPage from '@/views/CartPage.vue'
 import OrderPage from '@/views/OrderPage.vue'
 import AboutPage from '@/views/AboutPage.vue'
 import ContactPage from '@/views/ContactPage.vue'
+import JoinPage from '@/views/JoinPage.vue'
 import NewsListPage from '@/views/NewsListPage.vue'
 import StrategyListPage from '@/views/StrategyListPage.vue'
 import StrategyCreatePage from '@/views/StrategyCreatePage.vue'
@@ -62,6 +63,12 @@ const routes = [
     name: 'Contact',
     component: ContactPage,
     meta: { title: '联系我们' }
+  },
+  {
+    path: '/join',
+    name: 'Join',
+    component: JoinPage,
+    meta: { title: '加入我们' }
   },
   {
     path: '/quant-analysis',

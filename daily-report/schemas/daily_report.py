@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 
 class MarketOverview(BaseModel):
     """市场概览数据（来自 data-service）"""
+    trade_date: str = Field(..., description="交易日期 YYYY-MM-DD")
+    market_status: Optional[str] = Field(default=None, description="市场状态")
     indices: dict = Field(..., description="指数数据（上证、深证、创业板等）")
     total_turnover: float = Field(..., description="总成交额")
     rising_count: int = Field(..., description="上涨股票数")

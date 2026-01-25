@@ -1,5 +1,10 @@
 <template>
   <div class="about-page">
+    <div class="back-home-container">
+      <router-link to="/" class="back-home-btn">
+        &lt; 返回主页面
+      </router-link>
+    </div>
     <section class="hero">
       <div class="container">
         <p class="hero-tag">公司介绍</p>
@@ -80,6 +85,35 @@ import FooterComponent from '@/components/FooterComponent.vue'
   min-height: 100vh;
   background: #f9fafc;
   color: #333;
+  position: relative;
+}
+
+.back-home-container {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+}
+
+.back-home-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #333;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.back-home-btn:hover {
+  background-color: #fff;
+  color: #ff7f24;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .container {
