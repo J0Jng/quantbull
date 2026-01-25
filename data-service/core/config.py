@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     video_upload_dir: str = "static/videos"
     video_cover_dir: str = "static/video_covers"
     video_max_size_mb: int = 200
+    video_cover_max_size_mb: int = 10
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
     
