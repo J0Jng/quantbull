@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: str = ""
+
+    # 东方财富研报配置
+    eastmoney_report_base_url: str = "https://data.eastmoney.com/report"
+    eastmoney_report_timeout: float = 20.0
+    eastmoney_report_retries: int = 2
+    eastmoney_report_rate_limit_rps: int = 25
+    eastmoney_report_cache_enabled: bool = True
+    eastmoney_report_cache_ttl: int = 30900  # 515 分钟
     
     # 日报配置
     report_cache_ttl: int = 3600  # 日报缓存时间（秒）

@@ -49,6 +49,7 @@ class Settings(BaseSettings):
         "/fundflow": "data_service_url",  # 新增：资金流向
         "/financial-report": "data_service_url",  # 新增：财报数据
         "/lhb": "data_service_url",  # 新增：龙虎榜数据
+        "/profit-forecast": "data_service_url",  # 新增：盈利预测
 
         # funds
         "/funds": "data_service_url",

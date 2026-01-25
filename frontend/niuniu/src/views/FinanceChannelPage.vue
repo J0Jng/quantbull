@@ -4,8 +4,6 @@
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛财经频道</div>
       <div class="header-opt">
-        <a href="/news-detail">财经资讯</a>
-        <a href="/company-research">公司研报</a>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
@@ -28,6 +26,7 @@
       <a href="#market-data" class="category-item" :class="{ active: activeCategory==='market-data' }" @click.prevent="go('market-data')">市场数据</a>
       <a href="#investment-ideas" class="category-item" :class="{ active: activeCategory==='investment-ideas' }" @click.prevent="go('investment-ideas')">投资观点</a>
       <a href="#policy-regulation" class="category-item" :class="{ active: activeCategory==='policy-regulation' }" @click.prevent="go('policy-regulation')">政策法规</a>
+      <a href="/video" class="category-item" :class="{ active: activeCategory==='video' }" @click.prevent="goVideo">视频中心</a>
     </div>
 
     <!-- 主容器 -->
@@ -185,6 +184,11 @@ function go(id) {
   activeCategory.value = id
   const el = document.getElementById(id)
   if (el) window.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' })
+}
+
+function goVideo() {
+  activeCategory.value = 'video'
+  router.push('/video')
 }
 
 function toggleUserMenu() {

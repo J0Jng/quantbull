@@ -13,6 +13,7 @@ from .funds import router as funds_router
 from .fund_flow import router as fund_flow_router
 from .financial_report import router as financial_report_router
 from .lhb import router as lhb_router
+from .profit_forecast import router as profit_forecast_router
 
 api_router = APIRouter()
 api_router.include_router(router=data_router, prefix="/data", tags=["data"])
@@ -28,6 +29,7 @@ api_router.include_router(router=funds_router, prefix="/funds", tags=["funds"])
 api_router.include_router(router=fund_flow_router, prefix="/fundflow", tags=["fundflow"])
 api_router.include_router(router=financial_report_router, tags=["financial-report"])
 api_router.include_router(router=lhb_router, tags=["lhb"])
+api_router.include_router(router=profit_forecast_router, tags=["profit-forecast"])
 
-__all__ = ["api_router", "data_router", "quotes_router", "tushare_router", "market_router", "etf_router", "stock_router", "fundamentals_router", "news_router", "finance_channel_router", "funds_router", "fund_flow_router", "financial_report_router", "lhb_router"]
+__all__ = ["api_router", "data_router", "quotes_router", "tushare_router", "market_router", "etf_router", "stock_router", "fundamentals_router", "news_router", "finance_channel_router", "funds_router", "fund_flow_router", "financial_report_router", "lhb_router", "profit_forecast_router"]
 

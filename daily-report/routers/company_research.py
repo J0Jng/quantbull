@@ -11,6 +11,7 @@ from schemas.company_research import (
     CompanyResearchListResponse,
 )
 from services.company_research_service import CompanyResearchService
+from services.eastmoney_report_service import EastmoneyReportService
 from core.response import success, error
 from core.logger import get_logger
 
@@ -100,3 +101,59 @@ async def get_report_by_id(
     except Exception as e:
         logger.error(f"获取公司研报详情失败: {e}", exc_info=True)
         return error(message=f"查询失败: {str(e)}", code=50002)
+
+
+@router.get("/eastmoney/list", summary="东方财富研报列表")
+async def get_eastmoney_list(
+    category: str = "stock",
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict:
+    """
+    东方财富研报列表
+
+    - category: 栏目（stock/industry/profitforecast/macro/newstock/strategy）
+    - q: 关键词（标题/股票/机构/行业）
+    - page: 页码
+    - page_size: 每页数量
+    """
+    try:
+        service = EastmoneyReportService()
+        result = await service.fetch_eastmoney_reports(category, q, page, page_size)
+        return success(data=result, message="ok")
+    except Exception as e:
+        logger.error(f"获取东方财富研报列表失败: {e}", exc_info=True)
+        fallback = {
+            "total": 0,
+            "items": [],
+            "category": category,
+            "category_label": category,
+            "error": str(e),
+        }
+        return success(data=fallback, message="partial")
+
+
+@router.get("/eastmoney/detail", summary="东方财富研报详情")
+async def get_eastmoney_detail(
+    id: Optional[str] = None,
+    url: Optional[str] = None,
+    category: Optional[str] = None,
+) -> dict:
+    """
+    东方财富研报详情
+
+    - id: 研报 ID（infoCode 或 encodeUrl）
+    - url: 原文链接
+    - category: 栏目（可选，用于从缓存补全标题）
+    """
+    try:
+        report_key = url or id
+        if not report_key:
+            return error(message="缺少研报 ID 或 URL", code=40002)
+        service = EastmoneyReportService()
+        result = await service.fetch_eastmoney_report_detail(report_key, category)
+        return success(data=result, message="ok")
+    except Exception as e:
+        logger.error(f"获取东方财富研报详情失败: {e}", exc_info=True)
+        return error(message=f"查询失败: {str(e)}", code=50004)

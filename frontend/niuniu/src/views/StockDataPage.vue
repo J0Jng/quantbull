@@ -4,11 +4,12 @@
     <header class="header">
       <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
       <div class="header-nav">
+        <router-link to="/stock-data">股票数据</router-link>
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
         <router-link to="/financial-report">财报</router-link>
         <router-link to="/fund-source">资金流动</router-link>
         <router-link to="/company-research">公司研报</router-link>
-        <router-link to="/quant-analysis">量化策略</router-link>
+        <router-link to="/quant-analysis">量化分析工具</router-link>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
