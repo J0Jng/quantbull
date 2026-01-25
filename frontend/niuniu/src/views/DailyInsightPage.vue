@@ -29,15 +29,21 @@
       </div>
 
       <!-- 错误提示 -->
-      <div v-if="error && !loading" class="error-section">
+      <div v-if="error && !loading && !nonTradingDay" class="error-section">
         <div class="error-icon">⚠️</div>
         <p>{{ error }}</p>
         <p v-if="generating" class="generating-tip">正在生成日报...</p>
         <button class="retry-btn" :disabled="loading || generating" @click="loadDailyData">重新加载</button>
       </div>
 
+      <!-- 非交易日提示 -->
+      <div v-if="nonTradingDay && !loading" class="empty-section">
+        <div class="empty-icon">📭</div>
+        <p>非交易日缺失数据</p>
+      </div>
+
       <!-- 空状态 -->
-      <div v-if="!loading && !error && !reportData" class="empty-section">
+      <div v-if="!loading && !error && !reportData && !nonTradingDay" class="empty-section">
         <div class="empty-icon">📭</div>
         <p>该日期暂无内参数据</p>
         <p v-if="generating" class="generating-tip">正在生成日报...</p>
@@ -170,6 +176,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { getDailyReportByDate, getLatestDailyReport, generateDailyReport } from '@/services/dailyReportService'
+import { getMarketOverview } from '@/services/marketService'
 import {
   canAccessTodayReport,
   getTodayString,
@@ -186,6 +193,7 @@ const error = ref('')
 const selectedDate = ref(new Date().toISOString().split('T')[0])
 const reportData = ref(null)
 const generating = ref(false)
+const nonTradingDay = ref(false)
 
 // 市场情绪（从 market_sentiment 获取）
 const marketSentiment = computed(() => {
@@ -247,6 +255,47 @@ const formatDate = (dateString) => {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
 }
 
+const isFutureDate = (dateString) => {
+  const target = new Date(dateString)
+  const today = new Date(getTodayString())
+  return target.getTime() > today.getTime()
+}
+
+const checkTradingDayStatus = async (dateString) => {
+  const result = await getMarketOverview(dateString)
+  if (!result.success || !result.data) {
+    return {
+      isTrading: null,
+      message: '无法判断是否交易日，请稍后重试'
+    }
+  }
+
+  let data = result.data
+  if (data.data && data.code === 0) {
+    data = data.data
+  }
+
+  const tradeDate = data.trade_date || data.tradeDate || ''
+  const indices = Array.isArray(data.indices) ? data.indices : []
+  const totalTurnover = Number(data.total_turnover ?? data.totalTurnover ?? 0)
+
+  if (tradeDate !== dateString) {
+    return {
+      isTrading: false,
+      message: '非交易日缺失数据'
+    }
+  }
+
+  if (indices.length === 0 || totalTurnover <= 0) {
+    return {
+      isTrading: false,
+      message: '非交易日缺失数据'
+    }
+  }
+
+  return { isTrading: true }
+}
+
 const previousDay = () => {
   const date = new Date(selectedDate.value)
   date.setDate(date.getDate() - 1)
@@ -258,6 +307,11 @@ const nextDay = () => {
   const date = new Date(selectedDate.value)
   date.setDate(date.getDate() + 1)
   const nextDateStr = date.toISOString().split('T')[0]
+
+  if (isFutureDate(nextDateStr)) {
+    error.value = '无法查看未来日期的每日内参'
+    return
+  }
   
   // 检查是否要切换到今天
   if (isToday(nextDateStr) && !canAccessTodayReport()) {
@@ -272,14 +326,33 @@ const nextDay = () => {
 const loadDailyData = async () => {
   loading.value = true
   error.value = ''
+  nonTradingDay.value = false
   
   try {
+    if (isFutureDate(selectedDate.value)) {
+      error.value = '无法查看未来日期的每日内参'
+      reportData.value = null
+      return
+    }
     // 检查是否试图访问今天的报告
     if (isToday(selectedDate.value) && !canAccessTodayReport()) {
-      // 16:00 前不允许访问今天，自动回退到昨天
+      // 15:30 前不允许访问今天，自动回退到昨天
       error.value = getAccessDeniedMessage()
       selectedDate.value = getYesterdayString()
       // 继续加载昨天的数据
+    }
+
+    const tradingStatus = await checkTradingDayStatus(selectedDate.value)
+    if (tradingStatus.isTrading === false) {
+      nonTradingDay.value = true
+      error.value = ''
+      reportData.value = null
+      return
+    }
+    if (tradingStatus.isTrading === null) {
+      error.value = tradingStatus.message
+      reportData.value = null
+      return
     }
     
     const result = await getDailyReportByDate(selectedDate.value)

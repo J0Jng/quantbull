@@ -11,6 +11,21 @@ from schemas.daily_report import MarketDataInput, MarketOverview, ETFData, Stock
 logger = get_logger(__name__)
 
 
+class MarketDataDateMismatchError(Exception):
+    """市场数据日期不匹配错误"""
+
+    def __init__(self, expected_date: str, actual_trade_date: Optional[str], message: Optional[str] = None):
+        self.expected_date = expected_date
+        self.actual_trade_date = actual_trade_date
+        if message is None:
+            actual_display = actual_trade_date or "未知"
+            message = (
+                f"数据日期不匹配，期望 {expected_date}，实际 {actual_display}。"
+                "当日数据尚未就绪/可能非交易日，请稍后再试。"
+            )
+        super().__init__(message)
+
+
 class DataServiceClient:
     """Data Service 客户端"""
     
@@ -30,6 +45,55 @@ class DataServiceClient:
         
         self.timeout = 60.0  # 增加超时时间，因为 tushare 请求可能较慢
         logger.info(f"Data Service 客户端初始化: {self.base_url}")
+
+    @staticmethod
+    def _normalize_trade_date(date_str: Optional[str]) -> str:
+        """将日期统一为 YYYY-MM-DD 以便比较"""
+        if not date_str:
+            return ""
+        date_str = str(date_str).strip()
+        if len(date_str) == 8 and date_str.isdigit():
+            return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+        try:
+            return datetime.fromisoformat(date_str).date().isoformat()
+        except ValueError:
+            return date_str
+
+    async def is_trading_day(self, date: str) -> bool:
+        """
+        判断给定日期是否为交易日
+
+        逻辑：调用 market/overview，若返回的 trade_date 与请求日期一致，则视为交易日。
+        """
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.base_url}/market/overview",
+                    params={"date": date}
+                )
+                response.raise_for_status()
+                result = response.json()
+
+                if isinstance(result, dict) and "data" in result:
+                    data = result["data"]
+                else:
+                    data = result
+
+                trade_date = None
+                if isinstance(data, dict):
+                    trade_date = data.get("trade_date") or data.get("tradeDate")
+
+                normalized_request = self._normalize_trade_date(date)
+                normalized_trade = self._normalize_trade_date(trade_date)
+
+                if not normalized_trade:
+                    logger.warning(f"市场概览未返回交易日字段，无法判定是否交易日: {date}")
+                    return False
+
+                return normalized_trade == normalized_request
+        except httpx.HTTPError as e:
+            logger.error(f"判断交易日失败: {e}")
+            return False
     
     async def get_market_overview(self, date: str) -> MarketOverview:
         """
@@ -67,6 +131,8 @@ class DataServiceClient:
                         indices_data[symbol] = close
                 
                 return MarketOverview(
+                    trade_date=str(data.get("trade_date") or data.get("tradeDate") or ""),
+                    market_status=data.get("market_status"),
                     indices=indices_data,
                     total_turnover=data.get("total_turnover", 0.0),
                     # data-service 可能不提供这些字段，默认为 0
@@ -192,7 +258,7 @@ class DataServiceClient:
             logger.error(f"获取股票列表失败: {e}")
             raise Exception(f"无法获取股票数据：{str(e)}。请确保 data-service 服务正常运行，且当天有交易数据。")
     
-    async def fetch_market_data(self, date: str) -> MarketDataInput:
+    async def fetch_market_data(self, date: str, strict_date: bool = True) -> MarketDataInput:
         """
         聚合获取所有市场数据
         
@@ -206,6 +272,32 @@ class DataServiceClient:
         
         # 并行获取数据
         market_overview = await self.get_market_overview(date)
+        if strict_date:
+            normalized_request = self._normalize_trade_date(date)
+            normalized_trade = self._normalize_trade_date(market_overview.trade_date)
+            if normalized_trade != normalized_request:
+                raise MarketDataDateMismatchError(
+                    expected_date=normalized_request,
+                    actual_trade_date=normalized_trade or market_overview.trade_date,
+                )
+            if not market_overview.trade_date:
+                raise MarketDataDateMismatchError(
+                    expected_date=normalized_request,
+                    actual_trade_date=None,
+                    message=(
+                        f"当日数据尚未就绪或非交易日，"
+                        f"期望 {normalized_request}，实际交易日未知。"
+                    ),
+                )
+            if not market_overview.indices or market_overview.total_turnover <= 0:
+                raise MarketDataDateMismatchError(
+                    expected_date=normalized_request,
+                    actual_trade_date=normalized_trade or market_overview.trade_date,
+                    message=(
+                        f"当日数据尚未就绪或非交易日，"
+                        f"期望 {normalized_request}，实际 {normalized_trade or market_overview.trade_date}。"
+                    ),
+                )
         etf_list = await self.get_etf_list(date)
         stock_list = await self.get_stock_list(date)
         

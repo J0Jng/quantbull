@@ -12,7 +12,7 @@
           <div class="link-list">
             <router-link to="/about" class="footer-link">关于我们</router-link>
             <router-link to="/contact" class="footer-link">联系我们</router-link>
-            <a href="/join" class="footer-link">加入我们</a>
+            <router-link to="/join" class="footer-link">加入我们</router-link>
           </div>
         </div>
 
