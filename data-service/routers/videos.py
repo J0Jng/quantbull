@@ -60,6 +60,7 @@ async def _save_upload_file(
     max_size_bytes: int,
     allowed_types: set[str],
     default_ext: str,
+    kind: str,
 ) -> Path:
     if upload.content_type not in allowed_types:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="不支持的文件类型")
@@ -80,7 +81,11 @@ async def _save_upload_file(
                 buffer.close()
                 if target_path.exists():
                     target_path.unlink(missing_ok=True)
-                raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="文件过大")
+                max_mb = max_size_bytes / 1024 / 1024
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"{kind}过大（上限 {max_mb:.0f}MB）",
+                )
             buffer.write(chunk)
 
     await upload.close()
@@ -129,6 +134,7 @@ async def upload_video(
         max_size_bytes=max_size_bytes,
         allowed_types=ALLOWED_VIDEO_TYPES,
         default_ext=".mp4",
+        kind="视频文件",
     )
 
     cover_path = None
@@ -137,9 +143,10 @@ async def upload_video(
             cover_path = await _save_upload_file(
                 upload=cover,
                 target_dir=cover_dir,
-                max_size_bytes=10 * 1024 * 1024,
+                max_size_bytes=int(settings.video_cover_max_size_mb) * 1024 * 1024,
                 allowed_types=ALLOWED_COVER_TYPES,
                 default_ext=".png",
+                kind="封面文件",
             )
         except Exception:
             if video_path.exists():

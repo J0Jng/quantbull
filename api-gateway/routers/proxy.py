@@ -76,7 +76,24 @@ class ProxyService:
         headers = dict(request.headers)
         headers.pop("host", None)
         headers.pop("connection", None)
-        headers.pop("content-length", None)
+
+        content_type = (request.headers.get("content-type") or "").lower()
+        content_length_raw = request.headers.get("content-length")
+        try:
+            content_length = int(content_length_raw) if content_length_raw else 0
+        except Exception:
+            content_length = 0
+
+        # 对于 multipart/大请求，使用流式转发，避免将整个请求体读入内存。
+        streaming_threshold_bytes = int(settings.proxy_streaming_threshold_mb) * 1024 * 1024
+        use_streaming = (
+            "multipart/form-data" in content_type
+            or (content_length and content_length >= streaming_threshold_bytes)
+        )
+
+        # 仅在非流式情况下移除 content-length（流式时由 httpx/下游协商传输方式）
+        if not use_streaming:
+            headers.pop("content-length", None)
 
         user = getattr(request.state, "user", None)
         if user and getattr(user, "user_id", None) is not None:
@@ -89,10 +106,17 @@ class ProxyService:
         # 获取请求体
         body = None
         if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-            try:
-                body = await request.body()
-            except Exception:
-                pass
+            if use_streaming:
+                body = request.stream()
+            else:
+                try:
+                    body = await request.body()
+                except Exception:
+                    pass
+
+        # 流式请求体无法安全重试（请求体会被消费）。
+        if use_streaming:
+            max_retries = 0
         
         # 重试逻辑
         last_exception = None
