@@ -21,6 +21,7 @@ from .financial_yjyg import FinancialReportYjyg
 from .financial_yysj import FinancialReportYysj
 from .lhb_stock_item import LhbStockItem
 from .lhb_stock_summary import LhbStockSummary
+from .video import Video
 
-__all__ = ["DataRecord", "RealtimeQuote", "DailyQuote", "StockBasic", "ETFBasic", "IndustryRank", "SentimentScore", "HotScore", "WeiboNews", "EastmoneyNews", "FinanceChannelCache", "FinanceChannelIdea", "HeadlineNews", "PublicFundRankingCache", "PublicFundRankingItemModel", "PolicyRegulation", "MarketFundFlow", "SectorFundFlow", "StockFundFlow", "FinancialReportYjbb", "FinancialReportYjkb", "FinancialReportYjyg", "FinancialReportYysj", "LhbStockItem", "LhbStockSummary"]
+__all__ = ["DataRecord", "RealtimeQuote", "DailyQuote", "StockBasic", "ETFBasic", "IndustryRank", "SentimentScore", "HotScore", "WeiboNews", "EastmoneyNews", "FinanceChannelCache", "FinanceChannelIdea", "HeadlineNews", "PublicFundRankingCache", "PublicFundRankingItemModel", "PolicyRegulation", "MarketFundFlow", "SectorFundFlow", "StockFundFlow", "FinancialReportYjbb", "FinancialReportYjkb", "FinancialReportYjyg", "FinancialReportYysj", "LhbStockItem", "LhbStockSummary", "Video"]
 

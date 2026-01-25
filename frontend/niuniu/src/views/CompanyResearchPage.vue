@@ -7,6 +7,7 @@
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
         <router-link to="/financial-report">财报</router-link>
         <router-link to="/fund-source">资金流动</router-link>
+        <router-link to="/profit-forecast">盈利预测</router-link>
         <router-link to="/company-research">公司研报</router-link>
         <router-link to="/quant-analysis">量化分析工具</router-link>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
@@ -27,7 +28,6 @@
 
     <!-- 来源分类 -->
     <div class="category-nav">
-      <span class="category-item" :class="{ active: activeSource === 'all' }" @click="setSource('all')">全部</span>
       <span class="category-item" :class="{ active: activeSource === 'ai' }" @click="setSource('ai')">AI 生成</span>
       <span class="category-item" :class="{ active: activeSource === 'eastmoney' }" @click="setSource('eastmoney')">东方财富网</span>
     </div>
@@ -274,6 +274,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import FooterComponent from '@/components/FooterComponent.vue'
@@ -282,6 +283,58 @@ import { generateReport } from '@/services/aiService'
 import { getCompanyResearchById, generateCompanyResearch, getCompanyResearchList, getEastmoneyResearchList, getEastmoneyResearchDetail } from '@/services/companyResearchService'
 
 const router = useRouter()
+const { logged, userText, openLoginModal, logout } = useAuth()
+const showUserMenu = ref(false)
+let menuTimeout = null
+let hideTimeout = null
+
+function onMenuEnter() {
+  if (!logged.value) return
+  clearTimeout(hideTimeout)
+  menuTimeout = setTimeout(() => {
+    showUserMenu.value = true
+  }, 300)
+}
+
+function onMenuLeave() {
+  clearTimeout(menuTimeout)
+  hideTimeout = setTimeout(() => {
+    if (showUserMenu.value) {
+      showUserMenu.value = false
+    }
+  }, 200)
+}
+
+function onDropdownEnter() {
+  clearTimeout(hideTimeout)
+}
+
+function onDropdownLeave() {
+  hideTimeout = setTimeout(() => {
+    showUserMenu.value = false
+  }, 200)
+}
+
+function toggleUserMenu() {
+  if (!logged.value) {
+    openLoginModal()
+    showUserMenu.value = false
+  } else {
+    clearTimeout(menuTimeout)
+    clearTimeout(hideTimeout)
+    showUserMenu.value = !showUserMenu.value
+  }
+}
+
+function handleLogout() {
+  logout()
+  showUserMenu.value = false
+}
+
+function goToUserProfile() {
+  showUserMenu.value = false
+  router.push('/profile')
+}
 
 // 响应式状态
 const searchQuery = ref('')

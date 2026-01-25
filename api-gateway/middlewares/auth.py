@@ -64,6 +64,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path.startswith("/api/news/headlines") and method.upper() == "GET":
             return True
 
+        # 视频中心列表允许匿名访问（仅 GET 放行）
+        if path.startswith("/api/videos") and method.upper() == "GET":
+            return True
+
+        # 静态资源允许匿名访问（仅 GET 放行）
+        if path.startswith("/api/static") and method.upper() == "GET":
+            return True
+
         # 商城商品列表/详情允许匿名访问（仅 GET 放行）
         if path.startswith("/api/products") and method.upper() == "GET":
             return True

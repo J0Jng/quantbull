@@ -273,9 +273,9 @@
           </template>
         </section>
 
-        <!-- 公司研报板块 -->
+        <!-- 研报板块 -->
         <div class="section-header-inline">
-          <h2 class="section-title">公司研报</h2>
+          <h2 class="section-title">研报</h2>
           <div class="header-actions">
             <button v-if="companyReportsData.length > 0" @click="loadCompanyReports" class="refresh-icon-btn" :disabled="companyReportsLoading" title="刷新">
               <span v-if="companyReportsLoading">⟳</span>

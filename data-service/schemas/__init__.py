@@ -6,6 +6,7 @@ from .tushare import (
     DailyQuoteItem,
     StockBasicResponse,
 )
+from .video import VideoItem, VideoListResponse
 
 __all__ = [
     "CleanRequest",
@@ -17,5 +18,7 @@ __all__ = [
     "DailyQuoteResponse",
     "DailyQuoteItem",
     "StockBasicResponse",
+    "VideoItem",
+    "VideoListResponse",
 ]
 

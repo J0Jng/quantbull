@@ -46,6 +46,8 @@ class Settings(BaseSettings):
         "/fundamentals": "data_service_url",
         "/news": "data_service_url",  # 新增：微博财经媒体新闻
         "/finance-channel": "data_service_url",  # 新增：财经频道聚合
+        "/videos": "data_service_url",  # 新增：视频中心
+        "/static": "data_service_url",  # 静态资源（视频/封面）
         "/fundflow": "data_service_url",  # 新增：资金流向
         "/financial-report": "data_service_url",  # 新增：财报数据
         "/lhb": "data_service_url",  # 新增：龙虎榜数据
