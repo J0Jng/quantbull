@@ -722,7 +722,7 @@ class EastmoneyBbsjService:
         period: Optional[str],
         page: int = 1,
         page_size: int = 50,
-        market: str = "all",
+        market: str = "all",  # Keeping the parameter for compatibility
         industry: Optional[str] = None,
         sort: Optional[str] = None,
         refresh: bool = False,
@@ -750,7 +750,7 @@ class EastmoneyBbsjService:
                 if data.get("total", 0) > 0:
                     period = fallback
                     break
-        filtered = self._filter_by_market(data.get("data", []), market)
+        filtered = data.get("data", [])  # No longer filtering by market
         if industry:
             filtered = [d for d in filtered if industry in str(d.get("industry", ""))]
         return {

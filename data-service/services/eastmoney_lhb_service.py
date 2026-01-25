@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,26 +29,71 @@ logger = logging.getLogger(__name__)
 
 class EastmoneyLhbService:
     BASE_URL = "https://data.eastmoney.com/stock/lhb.html"
+    LIST_PAGE_URL = "https://data.eastmoney.com/stock/tradedetail.html"
+    STOCK_STAT_PAGE_URL = "https://data.eastmoney.com/stock/stockstatistic.html"
+    INST_SEAT_TRACK_PAGE_URL = "https://data.eastmoney.com/stock/jgstatistic.html"
+    ACTIVE_BROKER_PAGE_URL = "https://data.eastmoney.com/stock/hyyyb.html"
+    BROKER_RANK_PAGE_URL = "https://data.eastmoney.com/stock/yybph.html"
+    BROKER_STATS_PAGE_URL = "https://data.eastmoney.com/stock/traderstatistic.html"
     DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
 
     LIST_TTL_SECONDS = 2 * 3600
     SUMMARY_TTL_SECONDS = 4 * 3600
+    INSTITUTION_TTL_SECONDS = 2 * 3600
+    BROKER_TTL_SECONDS = 2 * 3600
     MAX_RETRIES = 2
 
     REPORT_NAME_HINTS = {
         "list": ["LHB", "LIST", "STOCK", "DETAIL"],
         "summary": ["LHB", "SUM", "SUMMARY", "STAT"],
+        "inst_trades": ["LHB", "ORG", "INST", "TRADE"],
+        "inst_seat_track": ["LHB", "ORG", "SEAT", "TRACK", "STAT"],
+        "broker_active": ["LHB", "BROKER", "ACTIVE", "DEPT"],
+        "broker_rank": ["LHB", "BROKER", "RANK"],
+        "broker_stats": ["LHB", "BROKER", "STAT", "TRADER"],
     }
 
     PREFERRED_REPORTS = {
         "list": "RPT_ORGANIZATION_TRADE_DETAILSNEW",
         "summary": "RPT_BILLBOARD_TRADEALLNEW",
+        "inst_trades": "RPT_ORGANIZATION_TRADE_DETAILSNEW",
+        "inst_seat_track": "RPT_ORGANIZATION_SEATNEW",
+        "broker_active": "RPT_OPERATEDEPT_ACTIVE",
+        "broker_rank": "RPT_RATEDEPT_RETURNT_RANKING",
+        "broker_stats": "RPT_OPERATEDEPT_LIST_STATISTICS",
     }
 
     FALLBACK_REPORTS = {
         "list": ["RPT_LHB_LIST", "RPT_LHB_STOCK", "RPT_LHB_DETAIL"],
         "summary": ["RPT_LHB_SUMMARY", "RPT_LHB_STAT", "RPT_LHB_SUM"],
+        "inst_trades": ["RPT_LHB_JGMMTJ", "RPT_LHB_ORG_TRADE", "RPT_LHB_JGMM"],
+        "inst_seat_track": [
+            "RPT_ORGANIZATION_SEATNEW",
+            "RPT_LHB_JGSTAT",
+            "RPT_LHB_JGTRACK",
+            "RPT_LHB_SEAT_TRACK",
+        ],
+        "broker_active": [
+            "RPT_OPERATEDEPT_ACTIVE",
+            "RPT_LHB_HYYYB",
+            "RPT_LHB_ACTIVE_BROKER",
+            "RPT_LHB_BROKER_ACTIVE",
+        ],
+        "broker_rank": [
+            "RPT_RATEDEPT_RETURNT_RANKING",
+            "RPT_LHB_YYBPH",
+            "RPT_LHB_BROKER_RANK",
+            "RPT_LHB_YYB_RANK",
+        ],
+        "broker_stats": [
+            "RPT_OPERATEDEPT_LIST_STATISTICS",
+            "RPT_LHB_TRADERSTAT",
+            "RPT_LHB_BROKER_STAT",
+            "RPT_LHB_TRADER_STAT",
+        ],
     }
+
+    _memory_cache: Dict[str, Dict[str, Any]] = {}
 
     def __init__(
         self,
@@ -189,11 +234,12 @@ class EastmoneyLhbService:
                 return name
         return candidates[0]
 
-    async def _discover_report_name(self, kind: str) -> Optional[str]:
+    async def _discover_report_name(self, kind: str, page_url: Optional[str] = None) -> Optional[str]:
         if kind in self._report_cache:
             return self._report_cache[kind]
+        target_url = page_url or self.BASE_URL
         try:
-            text = await self._request_text(self.BASE_URL)
+            text = await self._request_text(target_url)
             candidates = self._extract_report_names(text)
             report_name = self._select_report_name(kind, candidates)
             if report_name:
@@ -249,7 +295,9 @@ class EastmoneyLhbService:
         turnover = self._parse_number(self._pick(item, ["ACCUM_AMOUNT", "TURNOVER", "TURNOVER_AMT", "TURNOVER_VALUE"]))
         reason = self._truncate(self._pick(item, ["EXPLANATION", "REASON", "REASON_TEXT", "LISTING_REASON"]))
         if not reason:
-            reason = "龙虎榜"
+            return None
+        if reason == "龙虎榜":
+            return None
         rank = self._pick(item, ["RANK", "RANKING", "NO"])
         try:
             rank = int(rank) if rank is not None else None
@@ -267,7 +315,7 @@ class EastmoneyLhbService:
             "turnover": turnover,
             "reason": reason,
             "rank": rank,
-            "source_url": self.BASE_URL,
+            "source_url": self.LIST_PAGE_URL,
             "as_of": datetime.now(),
         }
 
@@ -342,20 +390,37 @@ class EastmoneyLhbService:
     async def _load_list_from_db(self, trade_date: str, page: int, page_size: int) -> Dict[str, Any]:
         if not self.db_session:
             return {"total": 0, "data": []}
+        try:
+            await self.db_session.execute(
+                delete(LhbStockItem).where(
+                    (LhbStockItem.trade_date == trade_date)
+                    & (LhbStockItem.reason == "龙虎榜")
+                )
+            )
+            await self.db_session.commit()
+        except Exception as exc:
+            logger.warning(f"清理上榜原因为龙虎榜的数据失败: {exc}")
         query = select(LhbStockItem).where(LhbStockItem.trade_date == trade_date)
         result = await self.db_session.execute(query)
         rows = [self._model_to_dict(item) for item in result.scalars().all()]
-        rows.sort(key=lambda x: x.get("updated_at") or x.get("created_at") or datetime.min, reverse=True)
+        def sort_key(item: Dict[str, Any]):
+            code = str(item.get("code") or "")
+            return code
+
+        rows.sort(key=sort_key)
         normalized: List[Dict[str, Any]] = []
         seen = set()
         for row in rows:
-            reason = row.get("reason") or "龙虎榜"
+            reason = row.get("reason")
+            if not reason or reason == "龙虎榜":
+                continue
             row["reason"] = reason
             key = (row.get("code"), reason)
             if key in seen:
                 continue
             seen.add(key)
             normalized.append(row)
+        normalized.sort(key=sort_key)
         total = len(normalized)
         start = max((page - 1), 0) * page_size
         data = normalized[start : start + page_size]
@@ -383,16 +448,39 @@ class EastmoneyLhbService:
             return obj.dict()
         return dict(obj)
 
+    @classmethod
+    def _cache_key(cls, kind: str, **kwargs: Any) -> str:
+        segments = [kind]
+        for key in sorted(kwargs.keys()):
+            segments.append(f"{key}={kwargs.get(key)}")
+        return "|".join(segments)
+
+    @classmethod
+    def _get_cache(cls, key: str, ttl_seconds: int) -> Optional[Dict[str, Any]]:
+        cached = cls._memory_cache.get(key)
+        if not cached:
+            return None
+        ts = cached.get("ts")
+        if not ts:
+            return None
+        if datetime.now() - ts > timedelta(seconds=ttl_seconds):
+            return None
+        return cached.get("data")
+
+    @classmethod
+    def _set_cache(cls, key: str, data: Dict[str, Any]) -> None:
+        cls._memory_cache[key] = {"ts": datetime.now(), "data": data}
+
     async def _fetch_list_from_web(self, trade_date: str, page: int, page_size: int) -> List[Dict[str, Any]]:
-        report_name = await self._discover_report_name("list")
+        report_name = await self._discover_report_name("list", page_url=self.LIST_PAGE_URL)
         if not report_name:
             return []
         filter_expr = f"(TRADE_DATE='{trade_date}')"
-        sort_columns = "NET_BUY_AMT,BILL_BOARD_NET_AMT"
-        sort_types = "-1,-1"
+        sort_columns = "SECURITY_CODE"
+        sort_types = "1"
         if report_name == "RPT_ORGANIZATION_TRADE_DETAILSNEW":
-            sort_columns = "NET_BUY_AMT"
-            sort_types = "-1"
+            sort_columns = "SECURITY_CODE"
+            sort_types = "1"
         api_items = await self._fetch_datacenter(
             report_name=report_name,
             filter_expr=filter_expr,
@@ -405,7 +493,7 @@ class EastmoneyLhbService:
             return []
         mapped = [self._map_list_item(item, trade_date) for item in api_items]
         mapped = [m for m in mapped if m]
-        mapped.sort(key=lambda x: x.get("net_buy_amount") or 0.0, reverse=True)
+        mapped.sort(key=lambda x: str(x.get("code") or ""))
         for idx, item in enumerate(mapped, start=1):
             item["rank"] = item.get("rank") or idx
         return mapped
@@ -417,10 +505,274 @@ class EastmoneyLhbService:
         page: int,
         page_size: int,
     ) -> List[Dict[str, Any]]:
-        report_name = await self._discover_report_name("summary")
+        report_name = await self._discover_report_name(
+            "summary",
+            page_url=self.STOCK_STAT_PAGE_URL if window_days == 30 else None,
+        )
         if not report_name:
             return []
         filter_expr = f"(TRADE_DATE='{end_trade_date}')"
+        api_items = await self._fetch_datacenter(
+            report_name=report_name,
+            filter_expr=filter_expr,
+            page=page,
+            page_size=page_size,
+            sort_columns="APPEAR_COUNT,NET_BUY_AMT",
+            sort_types="-1,-1",
+        )
+        if not api_items:
+            return []
+        mapped = [self._map_summary_item(item, window_days, end_trade_date) for item in api_items]
+        mapped = [m for m in mapped if m]
+        mapped.sort(key=lambda x: x.get("appear_count") or 0, reverse=True)
+        return mapped
+
+    def _map_institution_trade_item(self, item: Dict[str, Any], trade_date: str) -> Optional[Dict[str, Any]]:
+        code = self._pick(item, ["SECURITY_CODE", "SECUCODE", "SECURITY_CODE_A", "CODE"])
+        name = self._pick(item, ["SECURITY_NAME_ABBR", "SECURITY_NAME", "NAME"])
+        if not code or not name:
+            return None
+        close = self._parse_number(self._pick(item, ["CLOSE_PRICE", "CLOSE", "PRICE"]))
+        pct_change = self._parse_percent(self._pick(item, ["CHANGE_RATE", "PCT_CHANGE", "ZDF"]))
+        buy_count = self._pick(item, ["BUY_COUNT", "BUY_NUM", "BUY_CNT"])
+        sell_count = self._pick(item, ["SELL_COUNT", "SELL_NUM", "SELL_CNT"])
+        try:
+            buy_count = int(buy_count) if buy_count is not None else None
+        except Exception:
+            buy_count = None
+        try:
+            sell_count = int(sell_count) if sell_count is not None else None
+        except Exception:
+            sell_count = None
+        buy_amount = self._parse_number(self._pick(item, ["BUY_AMT", "BUY_AMOUNT", "BILL_BOARD_BUY_AMT"]))
+        sell_amount = self._parse_number(self._pick(item, ["SELL_AMT", "SELL_AMOUNT", "BILL_BOARD_SELL_AMT"]))
+        net_buy_amount = self._parse_number(self._pick(item, ["NET_BUY_AMT", "NET_AMT", "BILL_BOARD_NET_AMT"]))
+        turnover = self._parse_number(self._pick(item, ["TURNOVER", "TURNOVER_AMT", "ACCUM_AMOUNT", "AMOUNT"]))
+        reason = self._truncate(self._pick(item, ["EXPLANATION", "REASON", "REASON_TEXT", "LISTING_REASON"]))
+        rank = self._pick(item, ["RANK", "RANKING", "NO"])
+        try:
+            rank = int(rank) if rank is not None else None
+        except Exception:
+            rank = None
+        return {
+            "trade_date": trade_date,
+            "code": str(code),
+            "name": str(name),
+            "close": close,
+            "pct_change": pct_change,
+            "buy_count": buy_count,
+            "sell_count": sell_count,
+            "buy_amount": buy_amount,
+            "sell_amount": sell_amount,
+            "net_buy_amount": net_buy_amount,
+            "turnover": turnover,
+            "reason": reason,
+            "rank": rank,
+            "source_url": self.BASE_URL,
+            "as_of": datetime.now(),
+        }
+
+    def _map_institution_seat_track_item(
+        self, item: Dict[str, Any], window_days: int, end_trade_date: str
+    ) -> Optional[Dict[str, Any]]:
+        code = self._pick(item, ["SECURITY_CODE", "SECUCODE", "SECURITY_CODE_A", "CODE"])
+        name = self._pick(item, ["SECURITY_NAME_ABBR", "SECURITY_NAME", "NAME"])
+        if not code or not name:
+            return None
+        close = self._parse_number(self._pick(item, ["CLOSE_PRICE", "CLOSE", "PRICE"]))
+        pct_change = self._parse_percent(self._pick(item, ["CHANGE_RATE", "PCT_CHANGE", "ZDF"]))
+        buy_amount = self._parse_number(self._pick(item, ["BUY_AMT", "BUY_AMOUNT", "ORG_BUY_AMT"]))
+        sell_amount = self._parse_number(self._pick(item, ["SELL_AMT", "SELL_AMOUNT", "ORG_SELL_AMT"]))
+        net_buy_amount = self._parse_number(self._pick(item, ["NET_BUY_AMT", "NET_AMT", "ORG_NET_AMT"]))
+        buy_count = self._pick(
+            item,
+            ["BUY_COUNT", "BUY_NUM", "BUY_CNT", "BUY_TIMES", "ORG_BUY_CNT"],
+        )
+        sell_count = self._pick(
+            item,
+            ["SELL_COUNT", "SELL_NUM", "SELL_CNT", "SELL_TIMES", "ORG_SELL_CNT"],
+        )
+        try:
+            buy_count = int(buy_count) if buy_count is not None else None
+        except Exception:
+            buy_count = None
+        try:
+            sell_count = int(sell_count) if sell_count is not None else None
+        except Exception:
+            sell_count = None
+        net_buy_ratio = self._parse_percent(self._pick(item, ["NET_BUY_RATIO", "NET_RATIO", "NET_BUY_RATE"]))
+        rank = self._pick(item, ["RANK", "RANKING", "NO"])
+        try:
+            rank = int(rank) if rank is not None else None
+        except Exception:
+            rank = None
+        return {
+            "window_days": window_days,
+            "end_trade_date": end_trade_date,
+            "code": str(code),
+            "name": str(name),
+            "close": close,
+            "pct_change": pct_change,
+            "net_buy_amount": net_buy_amount,
+            "buy_amount": buy_amount,
+            "buy_count": buy_count,
+            "sell_amount": sell_amount,
+            "sell_count": sell_count,
+            "net_buy_ratio": net_buy_ratio,
+            "rank": rank,
+            "source_url": self.BASE_URL,
+            "as_of": datetime.now(),
+        }
+
+    def _map_active_broker_item(self, item: Dict[str, Any], trade_date: str) -> Optional[Dict[str, Any]]:
+        broker_name = self._pick(item, ["OPERATEDEPT_NAME", "BROKER_NAME", "BRANCH_NAME", "SEAT_NAME", "NAME"])
+        if not broker_name:
+            return None
+        buy_count = self._pick(item, ["BUYER_APPEAR_NUM", "BUY_COUNT", "BUY_NUM", "BUY_CNT"])
+        sell_count = self._pick(item, ["SELLER_APPEAR_NUM", "SELL_COUNT", "SELL_NUM", "SELL_CNT"])
+        try:
+            buy_count = int(buy_count) if buy_count is not None else None
+        except Exception:
+            buy_count = None
+        try:
+            sell_count = int(sell_count) if sell_count is not None else None
+        except Exception:
+            sell_count = None
+        buy_amount = self._parse_number(self._pick(item, ["TOTAL_BUYAMT", "BUY_AMT", "BUY_AMOUNT"]))
+        sell_amount = self._parse_number(self._pick(item, ["TOTAL_SELLAMT", "SELL_AMT", "SELL_AMOUNT"]))
+        net_buy_amount = self._parse_number(self._pick(item, ["TOTAL_NETAMT", "NET_BUY_AMT", "NET_AMT"]))
+        stocks = self._truncate(
+            self._pick(item, ["BUY_STOCK", "SECURITY_NAME", "STOCK_LIST", "STOCKS"]),
+            limit=200,
+        )
+        rank = self._pick(item, ["RANK", "RANKING", "NO"])
+        try:
+            rank = int(rank) if rank is not None else None
+        except Exception:
+            rank = None
+        return {
+            "trade_date": trade_date,
+            "broker_name": str(broker_name),
+            "buy_count": buy_count,
+            "sell_count": sell_count,
+            "buy_amount": buy_amount,
+            "sell_amount": sell_amount,
+            "net_buy_amount": net_buy_amount,
+            "stocks": stocks,
+            "rank": rank,
+            "source_url": self.ACTIVE_BROKER_PAGE_URL,
+            "as_of": datetime.now(),
+        }
+
+    def _map_broker_rank_item(self, item: Dict[str, Any], window_days: int, end_trade_date: str) -> Optional[Dict[str, Any]]:
+        broker_name = self._pick(item, ["OPERATEDEPT_NAME", "BROKER_NAME", "BRANCH_NAME", "SEAT_NAME", "NAME"])
+        if not broker_name:
+            return None
+        buy_times_1d = self._pick(item, ["TOTAL_BUYER_SALESTIMES_1DAY", "BUY_TIMES_1DAY"])
+        buy_times_2d = self._pick(item, ["TOTAL_BUYER_SALESTIMES_2DAY", "BUY_TIMES_2DAY"])
+        buy_times_3d = self._pick(item, ["TOTAL_BUYER_SALESTIMES_3DAY", "BUY_TIMES_3DAY"])
+        buy_times_5d = self._pick(item, ["TOTAL_BUYER_SALESTIMES_5DAY", "BUY_TIMES_5DAY"])
+        buy_times_10d = self._pick(item, ["TOTAL_BUYER_SALESTIMES_10DAY", "BUY_TIMES_10DAY"])
+        try:
+            buy_times_1d = int(buy_times_1d) if buy_times_1d is not None else None
+        except Exception:
+            buy_times_1d = None
+        try:
+            buy_times_2d = int(buy_times_2d) if buy_times_2d is not None else None
+        except Exception:
+            buy_times_2d = None
+        try:
+            buy_times_3d = int(buy_times_3d) if buy_times_3d is not None else None
+        except Exception:
+            buy_times_3d = None
+        try:
+            buy_times_5d = int(buy_times_5d) if buy_times_5d is not None else None
+        except Exception:
+            buy_times_5d = None
+        try:
+            buy_times_10d = int(buy_times_10d) if buy_times_10d is not None else None
+        except Exception:
+            buy_times_10d = None
+        avg_increase_1d = self._parse_percent(self._pick(item, ["AVERAGE_INCREASE_1DAY", "AVG_INCREASE_1DAY"]))
+        avg_increase_2d = self._parse_percent(self._pick(item, ["AVERAGE_INCREASE_2DAY", "AVG_INCREASE_2DAY"]))
+        avg_increase_3d = self._parse_percent(self._pick(item, ["AVERAGE_INCREASE_3DAY", "AVG_INCREASE_3DAY"]))
+        avg_increase_5d = self._parse_percent(self._pick(item, ["AVERAGE_INCREASE_5DAY", "AVG_INCREASE_5DAY"]))
+        avg_increase_10d = self._parse_percent(self._pick(item, ["AVERAGE_INCREASE_10DAY", "AVG_INCREASE_10DAY"]))
+        rise_probability_1d = self._parse_percent(self._pick(item, ["RISE_PROBABILITY_1DAY", "UP_PROBABILITY_1DAY"]))
+        rise_probability_2d = self._parse_percent(self._pick(item, ["RISE_PROBABILITY_2DAY", "UP_PROBABILITY_2DAY"]))
+        rise_probability_3d = self._parse_percent(self._pick(item, ["RISE_PROBABILITY_3DAY", "UP_PROBABILITY_3DAY"]))
+        rise_probability_5d = self._parse_percent(self._pick(item, ["RISE_PROBABILITY_5DAY", "UP_PROBABILITY_5DAY"]))
+        rise_probability_10d = self._parse_percent(self._pick(item, ["RISE_PROBABILITY_10DAY", "UP_PROBABILITY_10DAY"]))
+        rank = self._pick(item, ["RANK", "RANKING", "NO"])
+        try:
+            rank = int(rank) if rank is not None else None
+        except Exception:
+            rank = None
+        return {
+            "window_days": window_days,
+            "end_trade_date": end_trade_date,
+            "broker_name": str(broker_name),
+            "buy_times_1d": buy_times_1d,
+            "avg_increase_1d": avg_increase_1d,
+            "rise_probability_1d": rise_probability_1d,
+            "buy_times_2d": buy_times_2d,
+            "avg_increase_2d": avg_increase_2d,
+            "rise_probability_2d": rise_probability_2d,
+            "buy_times_3d": buy_times_3d,
+            "avg_increase_3d": avg_increase_3d,
+            "rise_probability_3d": rise_probability_3d,
+            "buy_times_5d": buy_times_5d,
+            "avg_increase_5d": avg_increase_5d,
+            "rise_probability_5d": rise_probability_5d,
+            "buy_times_10d": buy_times_10d,
+            "avg_increase_10d": avg_increase_10d,
+            "rise_probability_10d": rise_probability_10d,
+            "rank": rank,
+            "source_url": self.BROKER_RANK_PAGE_URL,
+            "as_of": datetime.now(),
+        }
+
+    def _map_broker_onlist_item(self, item: Dict[str, Any], window_days: int, end_trade_date: str) -> Optional[Dict[str, Any]]:
+        broker_name = self._pick(item, ["OPERATEDEPT_NAME", "BROKER_NAME", "BRANCH_NAME", "SEAT_NAME", "NAME"])
+        if not broker_name:
+            return None
+        total_amount = self._parse_number(self._pick(item, ["AMOUNT", "TOTAL_AMOUNT", "TOTAL_AMT"]))
+        buy_amount = self._parse_number(self._pick(item, ["ACT_BUY", "BUY_AMT", "BUY_AMOUNT"]))
+        sell_amount = self._parse_number(self._pick(item, ["ACT_SELL", "SELL_AMT", "SELL_AMOUNT"]))
+        buy_count = self._pick(item, ["TOTAL_BUYER_SALESTIMES", "BUY_COUNT", "BUY_NUM", "BUY_CNT"])
+        sell_count = self._pick(item, ["TOTAL_SELLER_SALESTIMES", "SELL_COUNT", "SELL_NUM", "SELL_CNT"])
+        try:
+            buy_count = int(buy_count) if buy_count is not None else None
+        except Exception:
+            buy_count = None
+        try:
+            sell_count = int(sell_count) if sell_count is not None else None
+        except Exception:
+            sell_count = None
+        rank = self._pick(item, ["RANK", "RANKING", "NO"])
+        try:
+            rank = int(rank) if rank is not None else None
+        except Exception:
+            rank = None
+        return {
+            "window_days": window_days,
+            "end_trade_date": end_trade_date,
+            "broker_name": str(broker_name),
+            "total_amount": total_amount,
+            "buy_amount": buy_amount,
+            "buy_count": buy_count,
+            "sell_amount": sell_amount,
+            "sell_count": sell_count,
+            "rank": rank,
+            "source_url": self.BROKER_STATS_PAGE_URL,
+            "as_of": datetime.now(),
+        }
+
+    async def _fetch_institution_trades_from_web(self, trade_date: str, page: int, page_size: int) -> List[Dict[str, Any]]:
+        report_name = await self._discover_report_name("inst_trades")
+        if not report_name:
+            return []
+        filter_expr = f"(TRADE_DATE='{trade_date}')"
         api_items = await self._fetch_datacenter(
             report_name=report_name,
             filter_expr=filter_expr,
@@ -431,8 +783,161 @@ class EastmoneyLhbService:
         )
         if not api_items:
             return []
-        mapped = [self._map_summary_item(item, window_days, end_trade_date) for item in api_items]
+        mapped = [self._map_institution_trade_item(item, trade_date) for item in api_items]
         mapped = [m for m in mapped if m]
+        for idx, item in enumerate(mapped, start=1):
+            item["rank"] = item.get("rank") or idx
+        return mapped
+
+    async def _fetch_institution_seat_track_from_web(
+        self, window_days: int, end_trade_date: str, page: int, page_size: int
+    ) -> List[Dict[str, Any]]:
+        cycle_map = {
+            30: "01",
+            90: "02",
+            180: "03",
+            365: "04",
+        }
+        cycle_code = cycle_map.get(window_days)
+        if not cycle_code:
+            if window_days <= 30:
+                cycle_code = "01"
+            elif window_days <= 90:
+                cycle_code = "02"
+            elif window_days <= 180:
+                cycle_code = "03"
+            else:
+                cycle_code = "04"
+        report_name = await self._discover_report_name(
+            "inst_seat_track",
+            page_url=self.INST_SEAT_TRACK_PAGE_URL if window_days == 30 else None,
+        )
+        filter_expr = f"(STATISTICSCYCLE=\"{cycle_code}\")"
+        candidates: List[str] = []
+        if report_name:
+            candidates.append(report_name)
+        candidates.extend(self.FALLBACK_REPORTS.get("inst_seat_track", []))
+        seen = set()
+        for candidate in candidates:
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            api_items = await self._fetch_datacenter(
+                report_name=candidate,
+                filter_expr=filter_expr,
+                page=page,
+                page_size=page_size,
+                sort_columns="ONLIST_TIMES",
+                sort_types="-1",
+            )
+            if not api_items:
+                continue
+            mapped = [self._map_institution_seat_track_item(item, window_days, end_trade_date) for item in api_items]
+            mapped = [m for m in mapped if m]
+            if not mapped:
+                continue
+            for idx, item in enumerate(mapped, start=1):
+                item["rank"] = item.get("rank") or idx
+            return mapped
+        return []
+
+    async def _fetch_active_brokers_from_web(self, trade_date: str, page: int, page_size: int) -> List[Dict[str, Any]]:
+        report_name = await self._discover_report_name("broker_active", page_url=self.ACTIVE_BROKER_PAGE_URL)
+        if not report_name:
+            return []
+        filter_expr = f"(ONLIST_DATE='{trade_date}')"
+        api_items = await self._fetch_datacenter(
+            report_name=report_name,
+            filter_expr=filter_expr,
+            page=page,
+            page_size=page_size,
+            sort_columns="TOTAL_NETAMT",
+            sort_types="-1",
+        )
+        if not api_items:
+            return []
+        mapped = [self._map_active_broker_item(item, trade_date) for item in api_items]
+        mapped = [m for m in mapped if m]
+        for idx, item in enumerate(mapped, start=1):
+            item["rank"] = item.get("rank") or idx
+        return mapped
+
+    async def _fetch_broker_rank_from_web(
+        self, window_days: int, end_trade_date: str, page: int, page_size: int
+    ) -> List[Dict[str, Any]]:
+        cycle_map = {
+            30: "01",
+            90: "02",
+            180: "03",
+            365: "04",
+        }
+        cycle_code = cycle_map.get(window_days)
+        if not cycle_code:
+            if window_days <= 30:
+                cycle_code = "01"
+            elif window_days <= 90:
+                cycle_code = "02"
+            elif window_days <= 180:
+                cycle_code = "03"
+            else:
+                cycle_code = "04"
+        report_name = await self._discover_report_name("broker_rank", page_url=self.BROKER_RANK_PAGE_URL)
+        if not report_name:
+            return []
+        filter_expr = f"(STATISTICSCYCLE=\"{cycle_code}\")"
+        api_items = await self._fetch_datacenter(
+            report_name=report_name,
+            filter_expr=filter_expr,
+            page=page,
+            page_size=page_size,
+            sort_columns="TOTAL_BUYER_SALESTIMES_1DAY",
+            sort_types="-1",
+        )
+        if not api_items:
+            return []
+        mapped = [self._map_broker_rank_item(item, window_days, end_trade_date) for item in api_items]
+        mapped = [m for m in mapped if m]
+        for idx, item in enumerate(mapped, start=1):
+            item["rank"] = item.get("rank") or idx
+        return mapped
+
+    async def _fetch_broker_onlist_from_web(
+        self, window_days: int, end_trade_date: str, page: int, page_size: int
+    ) -> List[Dict[str, Any]]:
+        cycle_map = {
+            30: "01",
+            90: "02",
+            180: "03",
+            365: "04",
+        }
+        cycle_code = cycle_map.get(window_days)
+        if not cycle_code:
+            if window_days <= 30:
+                cycle_code = "01"
+            elif window_days <= 90:
+                cycle_code = "02"
+            elif window_days <= 180:
+                cycle_code = "03"
+            else:
+                cycle_code = "04"
+        report_name = await self._discover_report_name("broker_stats", page_url=self.BROKER_STATS_PAGE_URL)
+        if not report_name:
+            return []
+        filter_expr = f"(STATISTICSCYCLE=\"{cycle_code}\")"
+        api_items = await self._fetch_datacenter(
+            report_name=report_name,
+            filter_expr=filter_expr,
+            page=page,
+            page_size=page_size,
+            sort_columns="AMOUNT",
+            sort_types="-1",
+        )
+        if not api_items:
+            return []
+        mapped = [self._map_broker_onlist_item(item, window_days, end_trade_date) for item in api_items]
+        mapped = [m for m in mapped if m]
+        for idx, item in enumerate(mapped, start=1):
+            item["rank"] = item.get("rank") or idx
         return mapped
 
     async def _latest_trade_date_from_db(self) -> Optional[str]:
@@ -532,7 +1037,8 @@ class EastmoneyLhbService:
                 or (row.get("turnover") is not None)
                 for row in data.get("data", [])
             )
-            should_refresh = not has_detail
+            has_source = all(row.get("source_url") == self.LIST_PAGE_URL for row in data.get("data", []))
+            should_refresh = (not has_detail) or (not has_source)
         if should_refresh:
             try:
                 items = await self._fetch_list_from_web(trade_date, page, page_size)
@@ -581,3 +1087,169 @@ class EastmoneyLhbService:
             "total": data.get("total", 0),
             "data": data.get("data", []),
         }
+
+    async def fetch_institution_trades(
+        self,
+        trade_date: Optional[str],
+        page: int = 1,
+        page_size: int = 50,
+        refresh: bool = False,
+    ) -> Dict[str, Any]:
+        trade_date = self._normalize_trade_date(trade_date)
+        if not trade_date:
+            trade_date = await self.find_latest_trade_date(refresh=refresh) or self._date_to_ymd(datetime.now())
+        cache_key = self._cache_key("inst_trades", trade_date=trade_date, page=page, page_size=page_size)
+        cached = None if refresh else self._get_cache(cache_key, self.INSTITUTION_TTL_SECONDS)
+        if cached:
+            return cached
+        items: List[Dict[str, Any]] = []
+        try:
+            items = await self._fetch_institution_trades_from_web(trade_date, page, page_size)
+        except Exception as exc:
+            logger.warning(f"抓取机构买卖情况失败: {exc}")
+        data = {
+            "trade_date": trade_date,
+            "page": page,
+            "page_size": page_size,
+            "total": len(items),
+            "data": items,
+        }
+        if items:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def fetch_institution_seat_track(
+        self,
+        window_days: int,
+        end_trade_date: Optional[str],
+        page: int = 1,
+        page_size: int = 50,
+        refresh: bool = False,
+    ) -> Dict[str, Any]:
+        end_trade_date = self._normalize_trade_date(end_trade_date)
+        if not end_trade_date:
+            end_trade_date = await self.find_latest_trade_date(refresh=False)
+            if not end_trade_date:
+                end_trade_date = await self.find_latest_trade_date(refresh=refresh)
+            if not end_trade_date:
+                end_trade_date = self._date_to_ymd(datetime.now())
+        cache_key = self._cache_key(
+            "inst_seat_track", window_days=window_days, end_trade_date=end_trade_date, page=page, page_size=page_size
+        )
+        cached = None if refresh else self._get_cache(cache_key, self.INSTITUTION_TTL_SECONDS)
+        if cached:
+            return cached
+        items: List[Dict[str, Any]] = []
+        try:
+            items = await self._fetch_institution_seat_track_from_web(window_days, end_trade_date, page, page_size)
+        except Exception as exc:
+            logger.warning(f"抓取机构席位追踪失败: {exc}")
+        data = {
+            "window_days": window_days,
+            "end_trade_date": end_trade_date,
+            "page": page,
+            "page_size": page_size,
+            "total": len(items),
+            "data": items,
+        }
+        if items:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def fetch_active_brokers(
+        self,
+        trade_date: Optional[str],
+        page: int = 1,
+        page_size: int = 50,
+        refresh: bool = False,
+    ) -> Dict[str, Any]:
+        trade_date = self._normalize_trade_date(trade_date)
+        if not trade_date:
+            trade_date = await self.find_latest_trade_date(refresh=refresh) or self._date_to_ymd(datetime.now())
+        cache_key = self._cache_key("broker_active", trade_date=trade_date, page=page, page_size=page_size)
+        cached = None if refresh else self._get_cache(cache_key, self.BROKER_TTL_SECONDS)
+        if cached:
+            return cached
+        items: List[Dict[str, Any]] = []
+        try:
+            items = await self._fetch_active_brokers_from_web(trade_date, page, page_size)
+        except Exception as exc:
+            logger.warning(f"抓取每日活跃营业部失败: {exc}")
+        data = {
+            "trade_date": trade_date,
+            "page": page,
+            "page_size": page_size,
+            "total": len(items),
+            "data": items,
+        }
+        if items:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def fetch_broker_rank(
+        self,
+        window_days: int,
+        end_trade_date: Optional[str],
+        page: int = 1,
+        page_size: int = 50,
+        refresh: bool = False,
+    ) -> Dict[str, Any]:
+        end_trade_date = self._normalize_trade_date(end_trade_date)
+        if not end_trade_date:
+            end_trade_date = await self.find_latest_trade_date(refresh=refresh) or self._date_to_ymd(datetime.now())
+        cache_key = self._cache_key(
+            "broker_rank", window_days=window_days, end_trade_date=end_trade_date, page=page, page_size=page_size
+        )
+        cached = None if refresh else self._get_cache(cache_key, self.BROKER_TTL_SECONDS)
+        if cached:
+            return cached
+        items: List[Dict[str, Any]] = []
+        try:
+            items = await self._fetch_broker_rank_from_web(window_days, end_trade_date, page, page_size)
+        except Exception as exc:
+            logger.warning(f"抓取营业部排行失败: {exc}")
+        data = {
+            "window_days": window_days,
+            "end_trade_date": end_trade_date,
+            "page": page,
+            "page_size": page_size,
+            "total": len(items),
+            "data": items,
+        }
+        if items:
+            self._set_cache(cache_key, data)
+        return data
+
+    async def fetch_broker_onlist_stats(
+        self,
+        window_days: int,
+        end_trade_date: Optional[str],
+        page: int = 1,
+        page_size: int = 50,
+        refresh: bool = False,
+    ) -> Dict[str, Any]:
+        end_trade_date = self._normalize_trade_date(end_trade_date)
+        if not end_trade_date:
+            end_trade_date = await self.find_latest_trade_date(refresh=refresh) or self._date_to_ymd(datetime.now())
+        cache_key = self._cache_key(
+            "broker_stats", window_days=window_days, end_trade_date=end_trade_date, page=page, page_size=page_size
+        )
+        cached = None if refresh else self._get_cache(cache_key, self.BROKER_TTL_SECONDS)
+        if cached:
+            return cached
+        items: List[Dict[str, Any]] = []
+        try:
+            items = await self._fetch_broker_onlist_from_web(window_days, end_trade_date, page, page_size)
+        except Exception as exc:
+            logger.warning(f"抓取营业部上榜统计失败: {exc}")
+        data = {
+            "window_days": window_days,
+            "end_trade_date": end_trade_date,
+            "page": page,
+            "page_size": page_size,
+            "total": len(items),
+            "data": items,
+        }
+        if items:
+            self._set_cache(cache_key, data)
+        return data

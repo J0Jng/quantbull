@@ -1,14 +1,48 @@
 <template>
   <div class="company-research-page" style="background: #fff8f0; min-height: 100vh;">
-    <!-- 头部 -->
-    <div class="header">
-      <div class="logo" @click="goHome">量化牛牛研报中心</div>
-    </div>
+    <header class="header">
+      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <div class="header-nav">
+        <router-link to="/stock-data">股票数据</router-link>
+        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
+        <router-link to="/financial-report">财报</router-link>
+        <router-link to="/fund-source">资金流动</router-link>
+        <router-link to="/company-research">公司研报</router-link>
+        <router-link to="/quant-analysis">量化分析工具</router-link>
+        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
+          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
+          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
+          </div>
+        </div>
+      </div>
+    </header>
 
     <!-- 搜索栏 -->
     <div class="search-bar">
       <input v-model="searchQuery" type="text" placeholder="搜索公司、行业、关键字..." @keyup.enter="handleSearch" />
       <button class="search-btn" @click="handleSearch">搜索</button>
+    </div>
+
+    <!-- 来源分类 -->
+    <div class="category-nav">
+      <span class="category-item" :class="{ active: activeSource === 'all' }" @click="setSource('all')">全部</span>
+      <span class="category-item" :class="{ active: activeSource === 'ai' }" @click="setSource('ai')">AI 生成</span>
+      <span class="category-item" :class="{ active: activeSource === 'eastmoney' }" @click="setSource('eastmoney')">东方财富网</span>
+    </div>
+
+    <!-- 东方财富栏目筛选 -->
+    <div class="sub-category-nav" v-if="activeSource === 'eastmoney'">
+      <span
+        v-for="item in eastmoneyCategories"
+        :key="item.value"
+        class="sub-category-item"
+        :class="{ active: eastmoneyCategory === item.value }"
+        @click="setEastmoneyCategory(item.value)"
+      >
+        {{ item.label }}
+      </span>
     </div>
 
     <!-- 研报详情弹窗 -->
@@ -66,6 +100,11 @@
                 </div>
               </div>
 
+              <div class="detail-links" v-if="reportDetail.url || reportDetail.pdf_url">
+                <a v-if="reportDetail.url" :href="reportDetail.url" target="_blank" rel="noopener" class="link-btn">原文链接</a>
+                <a v-if="reportDetail.pdf_url" :href="reportDetail.pdf_url" target="_blank" rel="noopener" class="link-btn">PDF 原文</a>
+              </div>
+
               <div v-if="reportDetail.tags && reportDetail.tags.length > 0" class="tags-section">
                 <span class="tag" v-for="tag in reportDetail.tags" :key="tag">{{ tag }}</span>
               </div>
@@ -104,7 +143,7 @@
     </div>
 
     <!-- AI 研报生成 -->
-    <div class="ai-report-section">
+    <div class="ai-report-section" v-if="activeSource !== 'eastmoney'">
       <div class="ai-header">
         <h2 class="ai-title">AI 研报生成</h2>
         <p class="ai-subtitle">输入公司信息，生成投研报告</p>
@@ -202,6 +241,8 @@
         <div class="results-info">
           共找到 {{ filteredReports.length }} 条研报
         </div>
+
+        <!-- 默认卡片展示 -->
         <div class="report-grid">
           <div class="report-card" v-for="item in filteredReports" :key="item.id">
             <div class="report-info">
@@ -238,13 +279,14 @@ import DOMPurify from 'dompurify'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { getReportSummaries } from '@/services/reportService'
 import { generateReport } from '@/services/aiService'
-import { getCompanyResearchById, generateCompanyResearch, getCompanyResearchList } from '@/services/companyResearchService'
+import { getCompanyResearchById, generateCompanyResearch, getCompanyResearchList, getEastmoneyResearchList, getEastmoneyResearchDetail } from '@/services/companyResearchService'
 
 const router = useRouter()
 
 // 响应式状态
 const searchQuery = ref('')
 const activeCategory = ref('all')
+const activeSource = ref('all')
 const loading = ref(true)
 const error = ref('')
 const reportList = ref([])
@@ -261,6 +303,15 @@ const reportTokens = ref(null)
 const saveLoading = ref(false)
 const companyName = ref('')
 const stockCode = ref('')
+const eastmoneyCategory = ref('stock')
+
+const eastmoneyCategories = [
+  { value: 'stock', label: '个股研报' },
+  { value: 'industry', label: '行业研报' },
+  { value: 'macro', label: '宏观研究' },
+  { value: 'newstock', label: '新股研究' },
+  { value: 'strategy', label: '策略报告' }
+]
 
 // 详情弹窗相关状态
 const showDetailModal = ref(false)
@@ -268,6 +319,8 @@ const detailLoading = ref(false)
 const detailError = ref('')
 const reportDetail = ref(null)
 const currentReportId = ref(null)
+const currentReportSource = ref('ai')
+const currentReportMeta = ref(null)
 
 // 评级映射
 const ratingMap = {
@@ -289,6 +342,33 @@ const ratingMapOld = {
 
 const sanitizeHtml = (html) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
 
+const normalizeSource = (item) => {
+  const raw = (
+    item?.source ||
+    item?.data_source ||
+    item?.research_source ||
+    item?.institution ||
+    item?.publisher ||
+    item?.origin ||
+    ''
+  ).toString().toLowerCase()
+
+  if (!raw) {
+    if (item?.model || item?.tokens_used || item?.report_type) {
+      return 'ai'
+    }
+    return 'eastmoney'
+  }
+
+  if (raw.includes('ai') || raw.includes('model') || raw.includes('gpt')) {
+    return 'ai'
+  }
+  if (raw.includes('东方财富') || raw.includes('eastmoney')) {
+    return 'eastmoney'
+  }
+  return raw
+}
+
 // Markdown 渲染
 const renderedContent = computed(() => {
   if (!reportDetail.value || !reportDetail.value.report_content) {
@@ -303,80 +383,141 @@ const renderedContent = computed(() => {
   }
 })
 
+const mapRatingTag = (raw) => {
+  if (!raw) {
+    return { tag: '研报', tagClass: 'chi-you' }
+  }
+  const normalized = String(raw).replace(/\s+/g, '')
+  const ratingMap = {
+    '买入': { tag: '买入', tagClass: 'mai-ru' },
+    '增持': { tag: '增持', tagClass: 'mai-ru-zeng' },
+    '持有': { tag: '持有', tagClass: 'chi-you' },
+    '中性': { tag: '中性', tagClass: 'chi-you' },
+    '减持': { tag: '减持', tagClass: 'jian-chi' },
+    '卖出': { tag: '卖出', tagClass: 'mai-chu' }
+  }
+  return ratingMap[normalized] || { tag: normalized, tagClass: 'chi-you' }
+}
+
+const buildEastmoneyTags = (item, categoryLabel) => {
+  const tags = [categoryLabel, item.org_name, item.industry, item.rating]
+  return tags.filter(Boolean)
+}
+
+const fetchAiReports = async () => {
+  const params = {
+    limit: 50,
+    offset: 0
+  }
+  if (activeCategory.value !== 'all') {
+    params.rating = activeCategory.value
+  }
+
+  const result = await getCompanyResearchList(params)
+  if (!result || !result.success) {
+    throw new Error(result?.message || '获取研报失败')
+  }
+  const backendResponse = result.data
+  if (backendResponse.code !== 0) {
+    throw new Error(backendResponse.message || '获取研报失败')
+  }
+  const payload = backendResponse.data
+  let reports = payload?.items || []
+  if (!Array.isArray(reports)) {
+    reports = []
+  }
+
+  return reports.map(item => ({
+    id: item.id,
+    name: item.company_name || item.stock_name || item.title || '未知',
+    tag: ratingMapOld[item.rating]?.tag || item.rating || '持有',
+    tagClass: ratingMapOld[item.rating]?.tagClass || 'chi-you',
+    priceLabel: item.price_label || '当前价',
+    price: item.current_price ? `${item.current_price}元` : '-',
+    profitLabel: item.profit_label || '目标价格',
+    profit: item.target_return ? `${item.target_return}%` : '-',
+    tags: item.tags || item.sectors || [],
+    sourceType: normalizeSource(item),
+    publishTime: item.created_at
+  }))
+}
+
+const fetchEastmoneyReports = async () => {
+  const params = {
+    category: eastmoneyCategory.value,
+    q: searchQuery.value.trim() || undefined,
+    page: 1,
+    page_size: 50
+  }
+  const result = await getEastmoneyResearchList(params)
+  if (!result || !result.success) {
+    throw new Error(result?.message || '获取东方财富研报失败')
+  }
+  const backendResponse = result.data
+  if (backendResponse.code !== 0) {
+    throw new Error(backendResponse.message || '获取东方财富研报失败')
+  }
+  const payload = backendResponse.data
+  let reports = payload?.items || []
+  if (!Array.isArray(reports)) {
+    reports = []
+  }
+
+  return reports.map(item => {
+    const ratingTag = mapRatingTag(item.rating)
+    return {
+      id: item.id,
+      name: item.title || item.stock_name || item.stock_code || '研报',
+      tag: ratingTag.tag,
+      tagClass: ratingTag.tagClass,
+      tags: buildEastmoneyTags(item, item.category_label || '东方财富'),
+      sourceType: 'eastmoney',
+      publishTime: item.publish_time,
+      url: item.url,
+      category: item.category,
+      raw: item
+    }
+  })
+}
+
+const sortByTimeDesc = (items) => {
+  return items.slice().sort((a, b) => {
+    const ta = a.publishTime ? new Date(a.publishTime).getTime() : 0
+    const tb = b.publishTime ? new Date(b.publishTime).getTime() : 0
+    return tb - ta
+  })
+}
+
 // 加载研报数据
 const fetchReports = async () => {
   loading.value = true
   error.value = ''
-  
+
   try {
-    const params = {
-      limit: 50,
-      offset: 0
-    }
-    
-    // 根据分类筛选
-    if (activeCategory.value !== 'all') {
-      params.rating = activeCategory.value
-    }
-    
-    console.log('开始加载研报列表，参数:', params)
-    
-    // 调用公司研报接口
-    const result = await getCompanyResearchList(params)
-    console.log('公司研报接口返回:', result)
-    
-    // 检查响应是否成功
-    if (!result || !result.success) {
-      const errMsg = result?.message || '获取研报失败'
-      console.error('API返回失败:', errMsg, result)
-      error.value = errMsg
+    if (activeSource.value === 'eastmoney') {
+      reportList.value = await fetchEastmoneyReports()
       return
     }
-    
-    // 统一解包：后端返回 {code, message, data: {total, items}}
-    // handleRequest 包装为 {success: true, data: {code, message, data}}
-    const backendResponse = result.data
-    
-    // 检查后端状态码
-    if (backendResponse.code !== 0) {
-      const errMsg = backendResponse.message || '获取研报失败'
-      console.error('后端返回错误:', errMsg, backendResponse)
-      error.value = errMsg
+
+    if (activeSource.value === 'ai') {
+      reportList.value = await fetchAiReports()
       return
     }
-    
-    // 提取实际数据：{total, items}
-    const payload = backendResponse.data
-    console.log('提取的 payload:', payload)
-    
-    // 转换 API 数据格式为前端展示格式
-    let reports = payload?.items || []
-    
-    // 确保 reports 是数组
-    if (!Array.isArray(reports)) {
-      console.warn('返回的数据不是数组:', reports)
-      reports = []
+
+    const safeFetch = async (fn, fallback = []) => {
+      try {
+        return await fn()
+      } catch (innerError) {
+        console.warn('部分研报来源加载失败:', innerError)
+        return fallback
+      }
     }
-    
-    console.log('处理前的研报数据:', reports)
-    
-    reportList.value = reports.map(item => ({
-      id: item.id,
-      name: item.company_name || item.stock_name || item.title || '未知',
-      tag: ratingMapOld[item.rating]?.tag || item.rating || '持有',
-      tagClass: ratingMapOld[item.rating]?.tagClass || 'chi-you',
-      priceLabel: item.price_label || '当前价',
-      price: item.current_price ? `${item.current_price}元` : '-',
-      profitLabel: item.profit_label || '目标价格',
-      profit: item.target_return ? `${item.target_return}%` : '-',
-      tags: item.tags || item.sectors || []
-    }))
-    
-    console.log('转换后的研报列表:', reportList.value)
-    
-    if (reportList.value.length === 0) {
-      console.log('研报列表为空，但接口调用成功')
-    }
+
+    const [aiReports, eastmoneyReports] = await Promise.all([
+      safeFetch(fetchAiReports, []),
+      safeFetch(fetchEastmoneyReports, [])
+    ])
+    reportList.value = sortByTimeDesc([...aiReports, ...eastmoneyReports])
   } catch (e) {
     const errMsg = '加载研报数据失败: ' + (e.message || '未知错误')
     error.value = errMsg
@@ -391,7 +532,7 @@ const filteredReports = computed(() => {
   let filtered = reportList.value
   
   // 根据分类过滤（如果 API 不支持服务端筛选）
-  if (activeCategory.value !== 'all') {
+  if (activeCategory.value !== 'all' && activeSource.value !== 'eastmoney') {
     filtered = filtered.filter(item => {
       switch (activeCategory.value) {
         case 'buy': return item.tagClass === 'mai-ru'
@@ -403,13 +544,18 @@ const filteredReports = computed(() => {
       }
     })
   }
+
+  // 根据来源过滤
+  if (activeSource.value !== 'all') {
+    filtered = filtered.filter(item => item.sourceType === activeSource.value)
+  }
   
   // 根据搜索关键词过滤
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(item => 
       item.name.toLowerCase().includes(query) ||
-      item.tags.some(tag => tag.toLowerCase().includes(query))
+      (item.tags || []).some(tag => tag.toLowerCase().includes(query))
     )
   }
   
@@ -448,6 +594,20 @@ async function viewReport(item) {
 
 // 查看研报详情（跳转到详情页面）
 function viewCompanyReport(report) {
+  if (report.sourceType === 'eastmoney') {
+    const encodedId = encodeURIComponent(report.id)
+    const encodedUrl = report.url ? encodeURIComponent(report.url) : ''
+    router.push({
+      path: `/company-research/${encodedId}`,
+      query: {
+        source: 'eastmoney',
+        category: report.category,
+        url: encodedUrl,
+        title: report.name
+      }
+    })
+    return
+  }
   router.push(`/company-research/${report.id}`)
 }
 
@@ -455,6 +615,7 @@ function closeDetailModal() {
   showDetailModal.value = false
   reportDetail.value = null
   detailError.value = ''
+  currentReportMeta.value = null
 }
 
 async function loadReportDetail(reportId) {
@@ -467,6 +628,41 @@ async function loadReportDetail(reportId) {
       return
     }
     
+    if (currentReportSource.value === 'eastmoney') {
+      const params = {
+        id: reportId,
+        url: currentReportMeta.value?.url,
+        category: currentReportMeta.value?.category
+      }
+      console.log('开始加载东方财富研报详情，参数:', params)
+      const result = await getEastmoneyResearchDetail(params)
+      console.log('东方财富研报详情接口返回:', result)
+
+      if (!result || !result.success) {
+        detailError.value = result?.message || '加载失败'
+        return
+      }
+      const backendResponse = result.data
+      if (backendResponse.code !== 0) {
+        detailError.value = backendResponse.message || '加载失败'
+        return
+      }
+      const data = backendResponse.data
+      const content = data.content || data.summary || ''
+      reportDetail.value = {
+        company_name: data.stock_name || data.title || currentReportMeta.value?.name || '东方财富研报',
+        stock_code: data.stock_code || currentReportMeta.value?.raw?.stock_code,
+        rating: data.rating || currentReportMeta.value?.raw?.rating,
+        report_type: 'summary',
+        created_at: data.publish_time,
+        tags: buildEastmoneyTags(currentReportMeta.value?.raw || {}, currentReportMeta.value?.raw?.category_label || '东方财富'),
+        report_content: content,
+        url: data.url || currentReportMeta.value?.url,
+        pdf_url: data.pdf_url
+      }
+      return
+    }
+
     console.log('开始加载研报详情，ID:', reportId)
     const result = await getCompanyResearchById(reportId)
     console.log('研报详情接口返回:', result)
@@ -512,9 +708,24 @@ function go(id) {
   fetchReports()
 }
 
+function setSource(source) {
+  activeSource.value = source
+  if (source === 'eastmoney' && !eastmoneyCategory.value) {
+    eastmoneyCategory.value = 'stock'
+  }
+  fetchReports()
+}
+
+function setEastmoneyCategory(category) {
+  eastmoneyCategory.value = category
+  fetchReports()
+}
+
 // 搜索处理
 function handleSearch() {
-  // 本地搜索，无需重新请求 API
+  if (activeSource.value === 'eastmoney' || activeSource.value === 'all') {
+    fetchReports()
+  }
 }
 
 const generateAiReport = async () => {
@@ -709,6 +920,13 @@ onMounted(() => {
 
 <style scoped>
 /* 复用商店页面的样式并稍作调整 */
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -731,33 +949,71 @@ onMounted(() => {
   position: sticky;
   top: 0;
   z-index: 99;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .logo {
   font-size: 22px;
   font-weight: bold;
-  color: #ffffff;
-  cursor: pointer;
+  color: white;
+  text-decoration: none;
 }
 
-.header-opt {
-  display: flex;
-  align-items: center;
-  gap: 20px;
+.logo:hover {
+  text-decoration: underline;
 }
 
-.header-opt a {
+.header-nav a {
   color: white;
   text-decoration: none;
   font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
 }
 
-.header-opt a:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+.header-nav .active,
+.header-nav .router-link-active,
+.header-nav .router-link-exact-active {
+  text-decoration: underline;
+}
+
+.header-nav .user-btn {
+  background-color: white;
+  color: #ff7f24;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.user-menu-container {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 120px;
+}
+
+.dropdown-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #fff3e6;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #fff8f0;
+}
+
+.dropdown-item.logout {
+  color: #ff4500;
 }
 
 .search-bar {
@@ -1057,6 +1313,38 @@ onMounted(() => {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
+.sub-category-nav {
+  background-color: #fff3e8;
+  padding: 10px 20px;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-bottom: 1px solid #ffd9bf;
+}
+
+.sub-category-item {
+  display: inline-block;
+  color: #ff7f24;
+  text-decoration: none;
+  padding: 6px 14px;
+  margin-right: 8px;
+  border-radius: 16px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.3s;
+}
+
+.sub-category-item.active {
+  background-color: #ff7f24;
+  color: #fff;
+  border-color: #ff7f24;
+  font-weight: 600;
+}
+
+.sub-category-item:hover:not(.active) {
+  background-color: #ffe6d5;
+}
+
 .category-item {
   display: inline-block;
   color: white;
@@ -1086,10 +1374,10 @@ onMounted(() => {
 
 .container .section-title {
   font-size: 22px;
-  color: #333333;
+  color: #ffffff;
   border-left: 4px solid #ff7f24;
   padding-left: 12px;
-  margin: 20px 0 15px;
+  margin: 15px 0 15px;
   font-weight: bold;
 }
 
@@ -1245,6 +1533,13 @@ onMounted(() => {
   background-color: #ff7f24;
   color: white;
   box-shadow: 0 4px 12px rgba(255, 127, 36, 0.3);
+}
+
+.view-btn.small {
+  width: auto;
+  padding: 6px 12px;
+  margin-top: 0;
+  font-size: 12px;
 }
 
 .no-results {
@@ -1482,6 +1777,29 @@ onMounted(() => {
   padding: 15px 0;
   border-top: 1px solid #f0f0f0;
   border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-links {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.link-btn {
+  background: #fff7ef;
+  border: 1px solid #ffb380;
+  color: #ff7f24;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+
+.link-btn:hover {
+  background: #ff7f24;
+  color: #fff;
 }
 
 .meta-item {

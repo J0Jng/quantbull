@@ -29,6 +29,7 @@
    - /api/quotes/realtime 东方财富实时行情，结果落库。
    - /api/tushare/daily、/fund_daily、/stock_basic 通过 Tushare 获取并 upsert。
    - /api/data/clean 演示文本清洗。
+   - /api/lhb/* 龙虎榜数据（上榜个股、个股统计、机构买卖、机构席位追踪、活跃营业部、营业部排行、营业部上榜统计），数据来源东方财富公开数据。
 - ✅ Daily Report：
    - /api/generate 手动生成报告；/api/latest、/api/date/{date}、/api/{id} 查询；/api 列表。
    - APScheduler 每日 15:10 自动触发生成（需 data/ai 服务可用或使用本地模拟数据）。

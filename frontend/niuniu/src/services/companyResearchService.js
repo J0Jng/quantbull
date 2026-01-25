@@ -42,3 +42,28 @@ export const getCompanyResearchList = async (params = {}) => {
 export const getCompanyResearchById = async (reportId) => {
   return handleRequest(() => http.get(`/company-research/reports/${reportId}`))
 }
+
+/**
+ * 查询东方财富研报列表
+ * GET /api/company-research/eastmoney/list
+ * @param {Object} params - 查询参数
+ * @param {string} params.category - 栏目（stock/industry/profitforecast/macro/newstock/strategy）
+ * @param {string} params.q - 关键词
+ * @param {number} params.page - 页码
+ * @param {number} params.page_size - 每页数量
+ */
+export const getEastmoneyResearchList = async (params = {}) => {
+  return handleRequest(() => http.get('/company-research/eastmoney/list', { params }))
+}
+
+/**
+ * 查询东方财富研报详情
+ * GET /api/company-research/eastmoney/detail
+ * @param {Object} params - 查询参数
+ * @param {string} params.id - 研报 ID
+ * @param {string} params.url - 原文链接
+ * @param {string} params.category - 栏目（可选）
+ */
+export const getEastmoneyResearchDetail = async (params = {}) => {
+  return handleRequest(() => http.get('/company-research/eastmoney/detail', { params }))
+}

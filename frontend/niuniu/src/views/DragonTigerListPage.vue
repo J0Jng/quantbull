@@ -1,125 +1,156 @@
 <template>
   <div class="dragon-tiger-page">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 龙虎榜</router-link>
-      <nav class="header-nav">
+      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <div class="header-nav">
+        <router-link to="/stock-data">股票数据</router-link>
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
         <router-link to="/financial-report">财报</router-link>
         <router-link to="/fund-source">资金流动</router-link>
         <router-link to="/company-research">公司研报</router-link>
-        <router-link to="/quant-analysis">量化策略</router-link>
-      </nav>
-    </header>
-
-    <div class="filters">
-      <div class="filter-item" v-if="mode === 'daily'">
-        <span class="label">交易日：</span>
-        <input v-model="tradeDate" type="date" class="input" />
-      </div>
-      <div class="filter-item" v-else>
-        <span class="label">统计窗口：</span>
-        <select v-model="days" class="select">
-          <option :value="1">近1日</option>
-          <option :value="3">近3日</option>
-          <option :value="5">近5日</option>
-          <option :value="10">近10日</option>
-          <option :value="20">近20日</option>
-          <option :value="30">近30日</option>
-        </select>
-      </div>
-      <div class="filter-item" v-if="mode === 'summary'">
-        <span class="label">截止日：</span>
-        <input v-model="endTradeDate" type="date" class="input" />
-      </div>
-      <div class="filter-item search">
-        <input v-model="searchKeyword" class="input" placeholder="搜索代码/名称" />
-      </div>
-      <button class="refresh-btn" @click="onRefresh">刷新</button>
-    </div>
-
-    <div class="tabs">
-      <button
-        v-for="m in modes"
-        :key="m.value"
-        :class="['tab-btn', mode === m.value ? 'active' : '']"
-        @click="mode = m.value"
-      >
-        {{ m.label }}
-      </button>
-    </div>
-
-    <div class="table-card">
-      <div class="table-header">
-        <div class="title">{{ currentTitle }}</div>
-        <div class="meta">
-          <span v-if="loading">加载中...</span>
-          <span v-else>共 {{ totalDisplay }} 条</span>
+        <router-link to="/quant-analysis">量化分析工具</router-link>
+        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
+          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
+          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
+          </div>
         </div>
       </div>
+    </header>
 
-      <div v-if="copyMessage" class="copy-tip">{{ copyMessage }}</div>
-      <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
+      <div class="table-card">
+        <div class="tabs">
+          <button
+            v-for="m in modes"
+            :key="m.value"
+            :class="['tab-btn', mode === m.value ? 'active' : '']"
+            @click="mode = m.value"
+          >
+            {{ m.label }}
+          </button>
+        </div>
 
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th v-for="col in currentColumns" :key="col.key">{{ col.label }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td :colspan="currentColumns.length" class="empty">数据加载中...</td>
-          </tr>
-          <tr v-else-if="filteredRows.length === 0">
-            <td :colspan="currentColumns.length" class="empty">暂无数据</td>
-          </tr>
-          <tr v-else v-for="row in pagedRows" :key="rowKey(row)">
-            <td v-for="col in currentColumns" :key="col.key">
-              <span
-                v-if="col.key === 'code'"
-                class="code-link"
-                @click="copyCode(row.code)"
+        <div class="filters">
+          <div class="filter-left">
+            <div class="filter-item" v-if="isTradeDateMode">
+              <span class="label">交易日：</span>
+              <input v-model="tradeDate" type="date" class="input" />
+            </div>
+            <div class="filter-item" v-else-if="isWindowMode">
+              <span class="label">统计窗口：</span>
+              <select
+                v-model="days"
+                class="select"
+                :disabled="mode === 'stockStat' || mode === 'instSeatTrack' || mode === 'brokerRank' || mode === 'brokerStats'"
               >
-                {{ row.code }}
-              </span>
-              <span v-else-if="col.key === 'name'">
-                {{ row.name || '--' }}
-              </span>
-              <span v-else>
-                {{ formatValue(row, col) }}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <option :value="1">近1日</option>
+                <option :value="3">近3日</option>
+                <option :value="5">近5日</option>
+                <option :value="10">近10日</option>
+                <option :value="20">近20日</option>
+                <option :value="30">近30日</option>
+              </select>
+            </div>
+            <div class="filter-item" v-if="showEndTradeDate">
+              <span class="label">截止日：</span>
+              <input v-model="endTradeDate" type="date" class="input" />
+            </div>
+            <button class="query-btn" type="button" @click="loadData()">查询</button>
+            <button class="refresh-btn" type="button" @click="onRefresh">更新数据</button>
+          </div>
+          <div class="filter-right">
+            <select v-model="pageSize" class="select small" v-if="!isFixedTopMode">
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+              <option :value="100">100条/页</option>
+            </select>
+            <input v-model="searchKeyword" class="input search-input" :placeholder="searchPlaceholder" />
+          </div>
+        </div>
 
-      <div class="pagination">
-        <button class="page-btn" :disabled="page === 1" @click="page--">上一页</button>
-        <span class="page-info">
-          第 {{ page }} 页
-          <span v-if="totalPages">/ {{ totalPages }} 页</span>
-        </span>
-        <button class="page-btn" :disabled="!canNext" @click="page++">下一页</button>
-        <select v-model="pageSize" class="select small">
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-          <option :value="100">100</option>
-        </select>
+        <div class="table-header">
+          <div class="title">{{ currentTitle }}</div>
+          <div class="meta">
+            <span v-if="loading">加载中...</span>
+          </div>
+        </div>
+
+        <div v-if="copyMessage" class="copy-tip">{{ copyMessage }}</div>
+        <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th v-for="col in currentColumns" :key="col.key">{{ col.label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="loading">
+              <td :colspan="currentColumns.length" class="empty">数据加载中...</td>
+            </tr>
+            <tr v-else-if="filteredRows.length === 0">
+              <td :colspan="currentColumns.length" class="empty">暂无数据</td>
+            </tr>
+            <tr v-else v-for="row in pagedRows" :key="rowKey(row)">
+              <td v-for="col in currentColumns" :key="col.key">
+                <span
+                  v-if="col.key === 'code'"
+                  class="link code-link"
+                  @click="copyCode(row.code)"
+                >
+                  {{ row.code }}
+                </span>
+                <span v-else-if="col.key === 'name'" class="link name-link">
+                  {{ row.name || '--' }}
+                </span>
+                <span v-else-if="col.type === 'percent' || highlightKeys.includes(col.key)" :class="valueClass(row, col)">
+                  {{ formatValue(row, col) }}
+                </span>
+                <span v-else>
+                  {{ formatValue(row, col) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pagination" v-if="!isFixedTopMode && totalPages > 1">
+          <button class="page-btn" :disabled="page <= 1" @click="onPrevPage">上一页</button>
+          <div class="page-info">
+            第
+            <input v-model.number="page" type="number" class="page-input" :min="1" :max="totalPages" />
+            / {{ totalPages }} 页
+          </div>
+          <button class="page-btn" :disabled="!canNext" @click="onNextPage">下一页</button>
+        </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { getLhbStocks, getLhbSummary } from '@/services/dragonTigerService'
+import {
+  getLhbStocks,
+  getLhbSummary,
+  getLhbInstitutionTrades,
+  getLhbInstitutionSeatTrack,
+  getLhbActiveBrokers,
+  getLhbBrokerRank,
+  getLhbBrokerOnlistStats
+} from '@/services/dragonTigerService'
 
 const modes = [
-  { label: '当日上榜', value: 'daily' },
-  { label: '多日汇总', value: 'summary' }
+  { label: '上榜个股', value: 'stocks' },
+  { label: '个股龙虎榜统计', value: 'stockStat' },
+  { label: '机构买卖情况', value: 'instTrades' },
+  { label: '机构席位买卖追踪', value: 'instSeatTrack' },
+  { label: '每日活跃营业部', value: 'activeBroker' },
+  { label: '营业部排行', value: 'brokerRank' },
+  { label: '证券营业部上榜统计', value: 'brokerStats' }
 ]
 
-const mode = ref('daily')
+const mode = ref('stocks')
 const tradeDate = ref('')
 const endTradeDate = ref('')
 const days = ref(5)
@@ -150,11 +181,32 @@ const resolveRows = (payload) => {
   return []
 }
 
-const currentTitle = computed(() => (mode.value === 'daily' ? '龙虎榜上榜个股' : '龙虎榜多日汇总'))
+const titleMap = {
+  stocks: '龙虎榜上榜个股',
+  stockStat: '个股龙虎榜统计',
+  instTrades: '机构买卖情况',
+  instSeatTrack: '机构席位买卖追踪',
+  activeBroker: '每日活跃营业部',
+  brokerRank: '营业部排行',
+  brokerStats: '证券营业部上榜统计'
+}
+
+const currentTitle = computed(() => titleMap[mode.value] || '龙虎榜数据')
+
+const tradeDateModes = new Set(['stocks', 'instTrades', 'activeBroker'])
+const windowModes = new Set(['stockStat', 'instSeatTrack', 'brokerRank', 'brokerStats'])
+
+const isTradeDateMode = computed(() => tradeDateModes.has(mode.value))
+const isWindowMode = computed(() => windowModes.has(mode.value))
+const showEndTradeDate = computed(() =>
+  windowModes.has(mode.value) && mode.value !== 'brokerRank' && mode.value !== 'brokerStats'
+)
+const isFixedTopMode = computed(() => false)
+
+const highlightKeys = ['net_buy_amount', 'net_buy_ratio']
 
 const columnsMap = {
-  daily: [
-    { label: '排名', key: 'rank', type: 'number' },
+  stocks: [
     { label: '代码', key: 'code' },
     { label: '名称', key: 'name' },
     { label: '收盘价', key: 'close', type: 'number' },
@@ -165,8 +217,7 @@ const columnsMap = {
     { label: '成交额', key: 'turnover', type: 'amount' },
     { label: '上榜原因', key: 'reason' }
   ],
-  summary: [
-    { label: '排名', key: 'rank', type: 'number' },
+  stockStat: [
     { label: '代码', key: 'code' },
     { label: '名称', key: 'name' },
     { label: '上榜次数', key: 'appear_count', type: 'number' },
@@ -174,38 +225,149 @@ const columnsMap = {
     { label: '卖出额', key: 'sell_amount', type: 'amount' },
     { label: '净买入', key: 'net_buy_amount', type: 'amount' },
     { label: '买卖总额', key: 'total_amount', type: 'amount' }
+  ],
+  instTrades: [
+    { label: '代码', key: 'code' },
+    { label: '名称', key: 'name' },
+    { label: '收盘价', key: 'close', type: 'number' },
+    { label: '涨跌幅', key: 'pct_change', type: 'percent' },
+    { label: '机构买入次数', key: 'buy_count', type: 'number' },
+    { label: '机构卖出次数', key: 'sell_count', type: 'number' },
+    { label: '买入额', key: 'buy_amount', type: 'amount' },
+    { label: '卖出额', key: 'sell_amount', type: 'amount' },
+    { label: '净买入', key: 'net_buy_amount', type: 'amount' },
+    { label: '成交额', key: 'turnover', type: 'amount' },
+    { label: '上榜原因', key: 'reason' }
+  ],
+  instSeatTrack: [
+    { label: '代码', key: 'code' },
+    { label: '名称', key: 'name' },
+    { label: '收盘价', key: 'close', type: 'number' },
+    { label: '涨跌幅', key: 'pct_change', type: 'percent' },
+    { label: '净买入', key: 'net_buy_amount', type: 'amount' },
+    { label: '买入额', key: 'buy_amount', type: 'amount' },
+    { label: '买入次数', key: 'buy_count', type: 'number' },
+    { label: '卖出额', key: 'sell_amount', type: 'amount' },
+    { label: '卖出次数', key: 'sell_count', type: 'number' },
+    { label: '净买入占比', key: 'net_buy_ratio', type: 'percent' }
+  ],
+  activeBroker: [
+    { label: '营业部', key: 'broker_name' },
+    { label: '买入次数', key: 'buy_count', type: 'number' },
+    { label: '卖出次数', key: 'sell_count', type: 'number' },
+    { label: '买入额', key: 'buy_amount', type: 'amount' },
+    { label: '卖出额', key: 'sell_amount', type: 'amount' },
+    { label: '净买入', key: 'net_buy_amount', type: 'amount' },
+    { label: '活跃股票', key: 'stocks' }
+  ],
+  brokerRank: [
+    { label: '营业部', key: 'broker_name' },
+    { label: '1日买入次数', key: 'buy_times_1d', type: 'number' },
+    { label: '1日平均涨幅', key: 'avg_increase_1d', type: 'percent' },
+    { label: '1日上涨概率', key: 'rise_probability_1d', type: 'percent' },
+    { label: '2日买入次数', key: 'buy_times_2d', type: 'number' },
+    { label: '2日平均涨幅', key: 'avg_increase_2d', type: 'percent' },
+    { label: '2日上涨概率', key: 'rise_probability_2d', type: 'percent' },
+    { label: '3日买入次数', key: 'buy_times_3d', type: 'number' },
+    { label: '3日平均涨幅', key: 'avg_increase_3d', type: 'percent' },
+    { label: '3日上涨概率', key: 'rise_probability_3d', type: 'percent' },
+    { label: '5日买入次数', key: 'buy_times_5d', type: 'number' },
+    { label: '5日平均涨幅', key: 'avg_increase_5d', type: 'percent' },
+    { label: '5日上涨概率', key: 'rise_probability_5d', type: 'percent' },
+    { label: '10日买入次数', key: 'buy_times_10d', type: 'number' },
+    { label: '10日平均涨幅', key: 'avg_increase_10d', type: 'percent' },
+    { label: '10日上涨概率', key: 'rise_probability_10d', type: 'percent' }
+  ],
+  brokerStats: [
+    { label: '营业部', key: 'broker_name' },
+    { label: '上榜总额', key: 'total_amount', type: 'amount' },
+    { label: '买入额', key: 'buy_amount', type: 'amount' },
+    { label: '买入次数', key: 'buy_count', type: 'number' },
+    { label: '卖出额', key: 'sell_amount', type: 'amount' },
+    { label: '卖出次数', key: 'sell_count', type: 'number' }
   ]
 }
 
 const currentColumns = computed(() => columnsMap[mode.value] || [])
 
+const searchFieldsMap = {
+  stocks: ['code', 'name', 'reason'],
+  stockStat: ['code', 'name'],
+  instTrades: ['code', 'name', 'reason'],
+  instSeatTrack: ['code', 'name'],
+  activeBroker: ['broker_name', 'stocks'],
+  brokerRank: ['broker_name'],
+  brokerStats: ['broker_name']
+}
+
+const searchPlaceholder = computed(() => {
+  if (mode.value === 'activeBroker' || mode.value.startsWith('broker')) return '搜索营业部/股票'
+  if (mode.value.startsWith('inst')) return '搜索代码/名称/原因'
+  return '搜索代码/名称'
+})
+
 const filteredRows = computed(() => {
   if (!searchKeyword.value.trim()) return rawRows.value
   const keyword = searchKeyword.value.trim().toLowerCase()
-  return rawRows.value.filter(row => {
-    const code = String(row.code || '').toLowerCase()
-    const name = String(row.name || '').toLowerCase()
-    return code.includes(keyword) || name.includes(keyword)
+  const fields = searchFieldsMap[mode.value] || ['code', 'name', 'broker_name', 'org_name', 'seat_name']
+  return rawRows.value.filter(row =>
+    fields.some(field => String(row[field] || '').toLowerCase().includes(keyword))
+  )
+})
+
+const sortedRows = computed(() => {
+  if (mode.value === 'stockStat') {
+    return [...filteredRows.value].sort((a, b) => {
+      const aVal = Number(a.appear_count)
+      const bVal = Number(b.appear_count)
+      const aNaN = Number.isNaN(aVal)
+      const bNaN = Number.isNaN(bVal)
+      if (aNaN && bNaN) return 0
+      if (aNaN) return 1
+      if (bNaN) return -1
+      return bVal - aVal
+    })
+  }
+  if (mode.value === 'stocks') {
+    return [...filteredRows.value].sort((a, b) => {
+      const aCode = String(a.code || '')
+      const bCode = String(b.code || '')
+      if (!aCode && !bCode) return 0
+      if (!aCode) return 1
+      if (!bCode) return -1
+      return aCode.localeCompare(bCode)
+    })
+  }
+  return [...filteredRows.value].sort((a, b) => {
+    const aVal = Number(a.rank)
+    const bVal = Number(b.rank)
+    const aNaN = Number.isNaN(aVal)
+    const bNaN = Number.isNaN(bVal)
+    if (aNaN && bNaN) return 0
+    if (aNaN) return 1
+    if (bNaN) return -1
+    return aVal - bVal
   })
 })
 
+const shouldSlice = computed(() => sortedRows.value.length > pageSize.value)
+
 const pagedRows = computed(() => {
-  if (total.value && total.value > 0) return filteredRows.value
+  if (!shouldSlice.value) return sortedRows.value
   const start = (page.value - 1) * pageSize.value
-  return filteredRows.value.slice(start, start + pageSize.value)
+  return sortedRows.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
-  if (!total.value) return null
+  if (!total.value) {
+    return Math.max(1, Math.ceil(sortedRows.value.length / pageSize.value))
+  }
   return Math.max(1, Math.ceil(total.value / pageSize.value))
 })
 
-const canNext = computed(() => {
-  if (!totalPages.value) return true
-  return page.value < totalPages.value
-})
+const canNext = computed(() => page.value < totalPages.value)
 
-const totalDisplay = computed(() => total.value || filteredRows.value.length)
+const totalDisplay = computed(() => total.value || sortedRows.value.length)
 
 const formatAmount = (value) => {
   if (value === null || value === undefined || value === '') return '--'
@@ -232,11 +394,20 @@ const formatValue = (row, col) => {
   return value || '--'
 }
 
+const valueClass = (row, col) => {
+  const value = row[col.key]
+  const num = Number(value)
+  if (Number.isNaN(num)) return ''
+  if (num > 0) return 'pos'
+  if (num < 0) return 'neg'
+  return ''
+}
+
 const rowKey = (row) => {
-  if (mode.value === 'daily') {
-    return `${row.code || ''}_${row.trade_date || ''}_${row.reason || ''}`
+  if (tradeDateModes.has(mode.value)) {
+    return `${row.code || row.broker_name || ''}_${row.trade_date || ''}_${row.reason || ''}`
   }
-  return `${row.code || ''}_${row.end_trade_date || ''}_${row.window_days || ''}`
+  return `${row.code || row.broker_name || ''}_${row.end_trade_date || ''}_${row.window_days || ''}`
 }
 
 const copyCode = async (code) => {
@@ -257,15 +428,53 @@ const loadData = async (forceRefresh = false) => {
   errorMessage.value = ''
   try {
     let result
-    if (mode.value === 'daily') {
+    if (mode.value === 'stocks') {
       result = await getLhbStocks({
         tradeDate: tradeDate.value || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
       })
-    } else {
+    } else if (mode.value === 'stockStat') {
       result = await getLhbSummary({
+        days: days.value,
+        endTradeDate: endTradeDate.value || undefined,
+        page: page.value,
+        pageSize: pageSize.value,
+        refresh: forceRefresh
+      })
+    } else if (mode.value === 'instTrades') {
+      result = await getLhbInstitutionTrades({
+        tradeDate: tradeDate.value || undefined,
+        page: page.value,
+        pageSize: pageSize.value,
+        refresh: forceRefresh
+      })
+    } else if (mode.value === 'instSeatTrack') {
+      result = await getLhbInstitutionSeatTrack({
+        days: days.value,
+        endTradeDate: endTradeDate.value || undefined,
+        page: page.value,
+        pageSize: pageSize.value,
+        refresh: forceRefresh
+      })
+    } else if (mode.value === 'activeBroker') {
+      result = await getLhbActiveBrokers({
+        tradeDate: tradeDate.value || undefined,
+        page: page.value,
+        pageSize: pageSize.value,
+        refresh: forceRefresh
+      })
+    } else if (mode.value === 'brokerRank') {
+      result = await getLhbBrokerRank({
+        days: days.value,
+        endTradeDate: endTradeDate.value || undefined,
+        page: page.value,
+        pageSize: pageSize.value,
+        refresh: forceRefresh
+      })
+    } else {
+      result = await getLhbBrokerOnlistStats({
         days: days.value,
         endTradeDate: endTradeDate.value || undefined,
         page: page.value,
@@ -279,10 +488,10 @@ const loadData = async (forceRefresh = false) => {
       rawRows.value = resolveRows(data)
       const totalValue = data?.total ?? data?.data?.total
       total.value = typeof totalValue === 'number' ? totalValue : rawRows.value.length
-      if (mode.value === 'daily' && data?.trade_date && !tradeDate.value) {
+      if (tradeDateModes.has(mode.value) && data?.trade_date && !tradeDate.value) {
         tradeDate.value = data.trade_date
       }
-      if (mode.value === 'summary' && data?.end_trade_date && !endTradeDate.value) {
+      if (windowModes.has(mode.value) && data?.end_trade_date && !endTradeDate.value) {
         endTradeDate.value = data.end_trade_date
       }
     } else {
@@ -303,7 +512,30 @@ const onRefresh = async () => {
   await loadData(true)
 }
 
+const onPrevPage = () => {
+  if (page.value > 1) page.value -= 1
+}
+
+const onNextPage = () => {
+  if (canNext.value) page.value += 1
+}
+
 watch([mode, tradeDate, endTradeDate, days, pageSize], () => {
+  if (mode.value === 'stocks') {
+    pageSize.value = pageSize.value || 50
+  }
+  if (mode.value === 'stockStat') {
+    days.value = 30
+  }
+  if (mode.value === 'instSeatTrack') {
+    days.value = 30
+  }
+  if (mode.value === 'brokerRank') {
+    days.value = 30
+  }
+  if (mode.value === 'brokerStats') {
+    days.value = 90
+  }
   page.value = 1
   loadData()
 })
@@ -318,11 +550,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.dragon-tiger-page {
-  min-height: 100vh;
-  background: #fff8f0;
-}
-
 .header {
   background-color: #ff7f24;
   padding: 12px 20px;
@@ -336,16 +563,20 @@ onMounted(() => {
 }
 
 .logo {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: bold;
   color: white;
   text-decoration: none;
 }
 
+.logo:hover {
+  text-decoration: underline;
+}
+
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .header-nav a {
@@ -354,18 +585,127 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.header-nav .router-link-active {
+.header-nav .active,
+.header-nav .router-link-active,
+.header-nav .router-link-exact-active {
   text-decoration: underline;
 }
 
-.filters {
-  padding: 16px 20px;
+.header-nav .user-btn {
+  background-color: white;
+  color: #ff7f24;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.user-menu-container {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
   background: white;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 120px;
+}
+
+.dropdown-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #fff3e6;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #fff8f0;
+}
+
+.dropdown-item.logout {
+  color: #ff4500;
+}
+
+.dragon-tiger-page {
+  min-height: 100vh;
+  background: #fff8f0;
+}
+
+.page-header {
+  padding: 8px 0 16px;
+}
+
+.breadcrumb {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+.breadcrumb-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+  color: #ff7f24;
+  text-decoration: underline;
+}
+
+.breadcrumb-sep {
+  color: inherit;
+}
+
+.page-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 22px;
+  color: #333;
+  font-weight: 600;
+}
+
+.collect-btn {
+  background: #ffffff;
+  color: #2f6fed;
+  border: 1px solid #d6e4ff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.filters {
+  padding: 12px 16px;
+  background: #fff;
   border-bottom: 1px solid #ffb380;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .filter-item {
@@ -374,64 +714,77 @@ onMounted(() => {
   gap: 6px;
 }
 
-.filter-item.search {
-  flex: 1;
-  min-width: 200px;
-}
-
 .label {
   color: #666;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .select,
 .input {
-  padding: 6px 10px;
+  padding: 6px 8px;
   border: 1px solid #ffb380;
-  border-radius: 4px;
+  border-radius: 3px;
   outline: none;
   background: #fff;
+  font-size: 12px;
 }
 
 .select.small {
   padding: 4px 8px;
 }
 
-.refresh-btn {
-  background-color: #fff3e6;
-  color: #ff7f24;
+.search-input {
+  min-width: 200px;
+}
+
+.query-btn {
+  background: #ff7f24;
+  color: #fff;
   border: 1px solid #ff7f24;
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
+  font-size: 12px;
+}
+
+.refresh-btn {
+  background-color: #fff;
+  color: #ff7f24;
+  border: 1px solid #ff7f24;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .tabs {
   display: flex;
-  gap: 10px;
-  padding: 16px 20px 0;
+  gap: 20px;
+  border-bottom: 1px solid #ffb380;
+  padding: 0 16px;
 }
 
 .tab-btn {
-  background: #fff3e6;
-  color: #ff7f24;
-  border: 1px solid #ff7f24;
-  padding: 8px 14px;
-  border-radius: 4px;
+  background: transparent;
+  color: #666;
+  border: none;
+  padding: 12px 2px;
   cursor: pointer;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
 }
 
 .tab-btn.active {
-  background: #ff7f24;
-  color: #fff;
+  color: #ff7f24;
+  border-bottom-color: #ff7f24;
+  font-weight: 600;
 }
 
 .table-card {
-  background: white;
-  margin: 16px 20px 24px;
-  border-radius: 8px;
+  background: #fff;
+  border-radius: 6px;
   border: 1px solid #ffb380;
-  padding: 16px;
+  padding: 0;
   overflow-x: auto;
 }
 
@@ -439,37 +792,37 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  padding: 12px 16px 8px;
 }
 
 .title {
-  font-size: 18px;
+  font-size: 15px;
   color: #ff7f24;
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .meta {
   color: #999;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .error {
-  background: #ffe8cc;
-  color: #ff4500;
-  border: 1px solid #ff7f24;
-  padding: 10px;
+  background: #fff5f5;
+  color: #cf1322;
+  border: 1px solid #ffa39e;
+  padding: 10px 12px;
   border-radius: 4px;
-  margin-bottom: 12px;
+  margin: 0 16px 12px;
 }
 
 .copy-tip {
-  background: #fff8f0;
-  color: #ff7f24;
-  border: 1px dashed #ffb380;
-  padding: 8px 10px;
+  background: #f6ffed;
+  color: #389e0d;
+  border: 1px dashed #b7eb8f;
+  padding: 8px 12px;
   border-radius: 4px;
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin: 0 16px 10px;
+  font-size: 12px;
 }
 
 .data-table {
@@ -482,24 +835,32 @@ onMounted(() => {
   color: #ff7f24;
   padding: 10px 8px;
   text-align: left;
-  border-bottom: 2px solid #ffb380;
-  font-size: 13px;
+  border-bottom: 1px solid #ffb380;
+  font-size: 12px;
 }
 
 .data-table td {
   padding: 10px 8px;
   border-bottom: 1px solid #fff3e6;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .data-table tr:hover {
   background: #fff8f0;
 }
 
-.code-link {
+.link {
   color: #ff7f24;
   cursor: pointer;
+  text-decoration: none;
+}
+
+.link:hover {
   text-decoration: underline;
+}
+
+.code-link {
+  font-weight: 600;
 }
 
 .empty {
@@ -509,40 +870,69 @@ onMounted(() => {
 }
 
 .pagination {
-  margin-top: 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
   justify-content: center;
+  gap: 12px;
+  padding: 12px 16px 16px;
 }
 
 .page-btn {
-  background-color: #fff3e6;
+  background: #fff;
   color: #ff7f24;
-  border: 1px solid #ff7f24;
+  border: 1px solid #ffb380;
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .page-btn:disabled {
-  opacity: 0.5;
+  color: #ccc;
+  border-color: #eee;
   cursor: not-allowed;
 }
 
 .page-info {
+  font-size: 12px;
   color: #666;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-input {
+  width: 60px;
+  padding: 4px 6px;
+  border: 1px solid #ffb380;
+  border-radius: 3px;
+  font-size: 12px;
+  text-align: center;
+}
+
+
+.pos {
+  color: #cf1322;
+}
+
+.neg {
+  color: #389e0d;
 }
 
 @media (max-width: 768px) {
-  .header {
+  .page-title-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
   }
   .filters {
-    gap: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .filter-right {
+    width: 100%;
+  }
+  .search-input {
+    width: 100%;
   }
 }
 </style>

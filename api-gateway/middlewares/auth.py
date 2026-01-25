@@ -40,6 +40,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/api/fundflow",  # 资金流向公开访问
         r"^/api/financial-report",  # 财报数据公开访问
         r"^/api/lhb",  # 龙虎榜公开访问
+        r"^/api/profit-forecast",  # 盈利预测公开访问
     ]
     
     def __init__(self, app):

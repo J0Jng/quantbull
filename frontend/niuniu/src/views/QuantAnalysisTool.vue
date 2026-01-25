@@ -1,9 +1,25 @@
 <template>
   <div class="quant-analysis-tool">
-    <div class="container">
-      <div class="back-to-home">
-        <router-link to="/" class="back-btn">返回主页</router-link>
+    <header class="header">
+      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <div class="header-nav">
+        <router-link to="/stock-data">股票数据</router-link>
+        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
+        <router-link to="/financial-report">财报</router-link>
+        <router-link to="/fund-source">资金流动</router-link>
+        <router-link to="/company-research">公司研报</router-link>
+        <router-link to="/quant-analysis">量化分析工具</router-link>
+        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
+          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
+          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
+            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
+          </div>
+        </div>
       </div>
+    </header>
+
+    <div class="container">
       <h1 class="page-title">量化分析工具</h1>
       
       <!-- 策略创建与回测 -->
@@ -906,6 +922,89 @@ watch(() => backtestForm.strategy_id, (newId) => {
 </script>
 
 <style scoped>
+.header {
+  background-color: #ff7f24;
+  padding: 12px 20px;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 99;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+}
+
+.logo:hover {
+  text-decoration: underline;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-nav a {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.header-nav .active,
+.header-nav .router-link-active,
+.header-nav .router-link-exact-active {
+  text-decoration: underline;
+}
+
+.header-nav .user-btn {
+  background-color: white;
+  color: #ff7f24;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.user-menu-container {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 120px;
+}
+
+.dropdown-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #fff3e6;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #fff8f0;
+}
+
+.dropdown-item.logout {
+  color: #ff4500;
+}
+
 .quant-analysis-tool {
   padding: 20px 0;
   background: #fff8f0;

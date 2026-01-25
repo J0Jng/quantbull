@@ -16,6 +16,7 @@ import StockDataPage from '@/views/StockDataPage.vue'
 import FundSourcePage from '@/views/FundSourcePage.vue'
 import FinancialReportPage from '@/views/FinancialReportPage.vue'
 import DragonTigerListPage from '@/views/DragonTigerListPage.vue'
+import ProfitForecastPage from '@/views/ProfitForecastPage.vue'
 import GoodsDetail from '@/views/GoodsDetail.vue'
 import CartPage from '@/views/CartPage.vue'
 import OrderPage from '@/views/OrderPage.vue'
@@ -147,6 +148,12 @@ const routes = [
     name: 'DragonTigerList',
     component: DragonTigerListPage,
     meta: { title: '龙虎榜' }
+  },
+  {
+    path: '/profit-forecast',
+    name: 'ProfitForecast',
+    component: ProfitForecastPage,
+    meta: { title: '盈利预测' }
   },
   {
     path: '/shop/goods-detail/:id',

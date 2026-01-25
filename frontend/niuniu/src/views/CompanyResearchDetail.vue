@@ -93,7 +93,7 @@
 <script>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getCompanyResearchById } from '@/services/companyResearchService'
+import { getCompanyResearchById, getEastmoneyResearchDetail } from '@/services/companyResearchService'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -191,34 +191,89 @@ export default {
     }
 
     const fetchResearchDetail = async () => {
-      const id = route.params.id
+      const rawId = String(route.params.id || '')
+      const id = rawId ? decodeURIComponent(rawId) : ''
+      const source = String(route.query.source || 'ai')
       try {
         console.log('正在加载研报详情，ID:', id)
         
+        if (source === 'eastmoney') {
+          const rawUrl = typeof route.query.url === 'string' ? route.query.url : ''
+          const decodedUrl = rawUrl ? decodeURIComponent(rawUrl) : ''
+          const rawCategory = typeof route.query.category === 'string' ? route.query.category : ''
+          const rawTitle = typeof route.query.title === 'string' ? route.query.title : ''
+          const params = {
+            id,
+            url: decodedUrl,
+            category: rawCategory
+          }
+          const result = await getEastmoneyResearchDetail(params)
+          console.log('东方财富研报详情 API 返回:', result)
+
+          if (!result || !result.success) {
+            console.error('获取研报详情失败:', result?.message)
+            alert('获取研报详情失败: ' + (result?.message || '未知错误'))
+            return
+          }
+
+          const backendResponse = result.data
+          if (backendResponse.code !== 0) {
+            console.error('后端返回错误:', backendResponse.message)
+            alert('获取研报详情失败: ' + (backendResponse.message || '未知错误'))
+            return
+          }
+
+          const data = backendResponse.data
+          console.log('提取的东方财富研报详情:', data)
+
+          research.value = {
+            id,
+            title: data.title || rawTitle || '东方财富研报',
+            companyName: data.stock_name || data.title || rawTitle || '东方财富研报',
+            stockCode: data.stock_code || '-',
+            rating: data.rating || '中性',
+            institution: data.org_name || data.institution || '东方财富',
+            publishDate: data.publish_time,
+            analyst: data.analyst || '',
+            targetPrice: null,
+            currentPrice: null,
+            upside: null,
+            summary: data.summary || extractSummary(data.content),
+            investmentHighlight: '',
+            businessAnalysis: '',
+            financialAnalysis: '',
+            valuation: '',
+            riskWarning: '',
+            content: data.content || '',
+            pdfUrl: data.pdf_url || ''
+          }
+          return
+        }
+
         const result = await getCompanyResearchById(id)
         console.log('研报详情 API 返回:', result)
-        
+
         // 检查响应是否成功
         if (!result || !result.success) {
           console.error('获取研报详情失败:', result?.message)
           alert('获取研报详情失败: ' + (result?.message || '未知错误'))
           return
         }
-        
+
         // 统一解包：后端返回 {code, message, data: {研报对象}}
         const backendResponse = result.data
-        
+
         // 检查后端状态码
         if (backendResponse.code !== 0) {
           console.error('后端返回错误:', backendResponse.message)
           alert('获取研报详情失败: ' + (backendResponse.message || '未知错误'))
           return
         }
-        
+
         // 提取实际数据：研报对象
         const data = backendResponse.data
         console.log('提取的研报详情:', data)
-        
+
         // 评级映射
         const ratingMap = {
           'buy': '买入',
@@ -227,7 +282,7 @@ export default {
           'reduce': '减持',
           'sell': '卖出'
         }
-        
+
         // 映射后端数据到前端字段
         research.value = {
           id: data.id,
