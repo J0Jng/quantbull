@@ -338,11 +338,64 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import { getBuiltinStrategies, getStrategies, getStrategy } from '@/services/strategyService'
 import { runBacktest as runBacktestService, runBacktestAsync as runBacktestAsyncService, getBacktestResult, getBacktestList } from '@/services/backtestService'
 
 const router = useRouter()
 const route = useRoute()
+const { logged, userText, openLoginModal, logout } = useAuth()
+const showUserMenu = ref(false)
+let menuTimeout = null
+let hideTimeout = null
+
+function onMenuEnter() {
+  if (!logged.value) return
+  clearTimeout(hideTimeout)
+  menuTimeout = setTimeout(() => {
+    showUserMenu.value = true
+  }, 300)
+}
+
+function onMenuLeave() {
+  clearTimeout(menuTimeout)
+  hideTimeout = setTimeout(() => {
+    if (showUserMenu.value) {
+      showUserMenu.value = false
+    }
+  }, 200)
+}
+
+function onDropdownEnter() {
+  clearTimeout(hideTimeout)
+}
+
+function onDropdownLeave() {
+  hideTimeout = setTimeout(() => {
+    showUserMenu.value = false
+  }, 200)
+}
+
+function toggleUserMenu() {
+  if (!logged.value) {
+    openLoginModal()
+    showUserMenu.value = false
+  } else {
+    clearTimeout(menuTimeout)
+    clearTimeout(hideTimeout)
+    showUserMenu.value = !showUserMenu.value
+  }
+}
+
+function handleLogout() {
+  logout()
+  showUserMenu.value = false
+}
+
+function goToUserProfile() {
+  showUserMenu.value = false
+  router.push('/profile')
+}
 
 // 表单数据
 const backtestForm = reactive({

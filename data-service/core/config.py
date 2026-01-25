@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
     # 内部刷新接口 Token（可选）
     finance_channel_refresh_token: str = ""
+
+    # 视频中心配置
+    video_upload_dir: str = "static/videos"
+    video_cover_dir: str = "static/video_covers"
+    video_max_size_mb: int = 200
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
     

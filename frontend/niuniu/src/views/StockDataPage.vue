@@ -2,12 +2,13 @@
   <!-- 头部导航 -->
   <div class="stock-data-container" style="background: #fff8f0; min-height: 100vh;">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <router-link to="/" class="logo">量化牛牛 - 数据中心</router-link>
       <div class="header-nav">
         <router-link to="/stock-data">股票数据</router-link>
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
         <router-link to="/financial-report">财报</router-link>
         <router-link to="/fund-source">资金流动</router-link>
+        <router-link to="/profit-forecast">盈利预测</router-link>
         <router-link to="/company-research">公司研报</router-link>
         <router-link to="/quant-analysis">量化分析工具</router-link>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">

@@ -1,7 +1,9 @@
 import json
 import os
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from core.logger import configure_logging
@@ -48,6 +50,10 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router, prefix="/api")
+    static_dir = Path(__file__).resolve().parent / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    app.mount("/api/static", StaticFiles(directory=str(static_dir)), name="api-static")
     from fastapi.exceptions import HTTPException as StarletteHTTPException, RequestValidationError
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)

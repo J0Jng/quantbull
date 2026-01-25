@@ -28,6 +28,7 @@ import StrategyCreatePage from '@/views/StrategyCreatePage.vue'
 import StrategyDetailPage from '@/views/StrategyDetailPage.vue'
 import StrategyEditPage from '@/views/StrategyEditPage.vue'
 import AdminUsersPage from '@/views/AdminUsersPage.vue'
+import VideoCenterPage from '@/views/VideoCenterPage.vue'
 
 const routes = [
   {
@@ -116,6 +117,12 @@ const routes = [
     path: '/finance-channel',
     name: 'FinanceChannel',
     component: FinanceChannelPage
+  },
+  {
+    path: '/video',
+    name: 'VideoCenter',
+    component: VideoCenterPage,
+    meta: { title: '视频中心' }
   },
   {
     path: '/daily-insight',
@@ -231,7 +238,7 @@ router.beforeEach(async (to, from, next) => {
   document.title = `${title} - 量化牛牛`
   
   // 白名单路由（不需要登录）
-  const publicRoutes = ['/', '/Home', '/about', '/contact']
+  const publicRoutes = ['/', '/Home', '/about', '/contact', '/video']
   const isPublic = publicRoutes.includes(to.path) || to.name === 'Home'
   
   // 如果不是公开页面且未登录，触发登录弹窗并阻止导航

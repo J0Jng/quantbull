@@ -1,12 +1,13 @@
 <template>
   <div class="dragon-tiger-page">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <router-link to="/" class="logo">量化牛牛 - 数据中心</router-link>
       <div class="header-nav">
         <router-link to="/stock-data">股票数据</router-link>
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
         <router-link to="/financial-report">财报</router-link>
         <router-link to="/fund-source">资金流动</router-link>
+        <router-link to="/profit-forecast">盈利预测</router-link>
         <router-link to="/company-research">公司研报</router-link>
         <router-link to="/quant-analysis">量化分析工具</router-link>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
@@ -130,6 +131,8 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import {
   getLhbStocks,
   getLhbSummary,
@@ -139,6 +142,60 @@ import {
   getLhbBrokerRank,
   getLhbBrokerOnlistStats
 } from '@/services/dragonTigerService'
+
+const router = useRouter()
+const { logged, userText, openLoginModal, logout } = useAuth()
+const showUserMenu = ref(false)
+let menuTimeout = null
+let hideTimeout = null
+
+function onMenuEnter() {
+  if (!logged.value) return
+  clearTimeout(hideTimeout)
+  menuTimeout = setTimeout(() => {
+    showUserMenu.value = true
+  }, 300)
+}
+
+function onMenuLeave() {
+  clearTimeout(menuTimeout)
+  hideTimeout = setTimeout(() => {
+    if (showUserMenu.value) {
+      showUserMenu.value = false
+    }
+  }, 200)
+}
+
+function onDropdownEnter() {
+  clearTimeout(hideTimeout)
+}
+
+function onDropdownLeave() {
+  hideTimeout = setTimeout(() => {
+    showUserMenu.value = false
+  }, 200)
+}
+
+function toggleUserMenu() {
+  if (!logged.value) {
+    openLoginModal()
+    showUserMenu.value = false
+  } else {
+    clearTimeout(menuTimeout)
+    clearTimeout(hideTimeout)
+    showUserMenu.value = !showUserMenu.value
+  }
+}
+
+function handleLogout() {
+  logout()
+  showUserMenu.value = false
+}
+
+function goToUserProfile() {
+  showUserMenu.value = false
+  router.push('/profile')
+}
 
 const modes = [
   { label: '上榜个股', value: 'stocks' },
