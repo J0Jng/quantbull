@@ -51,7 +51,6 @@
         <!-- 市场数据 (列表风格) -->
         <h2 class="section-title" id="market-data">
           市场数据
-          <span v-if="marketCached" class="cache-badge">缓存</span>
         </h2>
         <div v-if="marketLoading" class="loading-state">加载中...</div>
         <div v-else-if="marketError" class="error-state">{{ marketError }}</div>
@@ -98,7 +97,6 @@
         <!-- 政策法规 (列表风格) -->
         <h2 class="section-title" id="policy-regulation">
           政策法规
-          <span v-if="policyCached" class="cache-badge">缓存</span>
         </h2>
         <div v-if="policyLoading" class="loading-state">加载中...</div>
         <div v-else-if="policyError" class="error-state">{{ policyError }}</div>
