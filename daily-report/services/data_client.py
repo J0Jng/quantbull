@@ -63,13 +63,13 @@ class DataServiceClient:
         """
         判断给定日期是否为交易日
 
-        逻辑：调用 market/overview，若返回的 trade_date 与请求日期一致，则视为交易日。
+        逻辑：优先调用 market/is-trading-day；若不可用则回退到 market/overview 逻辑。
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(
-                    f"{self.base_url}/market/overview",
-                    params={"date": date}
+                    f"{self.base_url}/market/is-trading-day",
+                    params={"date": date},
                 )
                 response.raise_for_status()
                 result = response.json()
@@ -79,20 +79,50 @@ class DataServiceClient:
                 else:
                     data = result
 
-                trade_date = None
-                if isinstance(data, dict):
-                    trade_date = data.get("trade_date") or data.get("tradeDate")
+                if isinstance(data, dict) and "is_trading_day" in data:
+                    return bool(data.get("is_trading_day"))
 
-                normalized_request = self._normalize_trade_date(date)
-                normalized_trade = self._normalize_trade_date(trade_date)
-
-                if not normalized_trade:
-                    logger.warning(f"市场概览未返回交易日字段，无法判定是否交易日: {date}")
-                    return False
-
-                return normalized_trade == normalized_request
+                logger.warning(f"交易日接口返回异常，回退到市场概览判定: {date}")
+                return await self._is_trading_day_by_overview(client, date)
         except httpx.HTTPError as e:
             logger.error(f"判断交易日失败: {e}")
+            return await self._is_trading_day_by_overview(None, date)
+
+    async def _is_trading_day_by_overview(
+        self, client: Optional[httpx.AsyncClient], date: str
+    ) -> bool:
+        """回退逻辑：调用 market/overview 判断交易日"""
+        try:
+            if client is None:
+                async with httpx.AsyncClient(timeout=self.timeout) as new_client:
+                    return await self._is_trading_day_by_overview(new_client, date)
+
+            response = await client.get(
+                f"{self.base_url}/market/overview",
+                params={"date": date},
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if isinstance(result, dict) and "data" in result:
+                data = result["data"]
+            else:
+                data = result
+
+            trade_date = None
+            if isinstance(data, dict):
+                trade_date = data.get("trade_date") or data.get("tradeDate")
+
+            normalized_request = self._normalize_trade_date(date)
+            normalized_trade = self._normalize_trade_date(trade_date)
+
+            if not normalized_trade:
+                logger.warning(f"市场概览未返回交易日字段，无法判定是否交易日: {date}")
+                return False
+
+            return normalized_trade == normalized_request
+        except httpx.HTTPError as e:
+            logger.error(f"回退判断交易日失败: {e}")
             return False
     
     async def get_market_overview(self, date: str) -> MarketOverview:

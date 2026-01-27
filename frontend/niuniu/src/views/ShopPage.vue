@@ -2,7 +2,7 @@
   <div>
     <!-- 头部 -->
     <div class="header">
-      <div class="logo" @click="goHome">量化牛牛商店</div>
+      <div class="logo" @click="goHome">量化牛牛商城</div>
       <div class="header-opt">
         <!-- 管理员按钮 -->
         <a href="#" v-if="isAdmin" @click.prevent="showAddProductModal = true" class="admin-btn">
@@ -38,6 +38,8 @@
       <a href="#course" class="category-item" :class="{ active: activeCategory==='course' }" @click.prevent="go('course')">课程</a>
       <a href="#book" class="category-item" :class="{ active: activeCategory==='book' }" @click.prevent="go('book')">书籍</a>
       <a href="#talent" class="category-item" :class="{ active: activeCategory==='talent' }" @click.prevent="go('talent')">人才</a>
+      <a href="#bank" class="category-item" :class="{ active: activeCategory==='bank' }" @click.prevent="go('bank')">银行产品</a>
+      <a href="#insurance" class="category-item" :class="{ active: activeCategory==='insurance' }" @click.prevent="go('insurance')">保险产品</a>
     </div>
 
     <!-- 加载状态 -->
@@ -189,6 +191,46 @@
           </div>
         </div>
       </div>
+
+      <!-- 银行产品分类 -->
+      <h2 class="section-title" id="bank">银行产品</h2>
+      <div class="goods-grid">
+        <div class="goods-card" v-for="item in bankItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
+          <div class="goods-info">
+            <span class="goods-tag">银行</span>
+            <div class="goods-name">{{ item.name }}</div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
+            <div class="goods-btn">
+              <button class="buy-btn" @click="addToCart(item)">立即购买</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 保险产品分类 -->
+      <h2 class="section-title" id="insurance">保险产品</h2>
+      <div class="goods-grid">
+        <div class="goods-card" v-for="item in insuranceItems" :key="item.id">
+          <img :src="item.img || defaultImg" alt="" class="goods-img" loading="lazy">
+          <div class="goods-info">
+            <span class="goods-tag">保险</span>
+            <div class="goods-name">{{ item.name }}</div>
+            <div class="goods-price">{{ formatPrice(item.price) }}</div>
+            <div class="goods-btn">
+              <button class="buy-btn" @click="addToCart(item)">立即投保</button>
+            </div>
+            <div class="admin-actions" v-if="isAdmin">
+              <button class="edit-btn" @click="openEditModal(item)">编辑</button>
+              <button class="delete-btn" @click="confirmDelete(item)">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 新增/编辑商品弹窗 -->
@@ -211,6 +253,8 @@
                 <option value="course">课程</option>
                 <option value="book">书籍</option>
                 <option value="talent">人才</option>
+                <option value="bank">银行产品</option>
+                <option value="insurance">保险产品</option>
               </select>
             </div>
             <div class="form-group">
@@ -345,6 +389,8 @@ const advisorItems = computed(() => allProducts.value.filter(p => p.type === 'ad
 const courseItems = computed(() => allProducts.value.filter(p => p.type === 'course'))
 const bookItems = computed(() => allProducts.value.filter(p => p.type === 'book'))
 const talentItems = computed(() => allProducts.value.filter(p => p.type === 'talent'))
+const bankItems = computed(() => allProducts.value.filter(p => p.type === 'bank'))
+const insuranceItems = computed(() => allProducts.value.filter(p => p.type === 'insurance'))
   
 // 购物车徽章显示
 const cartBadgeCount = computed(() => cartStore.totalItems)
@@ -393,6 +439,28 @@ async function loadProducts() {
     const result = await getProducts()
     if (result.success && result.data) {
       allProducts.value = result.data
+      
+      // --- 用于演示：如果没有银行或保险产品，添加示例数据 ---
+      const hasBank = allProducts.value.some(p => p.type === 'bank')
+      const hasInsurance = allProducts.value.some(p => p.type === 'insurance')
+      
+      if (!hasBank) {
+        allProducts.value.push(
+          { id: 'mock-bank-1', type: 'bank', name: '稳健优选理财30天', price: 10000, img: 'https://picsum.photos/id/20/400/300', description: '低风险，稳健收益' },
+          { id: 'mock-bank-2', type: 'bank', name: '招财宝90天定存', price: 50000, img: 'https://picsum.photos/id/160/400/300', description: '中低风险，收益可观' },
+          { id: 'mock-bank-3', type: 'bank', name: '大额存单3年期', price: 200000, img: 'https://picsum.photos/id/180/400/300', description: '保本保息，安心之选' }
+        )
+      }
+      
+      if (!hasInsurance) {
+        allProducts.value.push(
+          { id: 'mock-ins-1', type: 'insurance', name: '安康百万医疗险', price: 365, img: 'https://picsum.photos/id/531/400/300', description: '每年仅需365元，享百万保障' },
+          { id: 'mock-ins-2', type: 'insurance', name: '出行无忧意外险', price: 99, img: 'https://picsum.photos/id/619/400/300', description: '商旅出行必备，全方位守护' },
+          { id: 'mock-ins-3', type: 'insurance', name: '家庭财产综合险', price: 188, img: 'https://picsum.photos/id/96/400/300', description: '守护温馨家园，防盗防灾' }
+        )
+      }
+      // -----------------------------------------------------
+
     } else {
       console.error('Failed to load products:', result.message)
     }
@@ -712,7 +780,9 @@ body{background-color:#fff8f0;color:#333}
 #advisor.section-title,
 #course.section-title,
 #book.section-title,
-#talent.section-title {
+#talent.section-title,
+#bank.section-title,
+#insurance.section-title {
   color: #ffffff;
   transform: translateX(-1px);
 }
