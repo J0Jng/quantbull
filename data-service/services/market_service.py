@@ -147,3 +147,52 @@ class MarketService:
                     total_turnover=0.0
                 )
                 return success(empty_data)
+
+    def is_trading_day(self, date: str) -> Dict:
+        """
+        判断给定日期是否为交易日（基于 Tushare 交易日历）
+
+        Args:
+            date: 日期 YYYY-MM-DD
+        """
+        query_date = date.replace("-", "")
+        try:
+            df = self.tushare_service.api.trade_cal(
+                exchange="SSE",
+                start_date=query_date,
+                end_date=query_date,
+            )
+
+            if df is None or df.empty:
+                return success(
+                    {
+                        "date": date,
+                        "is_trading_day": False,
+                        "source": "trade_cal",
+                    }
+                )
+
+            row = df.iloc[0]
+            is_open = int(row.get("is_open", 0)) == 1
+            cal_date = str(row.get("cal_date") or query_date)
+            if len(cal_date) == 8:
+                formatted_date = f"{cal_date[:4]}-{cal_date[4:6]}-{cal_date[6:8]}"
+            else:
+                formatted_date = cal_date
+
+            return success(
+                {
+                    "date": formatted_date,
+                    "is_trading_day": is_open,
+                    "source": "trade_cal",
+                }
+            )
+        except Exception as e:
+            logger.error(f"交易日判断失败: {e}")
+            return success(
+                {
+                    "date": date,
+                    "is_trading_day": False,
+                    "source": "trade_cal_error",
+                }
+            )

@@ -33,12 +33,13 @@
     <nav class="main-nav">
       <div class="container">
         <ul class="nav-list">
-          <li><a href="#">首页</a></li>
+          <li><router-link to="/">首页</router-link></li>
           <li><router-link to="/finance-channel">财经频道</router-link></li>
           <li><router-link to="/daily-insight">每日内参</router-link></li>
           <li><router-link to="/shop">商城</router-link></li>
           <li><router-link to="/fund-ranking">基金排行榜</router-link></li>
           <li><router-link to="/stock-data">数据中心</router-link></li>
+          <li><router-link to="/niu-model">牛牛大模型</router-link></li>
         </ul>
       </div>
     </nav>

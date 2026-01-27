@@ -14,7 +14,9 @@ export const ProductType = {
   ADVISOR: 'advisor',
   COURSE: 'course',
   BOOK: 'book',
-  TALENT: 'talent'
+  TALENT: 'talent',
+  BANK: 'bank',
+  INSURANCE: 'insurance'
 }
 
 /**
@@ -27,7 +29,9 @@ export const ProductTypeName = {
   advisor: '投顾',
   course: '课程',
   book: '书籍',
-  talent: '人才'
+  talent: '人才',
+  bank: '银行产品',
+  insurance: '保险产品'
 }
 
 /**

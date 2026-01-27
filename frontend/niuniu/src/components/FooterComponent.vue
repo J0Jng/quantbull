@@ -13,6 +13,7 @@
             <router-link to="/about" class="footer-link">关于我们</router-link>
             <router-link to="/contact" class="footer-link">联系我们</router-link>
             <router-link to="/join" class="footer-link">加入我们</router-link>
+            <router-link to="/partners" class="footer-link">战略合作单位</router-link>
           </div>
         </div>
 
@@ -27,6 +28,13 @@
         <!-- 友情链接 -->
         <div class="footer-column">
           <h3 class="column-title">友情链接</h3>
+          <div class="link-list">
+            <a href="https://www.csc.com.cn/" target="_blank" rel="noopener noreferrer" class="footer-link">中信建投</a>
+            <a href="https://www.ubquant.com/" target="_blank" rel="noopener noreferrer" class="footer-link">九坤投资</a>
+            <a href="http://www.ronginvest.com/" target="_blank" rel="noopener noreferrer" class="footer-link">榕树投资</a>
+            <a href="http://www.wk-investment.com/" target="_blank" rel="noopener noreferrer" class="footer-link">悟空投资</a>
+            <a href="#" class="footer-link">深泛联投资</a>
+          </div>
         </div>
 
         <!-- 关注我们 -->

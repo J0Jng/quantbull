@@ -25,3 +25,17 @@ class MarketOverviewResponse(BaseModel):
     code: int = Field(default=0, description="响应码")
     message: str = Field(default="ok", description="响应消息")
     data: MarketOverviewData = Field(..., description="市场概览数据")
+
+
+class TradingDayStatusData(BaseModel):
+    """交易日状态数据"""
+    date: str = Field(..., description="日期 YYYY-MM-DD")
+    is_trading_day: bool = Field(..., description="是否交易日")
+    source: str = Field(default="trade_cal", description="数据来源")
+
+
+class TradingDayStatusResponse(BaseModel):
+    """交易日状态响应"""
+    code: int = Field(default=0, description="响应码")
+    message: str = Field(default="ok", description="响应消息")
+    data: TradingDayStatusData = Field(..., description="交易日状态数据")

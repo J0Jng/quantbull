@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="page-wrapper">
     <!-- 头部 -->
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛财经频道</div>
@@ -14,12 +14,6 @@
       </div>
     </div>
 
-    <!-- 搜索栏 -->
-    <div class="search-bar">
-      <input v-model="searchQuery" type="text" placeholder="搜索财经资讯、研报、数据等" @keyup.enter="handleSearch" />
-      <button class="search-btn" @click="handleSearch">搜索</button>
-    </div>
-
     <!-- 分类导航 -->
     <div class="category-nav">
       <a href="#finance-news" class="category-item" :class="{ active: activeCategory==='finance-news' }" @click.prevent="go('finance-news')">财经资讯</a>
@@ -31,93 +25,98 @@
 
     <!-- 主容器 -->
     <div class="container">
-      <!-- 财经资讯 -->
-      <h2 class="section-title" id="finance-news">财经资讯</h2>
-      <div v-if="newsLoading" style="text-align: center; padding: 40px; color: #999;">
-        加载中...
-      </div>
-      <div v-else-if="newsError" style="text-align: center; padding: 40px; color: #ff4444;">
-        {{ newsError }}
-      </div>
-      <div class="news-grid" v-else>
-        <div class="news-card" v-for="(item, i) in newsItems" :key="item.id || 'news'+i">
-          <div class="news-info">
-            <div class="news-title">{{ item.title }}</div>
-            <div class="news-summary">{{ item.summary }}</div>
-            <div class="news-meta">
-              <span class="news-source">{{ item.source }}{{ item.author ? ' · ' + item.author : '' }}</span>
-              <span class="news-time">{{ item.time }}</span>
+      <div class="main-content">
+        
+        <!-- 财经资讯 (快讯风格) -->
+        <h2 class="section-title" id="finance-news">财经资讯</h2>
+        <div v-if="newsLoading" class="loading-state">加载中...</div>
+        <div v-else-if="newsError" class="error-state">{{ newsError }}</div>
+        <div class="kuaixun-list" v-else>
+          <div class="kuaixun-item" v-for="(item, i) in newsItems" :key="item.id || 'news'+i">
+            <div class="kuaixun-time-col">
+              <div class="kuaixun-time">{{ formatTime(item.time) }}</div>
+              <div class="kuaixun-date">{{ formatDate(item.time) }}</div>
+            </div>
+            <div class="kuaixun-content">
+              <div class="kuaixun-title">{{ item.title }}</div>
+              <div class="kuaixun-summary">{{ item.summary }}</div>
+              <div class="kuaixun-meta">
+                <span class="meta-source">{{ item.source }}{{ item.author ? ' · ' + item.author : '' }}</span>
+                <span class="meta-action">分享</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 市场数据 -->
-      <h2 class="section-title" id="market-data">
-        市场数据
-        <span v-if="marketCached" class="cache-badge">缓存数据</span>
-      </h2>
-      <div v-if="marketLoading" style="text-align: center; padding: 40px; color: #999;">
-        加载中...
-      </div>
-      <div v-else-if="marketError" style="text-align: center; padding: 40px; color: #ff4444;">
-        {{ marketError }}
-      </div>
-      <div class="data-grid" v-else>
-        <div class="data-card" v-for="(item, i) in marketDataItems" :key="'data'+i">
-          <div class="data-title">{{ item.title }}</div>
-          <div class="data-value">{{ item.value }}</div>
-          <div class="data-change" :class="item.change_pct > 0 ? 'positive' : 'negative'">
-            {{ item.change_pct > 0 ? '+' : '' }}{{ item.change_pct }}%
+        <!-- 市场数据 (列表风格) -->
+        <h2 class="section-title" id="market-data">
+          市场数据
+          <span v-if="marketCached" class="cache-badge">缓存</span>
+        </h2>
+        <div v-if="marketLoading" class="loading-state">加载中...</div>
+        <div v-else-if="marketError" class="error-state">{{ marketError }}</div>
+        <div class="data-table" v-else>
+          <div class="data-header">
+            <div class="th name">名称</div>
+            <div class="th value">最新价</div>
+            <div class="th change">涨跌幅</div>
+            <div class="th time">更新时间</div>
           </div>
-          <div class="data-time">{{ item.updated_at }}</div>
-        </div>
-      </div>
-
-
-      <!-- 投资观点 -->
-      <h2 class="section-title" id="investment-ideas">
-        投资观点
-        <span v-if="ideasCached" class="cache-badge">缓存数据</span>
-      </h2>
-      <div v-if="ideasLoading" style="text-align: center; padding: 40px; color: #999;">
-        加载中...
-      </div>
-      <div v-else-if="ideasError" style="text-align: center; padding: 40px; color: #ff4444;">
-        {{ ideasError }}
-      </div>
-      <div class="ideas-grid" v-else>
-        <div class="ideas-card" v-for="(item, i) in ideasItems" :key="'idea'+i">
-          <div class="ideas-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.title }}</div>
-          <div class="ideas-author" v-if="item.author">{{ item.author }}</div>
-          <div class="ideas-content">{{ item.content }}</div>
-          <div class="ideas-meta">
-            <span class="ideas-source">{{ item.source }}</span>
-            <span class="ideas-date">{{ formatIdeaDate(item.date) }}</span>
+          <div class="data-row" v-for="(item, i) in marketDataItems" :key="'data'+i">
+            <div class="td name">{{ item.title }}</div>
+            <div class="td value price-font">{{ item.value }}</div>
+            <div class="td change" :class="getChangeClass(item.change_pct)">
+              {{ item.change_pct > 0 ? '+' : '' }}{{ item.change_pct }}%
+            </div>
+            <div class="td time">{{ item.updated_at }}</div>
           </div>
         </div>
-      </div>
 
-      <!-- 政策法规 -->
-      <h2 class="section-title" id="policy-regulation">
-        政策法规
-        <span v-if="policyCached" class="cache-badge">缓存数据</span>
-      </h2>
-      <div v-if="policyLoading" style="text-align: center; padding: 40px; color: #999;">
-        加载中...
-      </div>
-      <div v-else-if="policyError" style="text-align: center; padding: 40px; color: #ff4444;">
-        {{ policyError }}
-      </div>
-      <div class="policy-grid" v-else>
-        <div class="policy-card" v-for="(item, i) in policyItems" :key="'policy'+i">
-          <div class="policy-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">{{ item.title }}</div>
-          <div class="policy-summary">{{ item.summary }}</div>
-          <div class="policy-meta">
-            <span class="policy-source">{{ item.source }}</span>
-            <span class="policy-date">{{ item.date }}</span>
+        <!-- 投资观点 (列表风格) -->
+        <h2 class="section-title" id="investment-ideas">
+          投资观点
+          <span v-if="ideasCached" class="cache-badge">缓存</span>
+        </h2>
+        <div v-if="ideasLoading" class="loading-state">加载中...</div>
+        <div v-else-if="ideasError" class="error-state">{{ ideasError }}</div>
+        <div class="article-list" v-else>
+          <div class="article-item" v-for="(item, i) in ideasItems" :key="'idea'+i">
+            <div class="article-main">
+              <div class="article-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">
+                {{ item.title }}
+              </div>
+              <div class="article-summary">{{ item.content }}</div>
+              <div class="article-footer">
+                <span class="author" v-if="item.author">{{ item.author }}</span>
+                <span class="source">{{ item.source }}</span>
+                <span class="date">{{ formatIdeaDate(item.date) }}</span>
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- 政策法规 (列表风格) -->
+        <h2 class="section-title" id="policy-regulation">
+          政策法规
+          <span v-if="policyCached" class="cache-badge">缓存</span>
+        </h2>
+        <div v-if="policyLoading" class="loading-state">加载中...</div>
+        <div v-else-if="policyError" class="error-state">{{ policyError }}</div>
+        <div class="article-list" v-else>
+          <div class="article-item" v-for="(item, i) in policyItems" :key="'policy'+i">
+             <div class="article-main">
+              <div class="article-title" :class="{ clickable: !!item.url }" @click="item.url && openUrl(item.url)">
+                {{ item.title }}
+              </div>
+              <div class="article-summary">{{ item.summary }}</div>
+              <div class="article-footer">
+                <span class="source">{{ item.source }}</span>
+                <span class="date">{{ item.date }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -125,7 +124,11 @@
     <div class="footer">
       <p>量化牛牛财经频道 © 2025 版权所有</p>
       <p>风险提示：投资有风险，入市需谨慎。以上内容仅供参考，不构成投资建议</p>
-      <p>基金投资需谨慎，过往业绩不代表未来收益</p>
+    </div>
+
+    <!-- 悬浮按钮 (左下角) -->
+    <div class="scroll-top-btn" @click="scrollToTop" title="返回顶部">
+      <span class="icon">↑</span>
     </div>
   </div>
 </template>
@@ -183,7 +186,7 @@ function goToUserProfile() {
 function go(id) {
   activeCategory.value = id
   const el = document.getElementById(id)
-  if (el) window.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' })
+  if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' })
 }
 
 function goVideo() {
@@ -238,6 +241,40 @@ function formatIdeaDate(value) {
   }
   return normalized
 }
+
+// 时间格式化辅助
+function formatTime(timeStr) {
+  if (!timeStr) return ''
+  try {
+    // 尝试解析，如果是 HH:mm 格式直接返回
+    if (/^\d{2}:\d{2}/.test(timeStr) && timeStr.length === 5) return timeStr
+    const d = new Date(timeStr)
+    if (isNaN(d.getTime())) return timeStr
+    return d.toTimeString().slice(0, 5)
+  } catch (e) {
+    return timeStr
+  }
+}
+
+function formatDate(timeStr) {
+  if (!timeStr) return ''
+  try {
+    const d = new Date(timeStr)
+    if (isNaN(d.getTime())) return ''
+    return `${d.getMonth() + 1}-${d.getDate()}`
+  } catch (e) {
+    return ''
+  }
+}
+
+function getChangeClass(change) {
+  const val = parseFloat(change)
+  if (isNaN(val)) return ''
+  if (val > 0) return 'text-red'
+  if (val < 0) return 'text-green'
+  return ''
+}
+
 
 // 加载微博财经新闻
 async function loadWeiboNews(keyword = null) {
@@ -365,6 +402,10 @@ function handleSearch() {
   loadPolicies(keyword)
 }
 
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 // 页面加载时获取所有数据
 onMounted(() => {
   loadWeiboNews()
@@ -375,160 +416,131 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 直接复用原页面样式（简化并保留核心） */
-*{margin:0;padding:0;box-sizing:border-box;font-family:"微软雅黑",sans-serif}
-body{background-color:#fff8f0;color:#333}
-.login-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);display:flex;justify-content:center;align-items:center;z-index:9999}
-.login-box{width:90%;max-width:400px;background:white;border-radius:10px;padding:30px;position:relative;border:2px solid #ff7f24}
-.close-login{position:absolute;top:15px;right:15px;font-size:24px;color:#ff7f24;cursor:pointer}
-.login-title{font-size:22px;color:#ff7f24;text-align:center;margin-bottom:20px;font-weight:bold}
-.login-form{display:flex;flex-direction:column;gap:15px}
-.login-form input{padding:12px 15px;border:1px solid #ffb380;border-radius:6px}
-.login-btn{background-color:#ff7f24;color:white;border:none;padding:12px 0;border-radius:6px;cursor:pointer}
-.login-btn:hover{background-color:#ff6a00}
-.login-tips{ text-align:center;font-size:14px;color:#666;margin-top:10px }
-.error-tips{color:#ff4500;text-align:center}
-.header{background-color:#ff7f24;padding:12px 20px;color:white;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:99}
-.logo{font-size:22px;font-weight:bold;color:#ffffff;cursor:pointer}
-.header-opt{display:flex;align-items:center;gap:20px}
-.header-opt a{color:white;text-decoration:none;font-size:14px}
-.header-opt{position:relative}
-.user-menu-container{position:relative;display:inline-block}
-.header-opt .user-btn{background-color:white;color:#ff7f24;padding:6px 12px;border-radius:4px;cursor:pointer;position:relative}
-.user-menu-container:hover .user-btn{background-color:#f5f5f5}
-.user-dropdown{position:absolute;top:100%;right:0;background-color:white;border:1px solid #ddd;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:1000;margin-top:5px;min-width:120px}
-.dropdown-item{padding:8px 12px;cursor:pointer;font-size:14px;color:#333;border-bottom:1px solid #f0f0f0}
-.dropdown-item:hover{background-color:#f5f5f5}
-.dropdown-item.logout{color:#ff4444;border-bottom:none}
-.dropdown-item.logout:hover{background-color:#ffe6e6}
-.search-bar{padding:15px 20px;background-color:white;display:flex;gap:10px;align-items:center}
-.search-bar input{flex:1;padding:10px 15px;border:1px solid #ffb380;border-radius:6px;outline:none}
-.search-btn{background-color:#ff7f24;color:white;border:none;padding:10px 25px;border-radius:6px}
-.category-nav{background-color:#ff9933;padding:12px 20px;overflow-x:auto;white-space:nowrap}
-.category-item{display:inline-block;color:white;text-decoration:none;padding:6px 18px;margin-right:8px;border-radius:4px;font-size:15px;cursor:pointer}
-.category-item.active{background-color:#ff7f24;font-weight:bold}
-.container{max-width:1200px;margin:0 auto;padding:20px}
-.section-title{font-size:20px;color:#ff7f24;border-left:1px solid #ff7f24;padding-left:10px;margin:20px 0 15px;display:flex;align-items:center;gap:10px}
-.cache-badge{font-size:12px;color:#999;background:#f0f0f0;padding:2px 8px;border-radius:3px;font-weight:normal}
-/* 指定分类标题使用白色字体以匹配设计，并整体左移微调视觉对齐 */
-#finance-news.section-title,
-#market-data.section-title,
-#company-research.section-title,
-#investment-ideas.section-title,
-#policy-regulation.section-title {
-  color: #ffffff;
-  transform: translateX(-1px);
-}
-.news-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
-.news-card{background-color:white;border-radius:8px;overflow:hidden;border:1px solid #ffb380;transition:transform .2s;padding:15px}
-.news-card:hover{transform:translateY(-5px);box-shadow:0 4px 12px rgba(255,127,36,.15)}
-.news-info{display:flex;flex-direction:column;gap:8px}
-.news-title{font-size:16px;color:#333;font-weight:bold;white-space:normal;word-break:break-word}
-.news-summary{font-size:14px;color:#666;white-space:normal;word-break:break-word;line-height:1.5}
-.news-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px}
-.data-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:15px;margin-bottom:30px}
-.data-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;text-align:center;display:flex;flex-direction:column;gap:8px}
-.data-title{font-size:14px;color:#333;font-weight:bold}
-.data-value{font-size:22px;font-weight:bold;color:#ff7f24}
-.data-change{font-size:16px;font-weight:bold}
-.data-change.positive{color:#e74c3c}
-.data-change.negative{color:#27ae60}
-.data-time{font-size:11px;color:#999;margin-top:auto}
-.ideas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
-.ideas-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
-.ideas-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}
-.ideas-title.clickable{color:#ff7f24;cursor:pointer}
-.ideas-title.clickable:hover{text-decoration:underline}
-.ideas-author{font-size:14px;color:#ff7f24}
-.ideas-content{font-size:14px;color:#666;line-height:1.6;flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.ideas-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px;border-top:1px solid #f0f0f0}
-.ideas-source{color:#666}
-.ideas-date{text-align:right}
-.policy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:30px}
-.policy-card{background-color:white;border-radius:8px;border:1px solid #ffb380;padding:15px;display:flex;flex-direction:column;gap:10px}
-.policy-title{font-size:16px;color:#333;font-weight:bold;line-height:1.4}
-.policy-title.clickable{color:#ff7f24;cursor:pointer}
-.policy-title.clickable:hover{text-decoration:underline}
-.policy-summary{font-size:14px;color:#666;line-height:1.6;flex:1}
-.policy-meta{display:flex;justify-content:space-between;font-size:12px;color:#999;padding-top:5px;border-top:1px solid #f0f0f0}
-.policy-source{color:#666}
-.policy-date{text-align:right}
-.footer{background-color:#ff7f24;color:white;text-align:center;padding:20px;margin-top:40px}
-
-/* 动态风险提示样式 */
-.risk-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10000;
-}
-
-.risk-box {
-  width: 90%;
-  max-width: 500px;
-  background: white;
-  border-radius: 10px;
-  padding: 30px;
-  position: relative;
-  border: 3px solid #ff9933;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.risk-icon {
-  font-size: 40px;
-  text-align: center;
-  margin-bottom: 15px;
-}
-
-.risk-title {
-  font-size: 24px;
-  color: #ff4500;
-  text-align: center;
-  margin-bottom: 20px;
-  font-weight: bold;
-}
-
-.risk-content {
-  margin-bottom: 25px;
-  line-height: 1.6;
-}
-
-.risk-content p {
-  margin-bottom: 15px;
+/* 全局重置与基础样式 */
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft YaHei",sans-serif}
+.page-wrapper {
+  background-color: #f6f8fa; /* 浅灰背景，更商务 */
+  min-height: 100vh;
   color: #333;
 }
 
-.risk-content ul {
-  padding-left: 20px;
-  margin-bottom: 15px;
+/* 头部样式 */
+.header{background-color:#c83b3b;padding:12px 20px;color:white;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:99; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+.logo{font-size:22px;font-weight:bold;color:#ffffff;cursor:pointer}
+.header-opt{display:flex;align-items:center;gap:20px}
+.user-menu-container{position:relative;display:inline-block}
+.header-opt .user-btn{background-color:rgba(255,255,255,0.2);color:#fff;padding:6px 15px;border-radius:20px;cursor:pointer;font-size:14px;}
+.user-menu-container:hover .user-btn{background-color:rgba(255,255,255,0.3)}
+.user-dropdown{position:absolute;top:100%;right:0;background-color:white;border:1px solid #ddd;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:1000;margin-top:8px;min-width:120px}
+.dropdown-item{padding:8px 15px;cursor:pointer;font-size:14px;color:#333;border-bottom:1px solid #f0f0f0}
+.dropdown-item:hover{background-color:#f5f5f5}
+.dropdown-item.logout{color:#c83b3b;}
+
+/* 搜索栏 */
+.search-bar{padding:15px 20px;background-color:white;display:flex;gap:15px;align-items:center; border-bottom: 1px solid #eee;}
+.search-bar input{flex:1;padding:10px 15px;border:2px solid #f0f0f0;border-radius:4px;outline:none; transition:border-color 0.2s}
+.search-bar input:focus{border-color: #c83b3b;}
+.search-btn{background-color:#c83b3b;color:white;border:none;padding:10px 30px;border-radius:4px;cursor:pointer; font-weight: bold;}
+.search-btn:hover{background-color:#b53232;}
+
+/* 分类导航 */
+.category-nav{background-color:#fff;padding:0 20px;overflow-x:auto;white-space:nowrap; border-bottom: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
+.category-item{display:inline-block;color:#666;text-decoration:none;padding:15px 20px;margin-right:0;font-size:16px;cursor:pointer; border-bottom: 3px solid transparent;}
+.category-item:hover{color: #c83b3b;}
+.category-item.active{color:#c83b3b;border-bottom-color:#c83b3b;font-weight:bold}
+
+/* 容器与布局 */
+.container{max-width:1000px;margin:20px auto;padding:0 20px;}
+.main-content { background: white; padding: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.section-title{font-size:20px;color:#2c3e50;margin:30px 0 20px;padding-left:12px;border-left:4px solid #c83b3b; font-weight: 700; display: flex; align-items: center; gap: 10px;}
+.cache-badge{font-size:12px;color:#999;background:#f5f5f5;padding:2px 8px;border-radius:3px;font-weight:normal}
+
+/* 加载/错误状态 */
+.loading-state, .error-state { text-align: center; padding: 30px; color: #999; }
+.error-state { color: #f5222d; }
+
+/* 快讯列表风格 (List Style) */
+.kuaixun-list { display: flex; flex-direction: column; gap: 0; }
+.kuaixun-item { display: flex; padding: 15px 0; border-bottom: 1px solid #f0f0f0; position: relative; }
+.kuaixun-item:last-child { border-bottom: none; }
+.kuaixun-time-col { width: 80px; flex-shrink: 0; text-align: right; padding-right: 15px; border-right: 1px solid #eee; margin-right: 15px; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 2px;}
+.kuaixun-time { font-size: 16px; font-weight: bold; color: #c83b3b; }
+.kuaixun-date { font-size: 12px; color: #999; margin-top: 4px; }
+
+.kuaixun-content { flex: 1; }
+.kuaixun-title { font-size: 17px; font-weight: bold; color: #333; margin-bottom: 8px; line-height: 1.4; }
+.kuaixun-summary { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 10px; text-align: justify; }
+.kuaixun-meta { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; }
+.meta-action { cursor: pointer; color: #6699ff; }
+
+/* 市场数据 (Table List Style) */
+.data-table { border: 1px solid #eee; border-radius: 4px; overflow: hidden; }
+.data-header { display: flex; background: #f9f9f9; padding: 12px 15px; border-bottom: 1px solid #eee; font-weight: bold; color: #666; font-size: 14px; }
+.data-row { display: flex; padding: 12px 15px; border-bottom: 1px solid #eee; align-items: center; background: white; transition: background 0.1s; }
+.data-row:last-child { border-bottom: none; }
+.data-row:hover { background: #fdfdfd; }
+
+.th, .td { flex: 1; text-align: right; }
+.th.name, .td.name { flex: 1.5; text-align: left; color: #333; font-weight: 500; }
+.td.value { font-weight: bold; color: #333; }
+.td.time { color: #999; font-size: 13px; }
+.change { font-weight: bold; }
+.text-red { color: #f5222d; }
+.text-green { color: #52c41a; }
+.price-font { font-family: "D-DIN", "Arial", sans-serif; }
+
+/* 投资观点/政策法规 (Generic Article List) */
+.article-list { display: flex; flex-direction: column; }
+.article-item { padding: 15px 0; border-bottom: 1px dashed #eee; }
+.article-main { display: flex; flex-direction: column; gap: 8px; }
+.article-title { font-size: 17px; font-weight: bold; color: #333; line-height: 1.4; transition: color 0.2s; }
+.article-title.clickable:hover { color: #c83b3b; cursor: pointer; text-decoration: underline;}
+.article-summary { font-size: 14px; color: #666; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.article-footer { display: flex; gap: 15px; font-size: 12px; color: #999; margin-top: 5px; }
+.article-footer .source { background: #f5f5f5; padding: 2px 6px; border-radius: 2px; }
+
+/* 底部 */
+.footer{background-color:#333;color:#ccc;text-align:center;padding:30px 20px;margin-top:40px}
+.footer p { margin-bottom: 10px; font-size: 14px; }
+
+/* 响应式微调 */
+@media (max-width: 768px) {
+  .kuaixun-time-col { width: 60px; padding-right: 10px; margin-right: 10px; }
+  .kuaixun-time { font-size: 14px; }
+  .header-opt .user-btn { padding: 4px 10px; }
 }
 
-.risk-content li {
-  margin-bottom: 8px;
-  color: #666;
-}
-
-.risk-confirm-btn {
-  background-color: #ff7f24;
+/* 悬浮按钮 - 左下角 */
+.scroll-top-btn {
+  position: fixed;
+  bottom: 30px;
+  left: 30px;
+  width: 44px;
+  height: 44px;
+  background-color: #c83b3b;
   color: white;
-  border: none;
-  padding: 12px 30px;
-  border-radius: 6px;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  display: block;
-  margin: 0 auto;
-  transition: background-color 0.3s;
+  z-index: 1000;
+  transition: all 0.3s;
+  opacity: 0.8;
 }
 
-.risk-confirm-btn:hover {
-  background-color: #ff6a00;
+.scroll-top-btn:hover {
+  background-color: #a02828;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+  opacity: 1;
+}
+
+.scroll-top-btn .icon {
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1;
+  margin-top: -2px; /* Visual adjustment */
 }
 </style>

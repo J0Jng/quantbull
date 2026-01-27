@@ -23,6 +23,7 @@ import OrderPage from '@/views/OrderPage.vue'
 import AboutPage from '@/views/AboutPage.vue'
 import ContactPage from '@/views/ContactPage.vue'
 import JoinPage from '@/views/JoinPage.vue'
+import PartnersPage from '@/views/PartnersPage.vue'
 import NewsListPage from '@/views/NewsListPage.vue'
 import StrategyListPage from '@/views/StrategyListPage.vue'
 import StrategyCreatePage from '@/views/StrategyCreatePage.vue'
@@ -30,6 +31,7 @@ import StrategyDetailPage from '@/views/StrategyDetailPage.vue'
 import StrategyEditPage from '@/views/StrategyEditPage.vue'
 import AdminUsersPage from '@/views/AdminUsersPage.vue'
 import VideoCenterPage from '@/views/VideoCenterPage.vue'
+import NiuModelPage from '@/views/NiuModelPage.vue'
 
 const routes = [
   {
@@ -71,9 +73,21 @@ const routes = [
     meta: { title: '加入我们' }
   },
   {
+    path: '/partners',
+    name: 'Partners',
+    component: PartnersPage,
+    meta: { title: '战略合作单位' }
+  },
+  {
     path: '/quant-analysis',
     name: 'QuantAnalysis',
     component: QuantAnalysisTool
+  },
+  {
+    path: '/niu-model',
+    name: 'NiuModel',
+    component: NiuModelPage,
+    meta: { title: '牛牛大模型' }
   },
   {
     path: '/backtests/:id',
