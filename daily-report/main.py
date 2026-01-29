@@ -17,6 +17,11 @@ configure_logging(settings)
 logger = get_logger(__name__)
 
 
+def _should_run_scheduler() -> bool:
+    raw = (os.getenv("RUN_SCHEDULER", "true") or "true").strip().lower()
+    return raw in {"1", "true", "yes", "y", "on"}
+
+
 def _parse_cors_origins(raw: str) -> list[str]:
     raw = (raw or "").strip()
     if not raw:
@@ -60,15 +65,18 @@ async def lifespan(app: FastAPI):
             logger.warning("数据库初始化失败，但允许继续运行（可能使用内存数据库）")
     
     # 启动定时任务调度器
-    try:
-        scheduler = create_scheduler()
-        start_scheduler()
-        logger.info("定时任务调度器已启动")
-    except Exception as e:
-        logger.error(f"调度器启动失败: {e}", exc_info=True)
-        # 开发环境允许继续运行
-        if settings.env != "local":
-            raise
+    if _should_run_scheduler():
+        try:
+            scheduler = create_scheduler()
+            start_scheduler()
+            logger.info("定时任务调度器已启动")
+        except Exception as e:
+            logger.error(f"调度器启动失败: {e}", exc_info=True)
+            # 开发环境允许继续运行
+            if settings.env != "local":
+                raise
+    else:
+        logger.info("已禁用内置调度器（RUN_SCHEDULER=false）")
     
     logger.info("=" * 50)
     logger.info("Daily Report Service 启动完成")

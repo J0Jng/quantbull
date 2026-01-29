@@ -127,4 +127,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
         request.state.user = token_data
-        return await call_next(request)
+        try:
+            response = await call_next(request)
+        except RuntimeError as exc:
+            if "No response returned" in str(exc):
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={"code": status.HTTP_500_INTERNAL_SERVER_ERROR, "message": "下游服务未返回响应", "data": None},
+                )
+            raise
+
+        if response is None:
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"code": status.HTTP_500_INTERNAL_SERVER_ERROR, "message": "下游服务未返回响应", "data": None},
+            )
+
+        return response

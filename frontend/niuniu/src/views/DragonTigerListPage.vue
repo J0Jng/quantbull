@@ -34,28 +34,24 @@
 
         <div class="filters">
           <div class="filter-left">
-            <div class="filter-item" v-if="isTradeDateMode">
+            <div class="filter-item" v-if="isTradeDateMode && tradeDate">
               <span class="label">交易日：</span>
-              <input v-model="tradeDate" type="date" class="input" />
+              <span class="date-display">{{ tradeDate }}</span>
             </div>
             <div class="filter-item" v-else-if="isWindowMode">
               <span class="label">统计窗口：</span>
               <select
                 v-model="days"
                 class="select"
-                :disabled="mode === 'stockStat' || mode === 'instSeatTrack' || mode === 'brokerRank' || mode === 'brokerStats'"
               >
-                <option :value="1">近1日</option>
-                <option :value="3">近3日</option>
-                <option :value="5">近5日</option>
-                <option :value="10">近10日</option>
-                <option :value="20">近20日</option>
-                <option :value="30">近30日</option>
+                <option v-for="opt in windowOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
               </select>
             </div>
-            <div class="filter-item" v-if="showEndTradeDate">
+            <div class="filter-item" v-if="showEndTradeDate && endTradeDate">
               <span class="label">截止日：</span>
-              <input v-model="endTradeDate" type="date" class="input" />
+              <span class="date-display">{{ endTradeDate }}</span>
             </div>
             <button class="query-btn" type="button" @click="loadData()">查询</button>
             <button class="refresh-btn" type="button" @click="onRefresh">更新数据</button>
@@ -221,6 +217,25 @@ const rawRows = ref([])
 const total = ref(0)
 const copyMessage = ref('')
 
+const normalizeDate = (value) => {
+  if (!value) return ''
+  if (value instanceof Date && !Number.isNaN(value.valueOf())) {
+    const year = value.getFullYear()
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  let s = String(value).trim()
+  if (!s) return ''
+  if (/^\d{8}$/.test(s)) {
+    return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`
+  }
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) {
+    s = s.replaceAll('/', '-')
+  }
+  return s
+}
+
 const getEnvelopeData = (resp) => {
   let current = resp
   let guard = 0
@@ -260,19 +275,44 @@ const showEndTradeDate = computed(() =>
 )
 const isFixedTopMode = computed(() => false)
 
+const windowOptions = computed(() => {
+  if (mode.value === 'brokerStats') {
+    return [
+      { value: 30, label: '近30日' },
+      { value: 90, label: '近90日' },
+      { value: 180, label: '近180日' },
+      { value: 365, label: '近365日' }
+    ]
+  }
+  return [
+    { value: 1, label: '近1日' },
+    { value: 3, label: '近3日' },
+    { value: 5, label: '近5日' },
+    { value: 10, label: '近10日' },
+    { value: 20, label: '近20日' },
+    { value: 30, label: '近30日' }
+  ]
+})
+
 const highlightKeys = ['net_buy_amount', 'net_buy_ratio']
 
 const columnsMap = {
   stocks: [
+    { label: '序号', key: 'index' },
     { label: '代码', key: 'code' },
     { label: '名称', key: 'name' },
+    { label: '解读', key: 'reason' },
     { label: '收盘价', key: 'close', type: 'number' },
     { label: '涨跌幅', key: 'pct_change', type: 'percent' },
-    { label: '买入额', key: 'buy_amount', type: 'amount' },
-    { label: '卖出额', key: 'sell_amount', type: 'amount' },
-    { label: '净买入', key: 'net_buy_amount', type: 'amount' },
-    { label: '成交额', key: 'turnover', type: 'amount' },
-    { label: '上榜原因', key: 'reason' }
+    { label: '龙虎榜净买额', key: 'net_buy_amount', type: 'amount' },
+    { label: '龙虎榜买入额', key: 'buy_amount', type: 'amount' },
+    { label: '龙虎榜卖出额', key: 'sell_amount', type: 'amount' },
+    { label: '龙虎榜成交额', key: 'lhb_turnover', type: 'amount' },
+    { label: '市场总成交额', key: 'turnover', type: 'amount' },
+    { label: '净买额占总成交比', key: 'net_buy_ratio', type: 'percent' },
+    { label: '成交额占总成交比', key: 'lhb_turnover_ratio', type: 'percent' },
+    { label: '换手率', key: 'turnover_rate', type: 'percent' },
+    { label: '流通市值', key: 'circulation_market_value', type: 'amount' }
   ],
   stockStat: [
     { label: '代码', key: 'code' },
@@ -487,7 +527,7 @@ const loadData = async (forceRefresh = false) => {
     let result
     if (mode.value === 'stocks') {
       result = await getLhbStocks({
-        tradeDate: tradeDate.value || undefined,
+        tradeDate: normalizeDate(tradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
@@ -495,14 +535,14 @@ const loadData = async (forceRefresh = false) => {
     } else if (mode.value === 'stockStat') {
       result = await getLhbSummary({
         days: days.value,
-        endTradeDate: endTradeDate.value || undefined,
+        endTradeDate: normalizeDate(endTradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
       })
     } else if (mode.value === 'instTrades') {
       result = await getLhbInstitutionTrades({
-        tradeDate: tradeDate.value || undefined,
+        tradeDate: normalizeDate(tradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
@@ -510,14 +550,14 @@ const loadData = async (forceRefresh = false) => {
     } else if (mode.value === 'instSeatTrack') {
       result = await getLhbInstitutionSeatTrack({
         days: days.value,
-        endTradeDate: endTradeDate.value || undefined,
+        endTradeDate: normalizeDate(endTradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
       })
     } else if (mode.value === 'activeBroker') {
       result = await getLhbActiveBrokers({
-        tradeDate: tradeDate.value || undefined,
+        tradeDate: normalizeDate(tradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
@@ -525,7 +565,7 @@ const loadData = async (forceRefresh = false) => {
     } else if (mode.value === 'brokerRank') {
       result = await getLhbBrokerRank({
         days: days.value,
-        endTradeDate: endTradeDate.value || undefined,
+        endTradeDate: normalizeDate(endTradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
@@ -533,7 +573,7 @@ const loadData = async (forceRefresh = false) => {
     } else {
       result = await getLhbBrokerOnlistStats({
         days: days.value,
-        endTradeDate: endTradeDate.value || undefined,
+        endTradeDate: normalizeDate(endTradeDate.value) || undefined,
         page: page.value,
         pageSize: pageSize.value,
         refresh: forceRefresh
@@ -542,14 +582,30 @@ const loadData = async (forceRefresh = false) => {
 
     if (result?.success) {
       const data = getEnvelopeData(result.data)
-      rawRows.value = resolveRows(data)
+      let list = resolveRows(data)
+      if (mode.value === 'stocks') {
+        list = list.map((item, i) => {
+          const buy = Number(item.buy_amount) || 0
+          const sell = Number(item.sell_amount) || 0
+          const mkt = Number(item.turnover) || 0
+          const lhb_turnover = buy + sell
+          const lhb_turnover_ratio = mkt ? (lhb_turnover / mkt) * 100 : 0
+          return {
+            ...item,
+            index: item.rank || (page.value - 1) * pageSize.value + i + 1,
+            lhb_turnover,
+            lhb_turnover_ratio
+          }
+        })
+      }
+      rawRows.value = list
       const totalValue = data?.total ?? data?.data?.total
       total.value = typeof totalValue === 'number' ? totalValue : rawRows.value.length
       if (tradeDateModes.has(mode.value) && data?.trade_date && !tradeDate.value) {
-        tradeDate.value = data.trade_date
+        tradeDate.value = normalizeDate(data.trade_date)
       }
       if (windowModes.has(mode.value) && data?.end_trade_date && !endTradeDate.value) {
-        endTradeDate.value = data.end_trade_date
+        endTradeDate.value = normalizeDate(data.end_trade_date)
       }
     } else {
       rawRows.value = []
@@ -577,22 +633,25 @@ const onNextPage = () => {
   if (canNext.value) page.value += 1
 }
 
-watch([mode, tradeDate, endTradeDate, days, pageSize], () => {
+watch(mode, () => {
   if (mode.value === 'stocks') {
     pageSize.value = pageSize.value || 50
   }
-  if (mode.value === 'stockStat') {
-    days.value = 30
-  }
-  if (mode.value === 'instSeatTrack') {
-    days.value = 30
-  }
-  if (mode.value === 'brokerRank') {
-    days.value = 30
-  }
   if (mode.value === 'brokerStats') {
     days.value = 90
+  } else if (windowModes.has(mode.value)) {
+    days.value = 30
   }
+  page.value = 1
+  loadData()
+})
+
+watch(days, () => {
+  page.value = 1
+  loadData()
+})
+
+watch(pageSize, () => {
   page.value = 1
   loadData()
 })
@@ -965,6 +1024,12 @@ onMounted(() => {
   border-radius: 3px;
   font-size: 12px;
   text-align: center;
+}
+
+.date-display {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
 }
 
 

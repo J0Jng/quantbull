@@ -272,8 +272,12 @@
               </div>
             </div>
             <div class="form-group">
-              <label>图片URL</label>
-              <input type="text" v-model="productForm.img" placeholder="请输入图片URL（可选）" />
+              <label>商品图片</label>
+              <input type="file" accept="image/*" @change="onImageChange" />
+              <div class="field-hint">仅支持本地图片上传，保存后将以图片内容形式存储。</div>
+              <div class="image-preview" v-if="productForm.img">
+                <img :src="productForm.img" alt="图片预览" />
+              </div>
             </div>
             <div class="form-group">
               <label>商品描述</label>
@@ -581,6 +585,17 @@ function openEditModal(item) {
     is_active: item.is_active
   }
   showEditProductModal.value = true
+}
+
+function onImageChange(event) {
+  const file = event?.target?.files?.[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    productForm.value.img = String(reader.result || '')
+  }
+  reader.readAsDataURL(file)
 }
 
 async function submitProduct() {
@@ -1144,6 +1159,27 @@ body{background-color:#fff8f0;color:#333}
   font-size: 11px;
   color: #999;
   font-weight: normal;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+.image-preview {
+  margin-top: 8px;
+  border: 1px dashed #eee;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.image-preview img {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
 }
 
 /* 删除确认弹窗 */

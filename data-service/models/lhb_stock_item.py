@@ -29,6 +29,10 @@ class LhbStockItem(SQLModel, table=True):
     net_buy_amount: Optional[float] = Field(default=None, description="净买入金额（元）")
     turnover: Optional[float] = Field(default=None, description="成交额/换手金额（元）")
 
+    net_buy_ratio: Optional[float] = Field(default=None, description="净买额占总成交比")
+    turnover_rate: Optional[float] = Field(default=None, description="换手率（百分比）")
+    circulation_market_value: Optional[float] = Field(default=None, description="流通市值（元）")
+
     reason: Optional[str] = Field(default=None, max_length=300, description="上榜原因")
     rank: Optional[int] = Field(default=None, description="榜内排名")
 

@@ -41,15 +41,6 @@
         <div class="footer-column">
           <h3 class="column-title">关注我们</h3>
           <div class="link-list">
-            <a href="https://zhuanlan.zhihu.com" class="footer-link blue-link">知乎专栏</a>
-            <a href="https://xueqiu.com" class="footer-link blue-link">雪球</a>
-          </div>
-          <!-- 二维码区域 -->
-          <div class="qrcode-section">
-            <div class="qrcode-placeholder">
-              <div class="qrcode-image">二维码</div>
-              <span class="qrcode-text">微信公众号</span>
-            </div>
           </div>
         </div>
       </div>

@@ -54,7 +54,7 @@ class EastmoneyLhbService:
     }
 
     PREFERRED_REPORTS = {
-        "list": "RPT_ORGANIZATION_TRADE_DETAILSNEW",
+        "list": "RPT_DAILYBILLBOARD_DETAILSNEW",
         "summary": "RPT_BILLBOARD_TRADEALLNEW",
         "inst_trades": "RPT_ORGANIZATION_TRADE_DETAILSNEW",
         "inst_seat_track": "RPT_ORGANIZATION_SEATNEW",
@@ -237,6 +237,13 @@ class EastmoneyLhbService:
     async def _discover_report_name(self, kind: str, page_url: Optional[str] = None) -> Optional[str]:
         if kind in self._report_cache:
             return self._report_cache[kind]
+        
+        # 优先使用配置的优选报表名，避免页面结构变更导致解析失败
+        preferred = self.PREFERRED_REPORTS.get(kind)
+        if preferred:
+             self._report_cache[kind] = preferred
+             return preferred
+
         target_url = page_url or self.BASE_URL
         try:
             text = await self._request_text(target_url)
@@ -289,10 +296,25 @@ class EastmoneyLhbService:
             return None
         close = self._parse_number(self._pick(item, ["CLOSE_PRICE", "CLOSE"]))
         pct_change = self._parse_percent(self._pick(item, ["CHANGE_RATE", "PCT_CHANGE", "ZDF"]))
-        buy_amount = self._parse_number(self._pick(item, ["BUY_AMT", "BUY_AMOUNT", "BILL_BOARD_BUY_AMT"]))
-        sell_amount = self._parse_number(self._pick(item, ["SELL_AMT", "SELL_AMOUNT", "BILL_BOARD_SELL_AMT"]))
+        buy_amount = self._parse_number(self._pick(item, ["BUY_AMT", "BUY_AMOUNT", "BILL_BOARD_BUY_AMT", "BILLBOARD_BUY_AMT"]))
+        sell_amount = self._parse_number(self._pick(item, ["SELL_AMT", "SELL_AMOUNT", "BILL_BOARD_SELL_AMT", "BILLBOARD_SELL_AMT"]))
         net_buy_amount = self._parse_number(self._pick(item, ["NET_BUY_AMT", "NET_AMT", "BILL_BOARD_NET_AMT", "BILLBOARD_NET_AMT"]))
         turnover = self._parse_number(self._pick(item, ["ACCUM_AMOUNT", "TURNOVER", "TURNOVER_AMT", "TURNOVER_VALUE"]))
+        
+        net_buy_ratio = self._parse_percent(self._pick(item, ["RATIO", "NET_BUY_RATIO", "DEAL_NET_RATIO"]))
+        turnover_rate = self._parse_percent(self._pick(item, ["TURNOVERRATE", "TURNOVER_RATE", "HSL"]))
+        
+        circulation_market_value = self._pick(item, ["FREECAP", "CIRCULATION_MARKET_VALUE", "LTSZ", "FREE_MARKET_CAP"])
+        
+        reason = self._pick(item, ["EXPLANATION", "REASON", "CHANGE_REASON", "EXPLAIN"])
+        if circulation_market_value is not None:
+            try:
+                val = float(str(circulation_market_value))
+                # EastMoney FREECAP usually in 100M units
+                circulation_market_value = val * 100000000
+            except:
+                circulation_market_value = None
+
         reason = self._truncate(self._pick(item, ["EXPLANATION", "REASON", "REASON_TEXT", "LISTING_REASON"]))
         if not reason:
             return None
@@ -313,6 +335,9 @@ class EastmoneyLhbService:
             "sell_amount": sell_amount,
             "net_buy_amount": net_buy_amount,
             "turnover": turnover,
+            "net_buy_ratio": net_buy_ratio,
+            "turnover_rate": turnover_rate,
+            "circulation_market_value": circulation_market_value,
             "reason": reason,
             "rank": rank,
             "source_url": self.LIST_PAGE_URL,
@@ -390,16 +415,17 @@ class EastmoneyLhbService:
     async def _load_list_from_db(self, trade_date: str, page: int, page_size: int) -> Dict[str, Any]:
         if not self.db_session:
             return {"total": 0, "data": []}
-        try:
-            await self.db_session.execute(
-                delete(LhbStockItem).where(
-                    (LhbStockItem.trade_date == trade_date)
-                    & (LhbStockItem.reason == "龙虎榜")
-                )
-            )
-            await self.db_session.commit()
-        except Exception as exc:
-            logger.warning(f"清理上榜原因为龙虎榜的数据失败: {exc}")
+        # 移除读操作中的写逻辑，避免并发冲突
+        # try:
+        #     await self.db_session.execute(
+        #         delete(LhbStockItem).where(
+        #             (LhbStockItem.trade_date == trade_date)
+        #             & (LhbStockItem.reason == "龙虎榜")
+        #         )
+        #     )
+        #     await self.db_session.commit()
+        # except Exception as exc:
+        #     logger.warning(f"清理上榜原因为龙虎榜的数据失败: {exc}")
         query = select(LhbStockItem).where(LhbStockItem.trade_date == trade_date)
         result = await self.db_session.execute(query)
         rows = [self._model_to_dict(item) for item in result.scalars().all()]
@@ -948,6 +974,29 @@ class EastmoneyLhbService:
         return latest
 
     async def _guess_latest_trade_date(self) -> Optional[str]:
+        # 优先尝试直接从接口获取最新日期
+        try:
+            report_name = await self._discover_report_name("list", page_url=self.LIST_PAGE_URL)
+            if report_name:
+                items = await self._fetch_datacenter(
+                    report_name=report_name,
+                    filter_expr=None,
+                    page=1,
+                    page_size=1,
+                    sort_columns="TRADE_DATE",
+                    sort_types="-1",
+                )
+                if items:
+                    date_str = items[0].get("TRADE_DATE")
+                    if date_str:
+                        s = str(date_str)
+                        if " " in s:
+                            s = s.split(" ")[0]
+                        return s
+        except Exception as exc:
+            logger.warning(f"尝试从接口获取最新交易日失败: {exc}")
+
+        # 降级策略：根据系统时间回溯猜测
         today = datetime.now()
         for offset in range(0, 10):
             day = today - timedelta(days=offset)
