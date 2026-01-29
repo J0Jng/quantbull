@@ -164,14 +164,14 @@ def create_app() -> FastAPI:
             logger = logging.getLogger(__name__)
             logger.warning(f"龙虎榜定时任务启动失败: {e}")
 
-        # 启动每日财经头条生成任务（每日 03:00）
+        # 启动每日财经头条生成任务（每日 00:00）
         try:
             from scheduler_headlines import get_daily_headlines_scheduler
-            headlines_scheduler = get_daily_headlines_scheduler(hour=3, minute=0, limit=10, hours=24)
+            headlines_scheduler = get_daily_headlines_scheduler(hour=0, minute=0, limit=10, hours=24)
             headlines_scheduler.start()
             import logging
             logger = logging.getLogger(__name__)
-            logger.info("每日财经头条生成任务已启动（每日 03:00）")
+            logger.info("每日财经头条生成任务已启动（每日 00:00）")
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)

@@ -26,14 +26,6 @@
               <div class="info-value">{{ currentUser || '--' }}</div>
             </div>
             <div class="info-item">
-              <label>邮箱</label>
-              <div class="info-value">{{ currentUserEmail || '--' }}</div>
-            </div>
-            <div class="info-item">
-              <label>电话号码</label>
-              <div class="info-value">{{ currentUserPhone || '--' }}</div>
-            </div>
-            <div class="info-item">
               <label>注册时间</label>
               <div class="info-value">{{ userCreatedAtDisplay }}</div>
             </div>

@@ -9,7 +9,7 @@ WORKDIR /app
 
 # 安装系统依赖
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev tzdata && \
+  apt-get install -y --no-install-recommends gcc libpq-dev tzdata curl && \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
     pip install --upgrade pip setuptools wheel && \
     apt-get clean && rm -rf /var/lib/apt/lists/*

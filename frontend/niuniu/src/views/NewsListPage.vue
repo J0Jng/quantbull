@@ -94,19 +94,6 @@
               </div>
             </template>
           </div>
-          
-          <!-- 右侧热门推荐 -->
-          <div class="sidebar">
-            <div class="hot-news">
-              <h3 class="sidebar-title">热点聚焦</h3>
-              <ul>
-                <li v-for="(hotItem, hotIndex) in hotNews" :key="hotIndex">
-                  <span :class="hotIndex < 3 ? 'hot-index top-three' : 'hot-index'">{{ hotIndex + 1 }}</span>
-                  <a href="#" @click.prevent="goToHotNews(hotItem.id)">{{ hotItem.title }}</a>
-                </li>
-              </ul>
-            </div>
-          </div>
         </div>
       </div>
     </main>

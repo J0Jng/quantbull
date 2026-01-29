@@ -19,7 +19,11 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY . /app
 
 RUN useradd --create-home appuser && chown -R appuser:appuser /app
-USER appuser
+
+USER root
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 EXPOSE 8001
 

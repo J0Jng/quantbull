@@ -22,7 +22,7 @@ SHANGHAI_TZ = timezone("Asia/Shanghai")
 class DailyHeadlinesScheduler:
     """每日财经头条自动生成"""
 
-    def __init__(self, hour: int = 3, minute: int = 0, limit: int = 10, hours: int = 24):
+    def __init__(self, hour: int = 0, minute: int = 0, limit: int = 10, hours: int = 24):
         self.hour = hour
         self.minute = minute
         self.limit = limit
@@ -122,7 +122,7 @@ _scheduler: Optional[DailyHeadlinesScheduler] = None
 
 
 def get_daily_headlines_scheduler(
-    hour: int = 3,
+    hour: int = 0,
     minute: int = 0,
     limit: int = 10,
     hours: int = 24,

@@ -103,7 +103,6 @@
               <div class="return-col">近6月</div>
               <div class="return-col">近1年</div>
               <div class="return-col">近3年</div>
-              <div class="action-col">操作</div>
             </div>
             
             <div 
@@ -138,9 +137,6 @@
               </div>
               <div :class="['return-col', fund.return3y >= 0 ? 'red' : 'green']">
                 {{ fund.return3y >= 0 ? '+' : '' }}{{ fund.return3y }}%
-              </div>
-              <div class="action-col">
-                <button class="fav-btn small" @click.stop="toggleFavorite(fund)">收藏</button>
               </div>
             </div>
           </div>

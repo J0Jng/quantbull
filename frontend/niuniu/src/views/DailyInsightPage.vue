@@ -194,6 +194,7 @@ const selectedDate = ref(new Date().toISOString().split('T')[0])
 const reportData = ref(null)
 const generating = ref(false)
 const nonTradingDay = ref(false)
+const emptyRefreshCount = ref(0)
 
 // 市场情绪（从 market_sentiment 获取）
 const marketSentiment = computed(() => {
@@ -244,6 +245,26 @@ const stockAnalysis = computed(() => {
 const riskWarning = computed(() => {
   return reportData.value?.risk_warning || '投资有风险，入市需谨慎。请根据自身风险承受能力合理配置资产。'
 })
+
+const isReportTextEmpty = (data) => {
+  if (!data) {
+    return true
+  }
+
+  const marketText = (data.market_sentiment || '').trim()
+  const etfList = Array.isArray(data.etf_recommendations) ? data.etf_recommendations : []
+  const outlineSections = Array.isArray(data.article_outline?.sections) ? data.article_outline.sections : []
+  const stockList = Array.isArray(data.stock_recommendations) ? data.stock_recommendations : []
+  const riskText = (data.risk_warning || '').trim()
+
+  const hasMarket = marketText.length > 0
+  const hasEtf = etfList.length > 0
+  const hasOutline = outlineSections.length > 0
+  const hasStocks = stockList.length > 0
+  const hasRisk = riskText.length > 0
+
+  return !(hasMarket || hasEtf || hasOutline || hasStocks || hasRisk)
+}
 
 // 方法
 const goHome = () => {
@@ -366,6 +387,13 @@ const loadDailyData = async () => {
       }
       
       if (data.id && data.report_date) {
+        if (isReportTextEmpty(data) && emptyRefreshCount.value < 1) {
+          emptyRefreshCount.value += 1
+          loading.value = false
+          setTimeout(() => loadDailyData(), 200)
+          return
+        }
+        emptyRefreshCount.value = 0
         reportData.value = data
         error.value = '' // 清除错误信息
         console.log('报告数据加载成功:', data)
@@ -385,6 +413,13 @@ const loadDailyData = async () => {
             data = data.data
           }
           if (data.id && data.report_date) {
+            if (isReportTextEmpty(data) && emptyRefreshCount.value < 1) {
+              emptyRefreshCount.value += 1
+              loading.value = false
+              setTimeout(() => loadDailyData(), 200)
+              return
+            }
+            emptyRefreshCount.value = 0
             reportData.value = data
             error.value = ''
             console.log('日报生成并加载成功:', data)
