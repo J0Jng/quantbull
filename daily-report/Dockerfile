@@ -3,16 +3,32 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    TZ=Asia/Shanghai
+  TZ=Asia/Shanghai \
+  PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 
 WORKDIR /app
 
 # 安装系统依赖
 RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-      sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+      sed -i \
+        -e 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+        -e 's|https://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+        -e 's|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        -e 's|https://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        -e 's|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        -e 's|https://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        /etc/apt/sources.list.d/debian.sources; \
     elif [ -f /etc/apt/sources.list ]; then \
-      sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list; \
+      sed -i \
+        -e 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+        -e 's|https://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' \
+        -e 's|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        -e 's|https://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        -e 's|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        -e 's|https://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' \
+        /etc/apt/sources.list; \
     fi && \
+    printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::ForceIPv4 "true";\n' > /etc/apt/apt.conf.d/99retries && \
     apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates gcc libpq-dev tzdata curl && \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
