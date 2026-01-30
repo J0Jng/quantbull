@@ -13,15 +13,19 @@ WORKDIR /app
 
 # 安装系统依赖
 RUN if [ -n "$DEBIAN_MIRROR" ]; then \
-        sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list; \
-    fi && \
-    apt-get update && \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list; \
+    elif [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+  fi && \
+  apt-get update && \
   apt-get install -y --no-install-recommends gcc libpq-dev tzdata curl && \
-    ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
-    pip install --upgrade pip setuptools wheel && \
-    if [ -n "$PIP_INDEX_URL" ]; then pip config set global.index-url "$PIP_INDEX_URL"; fi && \
-    if [ -n "$PIP_TRUSTED_HOST" ]; then pip config set global.trusted-host "$PIP_TRUSTED_HOST"; fi && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+  ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
+  pip install --upgrade pip setuptools wheel && \
+  if [ -n "$PIP_INDEX_URL" ]; then pip config set global.index-url "$PIP_INDEX_URL"; fi && \
+  if [ -n "$PIP_TRUSTED_HOST" ]; then pip config set global.trusted-host "$PIP_TRUSTED_HOST"; fi && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
