@@ -94,24 +94,6 @@ docker-compose up -d
 ```
 会同时拉起 postgres/redis/tdengine 与各微服务（端口 8000~8004, 9000）。若不需要 TDengine 可在 compose 中移除。
 
-#### 前端（可选：Nginx 静态站点）
-项目已在 [docker-compose.yml](docker-compose.yml) 中补充 `frontend-nginx` 服务：
-- 容器对外暴露 `80`；
-- `/api/` 反代到 `api-gateway:8000`；
-- 静态文件从 `frontend/niuniu/dist` 挂载提供。
-
-首次部署前请在服务器（或 CI）先构建前端产物：
-```bash
-cd frontend/niuniu
-npm ci
-npm run build
-```
-然后启动：
-```bash
-docker compose up -d --build
-```
-访问：`http://<服务器IP>/`（API 通过同域 `/api/` 走网关）。
-
 ### 7. Roadmap / 未实现但在代码中预留
 - data-service 尚未提供 data_client 期望的 `/market/overview`、`/etf/list`、`/stock/list` 接口，daily-report 在非 local 环境会因此失败；需补齐实际数据源或统一聚合接口。
 - ai-hub 数字人生成、LLM 适配器需要真实三方 API Key；Rate limit/鉴权仅为占位。
