@@ -12,7 +12,11 @@ WORKDIR /app
 
 # 安装系统依赖（包括 TA-Lib 编译依赖）
 RUN if [ -n "$DEBIAN_MIRROR" ]; then \
-        sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list; \
+        if [ -f /etc/apt/sources.list ]; then \
+            sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list; \
+        elif [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+            sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+        fi; \
     fi && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
