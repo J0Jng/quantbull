@@ -1,9 +1,5 @@
 FROM python:3.12-slim
 
-ARG DEBIAN_MIRROR
-ARG PIP_INDEX_URL
-ARG PIP_TRUSTED_HOST
-
 # 生产优化的基础镜像配置
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -12,19 +8,10 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # 安装系统依赖（包含用于时区与常见 Python build 的基础包）
-RUN if [ -n "$DEBIAN_MIRROR" ]; then \
-        if [ -f /etc/apt/sources.list ]; then \
-            sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list; \
-        elif [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-            sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
-        fi; \
-    fi && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc libpq-dev tzdata && \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
     pip install --upgrade pip setuptools wheel && \
-    if [ -n "$PIP_INDEX_URL" ]; then pip config set global.index-url "$PIP_INDEX_URL"; fi && \
-    if [ -n "$PIP_TRUSTED_HOST" ]; then pip config set global.trusted-host "$PIP_TRUSTED_HOST"; fi && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 复制并安装 Python 依赖（优先使用 requirements.txt，适配 CI/CD）
