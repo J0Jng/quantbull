@@ -52,6 +52,7 @@
                 <th>用户名</th>
                 <th>角色</th>
                 <th>AI Token 余额</th>
+                <th>新密码</th>
                 <th>注册时间</th>
                 <th>操作</th>
               </tr>
@@ -69,6 +70,15 @@
                     v-model.number="editTokens[user.id]"
                   />
                 </td>
+                <td>
+                  <input
+                    class="password-input"
+                    type="password"
+                    placeholder="输入新密码"
+                    v-model.trim="editPasswords[user.id]"
+                    :disabled="savingIds.has(user.id)"
+                  />
+                </td>
                 <td>{{ formatDate(user.created_at) }}</td>
                 <td>
                   <button
@@ -84,6 +94,13 @@
                     :disabled="savingIds.has(user.id)"
                   >
                     {{ savingIds.has(user.id) ? '保存中...' : '保存' }}
+                  </button>
+                  <button
+                    class="action-btn secondary"
+                    @click="savePassword(user.id)"
+                    :disabled="savingIds.has(user.id)"
+                  >
+                    修改密码
                   </button>
                   <button
                     class="action-btn danger"
@@ -133,6 +150,7 @@ const error = ref('')
 const limit = ref(100)
 const offset = ref(0)
 const editTokens = ref({})
+const editPasswords = ref({})
 const savingIds = ref(new Set())
 const searchKeyword = ref('')
 
@@ -176,10 +194,13 @@ async function fetchUsers() {
       const data = result.data?.data || result.data || []
       users.value = Array.isArray(data) ? data : []
       const newEditTokens = {}
+      const newEditPasswords = {}
       users.value.forEach((user) => {
         newEditTokens[user.id] = user.ai_tokens
+        newEditPasswords[user.id] = ''
       })
       editTokens.value = newEditTokens
+      editPasswords.value = newEditPasswords
     } else {
       error.value = result.message || '加载失败'
     }
@@ -215,6 +236,37 @@ async function saveTokens(userId) {
     }
   } catch (err) {
     alert(err.message || '保存失败')
+  } finally {
+    savingIds.value.delete(userId)
+  }
+}
+
+async function savePassword(userId) {
+  if (!isAdmin.value) {
+    alert('无权限操作')
+    return
+  }
+  const password = (editPasswords.value[userId] || '').trim()
+  if (!password) {
+    alert('请输入新密码')
+    return
+  }
+  if (password.length < 6) {
+    alert('密码长度至少 6 位')
+    return
+  }
+
+  savingIds.value.add(userId)
+  try {
+    const result = await updateUser(userId, { password })
+    if (result.success) {
+      editPasswords.value[userId] = ''
+      await fetchUsers()
+    } else {
+      alert(result.message || '修改密码失败')
+    }
+  } catch (err) {
+    alert(err.message || '修改密码失败')
   } finally {
     savingIds.value.delete(userId)
   }
@@ -448,6 +500,13 @@ function clearSearch() {
 
 .token-input {
   width: 100px;
+  padding: 6px 8px;
+  border: 1px solid #ffb380;
+  border-radius: 4px;
+}
+
+.password-input {
+  width: 160px;
   padding: 6px 8px;
   border: 1px solid #ffb380;
   border-radius: 4px;
