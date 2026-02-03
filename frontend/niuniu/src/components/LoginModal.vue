@@ -27,7 +27,6 @@
           已有账号？<a href="#" @click.prevent="switchToLogin">返回登录</a>
         </span>
       </div>
-      <div class="login-tips">演示账号：demo | 演示密码：demo123</div>
     </div>
   </div>
 
