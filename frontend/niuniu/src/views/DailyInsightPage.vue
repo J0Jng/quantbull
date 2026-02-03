@@ -9,6 +9,15 @@
         <button class="date-btn" @click="nextDay">后一天 →</button>
       </div>
       <div class="header-opt">
+        <a
+          href="#"
+          class="admin-generate-btn"
+          v-if="isAdmin"
+          :class="{ disabled: loading || generating }"
+          @click.prevent="regenerateReport"
+        >
+          {{ generating ? '生成中...' : '生成' }}
+        </a>
         <a href="#" class="share-btn" @click.prevent="shareContent">分享</a>
         <router-link to="/">返回首页</router-link>
       </div>
@@ -42,16 +51,21 @@
         <p>非交易日缺失数据</p>
       </div>
 
+      <!-- 生成中状态 -->
+      <div v-if="!loading && generating" class="loading-section">
+        <div class="loading-spinner"></div>
+        <p>正在生成日报...</p>
+      </div>
+
       <!-- 空状态 -->
-      <div v-if="!loading && !error && !reportData && !nonTradingDay" class="empty-section">
+      <div v-if="!loading && !error && !hasReportContent && !nonTradingDay && !generating" class="empty-section">
         <div class="empty-icon">📭</div>
         <p>该日期暂无内参数据</p>
-        <p v-if="generating" class="generating-tip">正在生成日报...</p>
         <button class="retry-btn" :disabled="loading || generating" @click="loadDailyData">刷新</button>
       </div>
 
       <!-- 市场概览模块 -->
-      <section class="module market-overview" v-if="!loading && !error && reportData">
+      <section class="module market-overview" v-if="!loading && !error && hasReportContent">
         <h2 class="module-title">
           <span class="title-icon">📊</span>
           市场概览
@@ -88,7 +102,7 @@
       </section>
 
       <!-- 重点关注模块 -->
-      <section class="module key-focus" v-if="!loading && !error && reportData">
+      <section class="module key-focus" v-if="!loading && !error && hasReportContent">
         <h2 class="module-title">
           <span class="title-icon">⭐</span>
           重点关注
@@ -112,7 +126,7 @@
       </section>
 
       <!-- 个股分析模块 -->
-      <section class="module stock-analysis" v-if="!loading && !error && stockAnalysis.length > 0">
+      <section class="module stock-analysis" v-if="!loading && !error && hasReportContent && stockAnalysis.length > 0">
         <h2 class="module-title">
           <span class="title-icon">💡</span>
           个股分析
@@ -151,7 +165,7 @@
       </section>
 
       <!-- 风险提示模块 -->
-      <section class="module risk-alert" v-if="!loading && !error && reportData">
+      <section class="module risk-alert" v-if="!loading && !error && hasReportContent">
         <h2 class="module-title">
           <span class="title-icon">⚠️</span>
           风险提示
@@ -177,6 +191,7 @@ import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { getDailyReportByDate, getLatestDailyReport, generateDailyReport } from '@/services/dailyReportService'
 import { getMarketOverview } from '@/services/marketService'
+import { useAuth } from '@/composables/useAuth'
 import {
   canAccessTodayReport,
   getTodayString,
@@ -186,6 +201,7 @@ import {
 } from '@/utils/accessControl'
 
 const router = useRouter()
+const { isAdmin, initAuth } = useAuth()
 
 // 响应式数据
 const loading = ref(true)
@@ -194,7 +210,7 @@ const selectedDate = ref(new Date().toISOString().split('T')[0])
 const reportData = ref(null)
 const generating = ref(false)
 const nonTradingDay = ref(false)
-const emptyRefreshCount = ref(0)
+const requestSeq = ref(0)
 
 // 市场情绪（从 market_sentiment 获取）
 const marketSentiment = computed(() => {
@@ -264,6 +280,67 @@ const isReportTextEmpty = (data) => {
   const hasRisk = riskText.length > 0
 
   return !(hasMarket || hasEtf || hasOutline || hasStocks || hasRisk)
+}
+
+const normalizeGenerationStatus = (status) => {
+  return String(status || '').toLowerCase()
+}
+
+const hasReportContent = computed(() => {
+  return !!reportData.value && !isReportTextEmpty(reportData.value)
+})
+
+const unwrapBackendData = (result) => {
+  if (!result || !result.success || !result.data) {
+    return null
+  }
+  let data = result.data
+  if (data && data.data && data.code === 0) {
+    data = data.data
+  }
+  return data
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const pollReportUntilReady = async (dateString, reqId, options = {}) => {
+  const timeoutMs = Number(options.timeoutMs ?? 60000)
+  const initialDelayMs = Number(options.initialDelayMs ?? 800)
+  const intervalMs = Number(options.intervalMs ?? 2000)
+  const maxIntervalMs = Number(options.maxIntervalMs ?? 5000)
+
+  const start = Date.now()
+  let waitMs = intervalMs
+
+  if (initialDelayMs > 0) {
+    await sleep(initialDelayMs)
+  }
+
+  while (Date.now() - start < timeoutMs) {
+    if (reqId !== requestSeq.value) {
+      return null
+    }
+
+    const refreshed = await getDailyReportByDate(dateString)
+    const data = unwrapBackendData(refreshed)
+    if (data?.id && data?.report_date) {
+      const status = normalizeGenerationStatus(data.generation_status)
+      if (status === 'failed') {
+        return { status: 'failed', data }
+      }
+      if (status === 'completed') {
+        if (!isReportTextEmpty(data)) {
+          return { status: 'ready', data }
+        }
+        return { status: 'empty', data }
+      }
+    }
+
+    await sleep(waitMs)
+    waitMs = Math.min(maxIntervalMs, Math.round(waitMs * 1.3))
+  }
+
+  return { status: 'timeout', data: null }
 }
 
 // 方法
@@ -345,9 +422,11 @@ const nextDay = () => {
 }
 
 const loadDailyData = async () => {
+  const reqId = (requestSeq.value += 1)
   loading.value = true
   error.value = ''
   nonTradingDay.value = false
+  generating.value = false
   
   try {
     if (isFutureDate(selectedDate.value)) {
@@ -364,6 +443,9 @@ const loadDailyData = async () => {
     }
 
     const tradingStatus = await checkTradingDayStatus(selectedDate.value)
+    if (reqId !== requestSeq.value) {
+      return
+    }
     if (tradingStatus.isTrading === false) {
       nonTradingDay.value = true
       error.value = ''
@@ -375,67 +457,81 @@ const loadDailyData = async () => {
       reportData.value = null
       return
     }
-    
+
     const result = await getDailyReportByDate(selectedDate.value)
-    console.log('getDailyReportByDate响应:', result)
-    
-    if (result.success && result.data) {
-      // 提取真正的报告数据
-      let data = result.data
-      if (data.data && data.code === 0) {
-        data = data.data
-      }
-      
-      if (data.id && data.report_date) {
-        if (isReportTextEmpty(data) && emptyRefreshCount.value < 1) {
-          emptyRefreshCount.value += 1
-          loading.value = false
-          setTimeout(() => loadDailyData(), 200)
-          return
-        }
-        emptyRefreshCount.value = 0
-        reportData.value = data
-        error.value = '' // 清除错误信息
-        console.log('报告数据加载成功:', data)
-      } else {
-        throw new Error('数据格式异常')
-      }
-    } else {
-      // 指定日期没有报告，尝试生成后重新加载
-      console.log(`${selectedDate.value} 日期无数据，尝试生成日报`) 
-      generating.value = true
-      const generateResult = await generateDailyReport({ report_date: selectedDate.value })
-      if (generateResult.success) {
-        const refreshed = await getDailyReportByDate(selectedDate.value)
-        if (refreshed.success && refreshed.data) {
-          let data = refreshed.data
-          if (data.data && data.code === 0) {
-            data = data.data
-          }
-          if (data.id && data.report_date) {
-            if (isReportTextEmpty(data) && emptyRefreshCount.value < 1) {
-              emptyRefreshCount.value += 1
-              loading.value = false
-              setTimeout(() => loadDailyData(), 200)
-              return
-            }
-            emptyRefreshCount.value = 0
-            reportData.value = data
-            error.value = ''
-            console.log('日报生成并加载成功:', data)
-          } else {
-            throw new Error('生成后数据格式异常')
-          }
-        } else {
-          error.value = `${formatDate(selectedDate.value)} 暂无内参数据`
-          reportData.value = null
-        }
-      } else {
-        error.value = `${formatDate(selectedDate.value)} 暂无内参数据`
-        reportData.value = null
-      }
-      generating.value = false
+    if (reqId !== requestSeq.value) {
+      return
     }
+
+    let data = unwrapBackendData(result)
+
+    if (data?.id && data?.report_date) {
+      const status = normalizeGenerationStatus(data.generation_status)
+      if (status === 'failed') {
+        reportData.value = data
+        error.value = '日报生成失败，请稍后重试'
+        return
+      }
+      if (status === 'completed' && !isReportTextEmpty(data)) {
+        reportData.value = data
+        error.value = ''
+        return
+      }
+      if (status === 'completed' && isReportTextEmpty(data)) {
+        reportData.value = data
+        error.value = '日报生成完成但内容为空，请稍后重试'
+        return
+      }
+      // pending/processing：继续轮询
+      reportData.value = data
+    }
+
+    // 走到这里：要么没有报告，要么报告还在生成中
+    error.value = ''
+    generating.value = true
+    loading.value = false
+
+    if (!data?.id) {
+      const generateResult = await generateDailyReport({ report_date: selectedDate.value })
+      if (!generateResult.success) {
+        generating.value = false
+        error.value = generateResult.message || '触发生成失败，请稍后重试'
+        return
+      }
+    }
+
+    const ready = await pollReportUntilReady(selectedDate.value, reqId, {
+      timeoutMs: 60000,
+      initialDelayMs: 800,
+      intervalMs: 2000,
+      maxIntervalMs: 5000
+    })
+
+    if (reqId !== requestSeq.value) {
+      return
+    }
+
+    if (ready?.status === 'ready') {
+      reportData.value = ready.data
+      error.value = ''
+      return
+    }
+
+    if (ready?.status === 'failed') {
+      reportData.value = ready.data
+      error.value = '日报生成失败，请稍后重试'
+      return
+    }
+
+    if (ready?.status === 'empty') {
+      reportData.value = ready.data
+      error.value = '日报生成完成但内容为空，请稍后重试'
+      return
+    }
+
+    // 超时仍未拿到“非空”内容：给出明确提示，让用户可刷新重试
+    reportData.value = null
+    error.value = `${formatDate(selectedDate.value)} 日报正在生成中，请稍后刷新`
   } catch (e) {
     // 处理 403 错误（后端返回的门禁拒绝）
     if (e.status === 403) {
@@ -450,8 +546,10 @@ const loadDailyData = async () => {
     console.error('加载每日内参失败:', e)
     reportData.value = null
   } finally {
-    loading.value = false
-    generating.value = false
+    if (reqId === requestSeq.value) {
+      loading.value = false
+      generating.value = false
+    }
   }
 }
 
@@ -468,8 +566,113 @@ const shareContent = () => {
   }
 }
 
+const regenerateReport = async () => {
+  if (!isAdmin.value) {
+    return
+  }
+
+  if (loading.value || generating.value) {
+    return
+  }
+
+  if (isFutureDate(selectedDate.value)) {
+    error.value = '无法生成未来日期的每日内参'
+    return
+  }
+
+  // 交易日校验：非交易日不生成
+  loading.value = true
+  error.value = ''
+  nonTradingDay.value = false
+  const reqId = (requestSeq.value += 1)
+  try {
+    const tradingStatus = await checkTradingDayStatus(selectedDate.value)
+    if (reqId !== requestSeq.value) {
+      return
+    }
+
+    if (tradingStatus.isTrading === false) {
+      nonTradingDay.value = true
+      loading.value = false
+      return
+    }
+    if (tradingStatus.isTrading === null) {
+      error.value = tradingStatus.message
+      loading.value = false
+      return
+    }
+  } catch (e) {
+    error.value = '无法判断是否交易日，请稍后重试'
+    loading.value = false
+    return
+  } finally {
+    if (reqId === requestSeq.value) {
+      loading.value = false
+    }
+  }
+
+  const ok = window.confirm(`确认重新生成 ${formatDate(selectedDate.value)} 的每日内参？\n\n提示：该操作会覆盖现有内容（force=true）。`)
+  if (!ok) {
+    return
+  }
+
+  generating.value = true
+  error.value = ''
+  reportData.value = null
+
+  try {
+    const generateResult = await generateDailyReport({ report_date: selectedDate.value, force: true })
+    if (!generateResult.success) {
+      error.value = generateResult.message || '触发生成失败，请稍后重试'
+      return
+    }
+
+    const ready = await pollReportUntilReady(selectedDate.value, reqId, {
+      timeoutMs: 90000,
+      initialDelayMs: 800,
+      intervalMs: 2000,
+      maxIntervalMs: 5000
+    })
+
+    if (reqId !== requestSeq.value) {
+      return
+    }
+
+    if (ready?.status === 'ready') {
+      reportData.value = ready.data
+      error.value = ''
+      return
+    }
+
+    if (ready?.status === 'failed') {
+      reportData.value = ready.data
+      error.value = '日报生成失败，请稍后重试'
+      return
+    }
+
+    if (ready?.status === 'empty') {
+      reportData.value = ready.data
+      error.value = '日报生成完成但内容为空，请稍后重试'
+      return
+    }
+
+    error.value = `${formatDate(selectedDate.value)} 日报生成超时，请稍后刷新`
+  } catch (e) {
+    if (e?.status === 403) {
+      error.value = '无权限执行生成操作'
+    } else {
+      error.value = '生成失败，请稍后重试'
+    }
+  } finally {
+    if (reqId === requestSeq.value) {
+      generating.value = false
+    }
+  }
+}
+
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
+  await initAuth()
   loadDailyData()
 })
 </script>
@@ -556,6 +759,16 @@ onMounted(() => {
 
 .share-btn {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.admin-generate-btn {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.admin-generate-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .content {
