@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM docker.1ms.run/library/python:3.12-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -7,7 +7,24 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # 安装系统依赖（包括 TA-Lib 编译依赖）
-RUN apt-get update && \
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i \
+            -e 's|http://deb.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://deb.debian.org|https://mirrors.aliyun.com|g' \
+            -e 's|http://security.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://security.debian.org|https://mirrors.aliyun.com|g' \
+            /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i \
+            -e 's|http://deb.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://deb.debian.org|https://mirrors.aliyun.com|g' \
+            -e 's|http://security.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://security.debian.org|https://mirrors.aliyun.com|g' \
+            /etc/apt/sources.list; \
+    fi; \
+    apt-get update; \
     apt-get install -y --no-install-recommends \
         gcc \
         g++ \

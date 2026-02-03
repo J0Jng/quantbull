@@ -8,8 +8,25 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # 安装系统依赖（包含用于时区与常见 Python build 的基础包）
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev tzdata && \
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i \
+            -e 's|http://deb.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://deb.debian.org|https://mirrors.aliyun.com|g' \
+            -e 's|http://security.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://security.debian.org|https://mirrors.aliyun.com|g' \
+            /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i \
+            -e 's|http://deb.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://deb.debian.org|https://mirrors.aliyun.com|g' \
+            -e 's|http://security.debian.org|http://mirrors.aliyun.com|g' \
+            -e 's|https://security.debian.org|https://mirrors.aliyun.com|g' \
+            /etc/apt/sources.list; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends gcc libpq-dev tzdata; \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
     pip install --upgrade pip setuptools wheel && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
