@@ -62,8 +62,16 @@
     <main class="main-content">
       <div class="container">
         <!-- 财经头条板块 -->
-        <h2 class="section-title">财经头条</h2>
-        <router-link to="/news-list" class="more-link" style="float:right;margin-top:12px;font-size:14px;">更多&gt;</router-link>
+        <div class="section-header-inline" style="margin: 0 0 15px 0;">
+          <h2 class="section-title" style="margin: 0;">财经头条</h2>
+          <div class="header-actions">
+            <button class="refresh-icon-btn" @click="loadNews" :disabled="newsLoading" title="刷新新闻">
+              <span v-if="!newsLoading">⟳</span>
+              <span v-else>...</span>
+            </button>
+            <router-link to="/news-list" class="more-link" style="font-size:14px;">更多&gt;</router-link>
+          </div>
+        </div>
         <section class="news-section">
           <!-- 加载状态 -->
           <div v-if="newsLoading && !bannerNews" class="loading-state">
@@ -82,6 +90,7 @@
             </div>
             <div v-else class="empty-news">
               <p>{{ newsError || '暂无财经头条' }}</p>
+              <button v-if="newsError" @click="loadNews" class="retry-btn" style="margin-top: 10px;">重试</button>
             </div>
             <div class="news-list" v-if="newsList.length">
               <ul>
@@ -101,11 +110,11 @@
         <div class="tab-switch report-tab-switch">
           <a 
             href="javascript:;" 
-            :class="{ active: reportTab==='report-latest', disabled: !canAccessTodayReport() }" 
+            :class="{ active: reportTab==='report-latest' }" 
             @click.prevent="handleLatestTabClick"
-            :title="canAccessTodayReport() ? '查看最新内参' : '今日内参需在15:30后查看'"
+            title="每日 03:00 更新"
           >
-            最新{{ canAccessTodayReport() ? '' : ' (15:30后可用)' }}
+            最新 (03:00更新)
           </a>
         </div>
         <section class="daily-report">
@@ -518,7 +527,6 @@ import { getHeadlines } from '@/services/newsService'
 import { getPublicFundRanking } from '@/services/fundRankingService'
 import http from '@/services/http'
 import { useAuth } from '@/composables/useAuth'
-import { canAccessTodayReport } from '@/utils/accessControl'
 
 // 使用全局认证
 const { logged, userText, isQualifiedInvestor, showRiskTip, openLoginModal, logout, confirmRiskTip } = useAuth()
@@ -806,25 +814,8 @@ const formatReportDate = (dateString) => {
   }
 }
 
-// 辅助函数：检查是否为今天
-const isToday = (dateStr) => {
-  if (!dateStr) return false
-  try {
-    const reportDate = new Date(dateStr).toISOString().split('T')[0]
-    const today = new Date().toISOString().split('T')[0]
-    return reportDate === today
-  } catch {
-    return false
-  }
-}
-
 // 处理"最新"标签点击
 const handleLatestTabClick = () => {
-  if (!canAccessTodayReport()) {
-    alert('今日内参需在 15:30 后查看，已为您切换至昨日内参')
-    reportTab.value = 'report-yesterday'
-    return
-  }
   reportTab.value = 'report-latest'
 }
 
@@ -938,13 +929,9 @@ const loadMarketIndex = async () => {
 
 // 加载每日内参数据
 const loadDailyReports = async () => {
-  // 如果已经有数据且不是今天（或今天且已过15:30），则不重复加载
+  // 如果已经有数据，则不重复加载
   if (latestDailyReport.value) {
-    const reportDate = latestDailyReport.value.report_date
-    const reportIsToday = isToday(reportDate)
-    if (!reportIsToday || (reportIsToday && canAccessTodayReport())) {
-      return
-    }
+    return
   }
 
   dailyReportLoading.value = true
@@ -976,7 +963,7 @@ const loadDailyReports = async () => {
     }
 
     if (!latestDailyReport.value) {
-      // 兜底：加载最新报告（后端会自动过滤今天的报告如果<15:30）
+      // 兜底：加载最新报告
       const latestResult = await getLatestDailyReport()
 
       if (latestResult.success && latestResult.data) {
@@ -987,20 +974,16 @@ const loadDailyReports = async () => {
         if (reportData.id && reportData.report_date) {
           latestDailyReport.value = reportData
         }
+      } else if (latestResult.status === 401) {
+        dailyReportError.value = '认证失败，请重新登录'
+      } else if (latestResult.status === 404) {
+        dailyReportError.value = '暂无最新报告'
       } else {
-        if (latestResult.status === 404 && !canAccessTodayReport()) {
-          dailyReportError.value = '今日内参需在 15:30 后查看'
-        } else if (latestResult.status === 401) {
-          dailyReportError.value = '认证失败，请重新登录'
-        } else if (latestResult.status === 404) {
-          dailyReportError.value = '暂无最新报告'
-        } else {
-          dailyReportError.value = latestResult.message || '加载失败'
-        }
+        dailyReportError.value = latestResult.message || '加载失败'
       }
     }
 
-    // 加载历史报告（后端会自动过滤今天的报告如果<15:30）
+    // 加载历史报告
     const historyResult = await getDailyReportList({ limit: 10 })
 
     if (historyResult.success && historyResult.data) {

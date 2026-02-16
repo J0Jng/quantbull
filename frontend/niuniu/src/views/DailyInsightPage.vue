@@ -18,7 +18,6 @@
         >
           {{ generating ? '生成中...' : '生成' }}
         </a>
-        <a href="#" class="share-btn" @click.prevent="shareContent">分享</a>
         <router-link to="/">返回首页</router-link>
       </div>
     </div>
@@ -193,11 +192,8 @@ import { getDailyReportByDate, getLatestDailyReport, generateDailyReport } from 
 import { getMarketOverview } from '@/services/marketService'
 import { useAuth } from '@/composables/useAuth'
 import {
-  canAccessTodayReport,
-  getTodayString,
   getYesterdayString,
-  getAccessDeniedMessage,
-  isToday
+  getAccessDeniedMessage
 } from '@/utils/accessControl'
 
 const router = useRouter()
@@ -206,7 +202,7 @@ const { isAdmin, initAuth } = useAuth()
 // 响应式数据
 const loading = ref(true)
 const error = ref('')
-const selectedDate = ref(new Date().toISOString().split('T')[0])
+const selectedDate = ref(getYesterdayString())
 const reportData = ref(null)
 const generating = ref(false)
 const nonTradingDay = ref(false)
@@ -355,8 +351,8 @@ const formatDate = (dateString) => {
 
 const isFutureDate = (dateString) => {
   const target = new Date(dateString)
-  const today = new Date(getTodayString())
-  return target.getTime() > today.getTime()
+  const latestAvailable = new Date(getYesterdayString())
+  return target.getTime() > latestAvailable.getTime()
 }
 
 const checkTradingDayStatus = async (dateString) => {
@@ -411,12 +407,6 @@ const nextDay = () => {
     return
   }
   
-  // 检查是否要切换到今天
-  if (isToday(nextDateStr) && !canAccessTodayReport()) {
-    alert(getAccessDeniedMessage())
-    return
-  }
-  
   selectedDate.value = nextDateStr
   loadDailyData()
 }
@@ -434,14 +424,6 @@ const loadDailyData = async () => {
       reportData.value = null
       return
     }
-    // 检查是否试图访问今天的报告
-    if (isToday(selectedDate.value) && !canAccessTodayReport()) {
-      // 15:30 前不允许访问今天，自动回退到昨天
-      error.value = getAccessDeniedMessage()
-      selectedDate.value = getYesterdayString()
-      // 继续加载昨天的数据
-    }
-
     const tradingStatus = await checkTradingDayStatus(selectedDate.value)
     if (reqId !== requestSeq.value) {
       return
@@ -533,7 +515,7 @@ const loadDailyData = async () => {
     reportData.value = null
     error.value = `${formatDate(selectedDate.value)} 日报正在生成中，请稍后刷新`
   } catch (e) {
-    // 处理 403 错误（后端返回的门禁拒绝）
+    // 处理 403 错误（后端拒绝）
     if (e.status === 403) {
       error.value = getAccessDeniedMessage()
       // 自动回退到昨天
