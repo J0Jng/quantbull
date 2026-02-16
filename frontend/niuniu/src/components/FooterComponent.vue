@@ -49,20 +49,7 @@
       <div class="footer-bottom">
         <div class="compliance-notice">
           <span class="warning-icon">⚠️</span>
-          <p class="warning-text">投资有风险，入市需谨慎。以上内容仅供参考，不构成投资建议。请遵循国家法律法规进行投资。</p>
-        </div>
-        
-        <div class="copyright-area">
-          <div class="legal-notes">
-            <span>量化牛牛（北京）科技有限公司</span>
-            <span class="separator">|</span>
-            <span>营业执照：91110108MA01XXXXXX</span>
-            <span class="separator">|</span>
-            <span>备案号：京ICP备XXXXXXX号</span>
-          </div>
-          <div class="copyright-text">
-            © 2025 量化牛牛 版权所有
-          </div>
+          <p class="warning-text">此网站平台，仅供学习和交流展示，不做任何实质交易，如有业务需求，请线下联系持牌机构，合规开展业务，此网站不承担任何法律风险义务。</p>
         </div>
       </div>
     </div>

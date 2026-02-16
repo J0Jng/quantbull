@@ -42,7 +42,6 @@
               <div class="kuaixun-summary">{{ item.summary }}</div>
               <div class="kuaixun-meta">
                 <span class="meta-source">{{ item.source }}{{ item.author ? ' · ' + item.author : '' }}</span>
-                <span class="meta-action">分享</span>
               </div>
             </div>
           </div>

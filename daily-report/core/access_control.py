@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 
 # 中国时区
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
-# 访问截止时间（15:30）
-ACCESS_CUTOFF_TIME = time(15, 30, 0)
+# 访问截止时间（03:00）
+ACCESS_CUTOFF_TIME = time(3, 0, 0)
 
 
 def get_china_now() -> datetime:
@@ -23,7 +23,7 @@ def can_access_today_report(now: datetime = None) -> bool:
     """
     判断当前是否可以访问今天的报告
     
-    规则：只有当天（中国时间）15:30 之后才能访问当天报告
+    规则：当天内参在次日 03:00 生成
     
     Args:
         now: 当前时间（用于测试），如果不提供则使用系统当前时间
@@ -40,11 +40,11 @@ def can_access_today_report(now: datetime = None) -> bool:
         else:
             now = now.astimezone(CHINA_TZ)
     
-    # 判断当前时间是否 >= 15:30
+    # 判断当前时间是否 >= 03:00
     current_time = now.time()
     return current_time >= ACCESS_CUTOFF_TIME
 
 
 def get_access_denied_message() -> str:
     """获取拒绝访问的提示信息"""
-    return "今日投资方案需在当天 15:30 后查看，请查阅历史报告"
+    return "当日内参在次日 03:00 生成，请查阅历史报告"

@@ -1,4 +1,4 @@
-"""测试每日报告15:30门禁逻辑"""
+"""测试每日报告03:00门禁逻辑"""
 import sys
 from pathlib import Path
 
@@ -22,21 +22,21 @@ class TestAccessControl:
     """测试访问控制逻辑"""
     
     def test_can_access_before_cutoff(self):
-        """测试15:30之前不能访问"""
-        # 模拟 15:29
-        test_time = datetime(2026, 1, 15, 15, 29, 0, tzinfo=CHINA_TZ)
+        """测试03:00之前不能访问"""
+        # 模拟 02:59
+        test_time = datetime(2026, 1, 15, 2, 59, 0, tzinfo=CHINA_TZ)
         assert can_access_today_report(test_time) is False
         
     def test_can_access_at_cutoff(self):
-        """测试15:30整点可以访问"""
-        # 模拟 15:30
-        test_time = datetime(2026, 1, 15, 15, 30, 0, tzinfo=CHINA_TZ)
+        """测试03:00整点可以访问"""
+        # 模拟 03:00
+        test_time = datetime(2026, 1, 15, 3, 0, 0, tzinfo=CHINA_TZ)
         assert can_access_today_report(test_time) is True
         
     def test_can_access_after_cutoff(self):
-        """测试15:30之后可以访问"""
-        # 模拟 15:31
-        test_time = datetime(2026, 1, 15, 15, 31, 0, tzinfo=CHINA_TZ)
+        """测试03:00之后可以访问"""
+        # 模拟 03:01
+        test_time = datetime(2026, 1, 15, 3, 1, 0, tzinfo=CHINA_TZ)
         assert can_access_today_report(test_time) is True
         
         # 模拟 23:59
@@ -54,7 +54,7 @@ class TestAccessControl:
     def test_access_denied_message(self):
         """测试拒绝访问消息"""
         message = get_access_denied_message()
-        assert "15:30" in message
+        assert "03:00" in message
         assert len(message) > 0
 
 
@@ -73,9 +73,9 @@ if __name__ == "__main__":
     # 模拟不同时间点
     print("\n不同时间点的访问权限：")
     test_times = [
-        (15, 29, "15:29"),
-        (15, 30, "15:30"),
-        (15, 31, "15:31"),
+        (2, 59, "02:59"),
+        (3, 0, "03:00"),
+        (3, 1, "03:01"),
         (9, 0, "09:00"),
         (23, 59, "23:59"),
     ]
