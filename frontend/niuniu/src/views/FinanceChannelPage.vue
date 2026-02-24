@@ -4,6 +4,9 @@
     <div class="header">
       <div class="logo" @click="goHome">量化牛牛财经频道</div>
       <div class="header-opt">
+        <div class="refresh-btn" @click="refreshAllData(true)" :class="{ refreshing: isRefreshing }" title="刷新数据">
+          <span class="icon">⟳</span>
+        </div>
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
@@ -28,9 +31,21 @@
       <div class="main-content">
         
         <!-- 财经资讯 (快讯风格) -->
-        <h2 class="section-title" id="finance-news">财经资讯</h2>
+        <h2 class="section-title" id="finance-news">
+          财经资讯
+          <span class="cache-indicator" v-if="newsCached" title="数据来自缓存">📦</span>
+        </h2>
         <div v-if="newsLoading" class="loading-state">加载中...</div>
-        <div v-else-if="newsError" class="error-state">{{ newsError }}</div>
+        <div v-else-if="newsError" class="error-state">
+          {{ newsError }}
+          <div class="retry-button" @click="loadWeiboNews(null, true)">重试</div>
+        </div>
+        <div v-else-if="newsItems.length === 0" class="empty-state">
+          <div class="empty-icon">📰</div>
+          <div class="empty-text">暂时没有新的财经资讯</div>
+          <div class="empty-subtitle">请稍后刷新或尝试其他关键词</div>
+          <div class="retry-button" @click="loadWeiboNews(null, true)">刷新</div>
+        </div>
         <div class="kuaixun-list" v-else>
           <div class="kuaixun-item" v-for="(item, i) in newsItems" :key="item.id || 'news'+i">
             <div class="kuaixun-time-col">
@@ -50,9 +65,19 @@
         <!-- 市场数据 (列表风格) -->
         <h2 class="section-title" id="market-data">
           市场数据
+          <span class="cache-indicator" v-if="marketCached" title="数据来自缓存">📦</span>
         </h2>
         <div v-if="marketLoading" class="loading-state">加载中...</div>
-        <div v-else-if="marketError" class="error-state">{{ marketError }}</div>
+        <div v-else-if="marketError" class="error-state">
+          {{ marketError }}
+          <div class="retry-button" @click="loadMarketData(true)">重试</div>
+        </div>
+        <div v-else-if="marketDataItems.length === 0" class="empty-state">
+          <div class="empty-icon">📈</div>
+          <div class="empty-text">暂时没有市场数据</div>
+          <div class="empty-subtitle">请稍后刷新</div>
+          <div class="retry-button" @click="loadMarketData(true)">刷新</div>
+        </div>
         <div class="data-table" v-else>
           <div class="data-header">
             <div class="th name">名称</div>
@@ -73,10 +98,19 @@
         <!-- 投资观点 (列表风格) -->
         <h2 class="section-title" id="investment-ideas">
           投资观点
-          <span v-if="ideasCached" class="cache-badge">缓存</span>
+          <span class="cache-indicator" v-if="ideasCached" title="数据来自缓存">📦</span>
         </h2>
         <div v-if="ideasLoading" class="loading-state">加载中...</div>
-        <div v-else-if="ideasError" class="error-state">{{ ideasError }}</div>
+        <div v-else-if="ideasError" class="error-state">
+          {{ ideasError }}
+          <div class="retry-button" @click="loadIdeas(null, true)">重试</div>
+        </div>
+        <div v-else-if="ideasItems.length === 0" class="empty-state">
+          <div class="empty-icon">💡</div>
+          <div class="empty-text">暂时没有投资观点</div>
+          <div class="empty-subtitle">请稍后刷新</div>
+          <div class="retry-button" @click="loadIdeas(null, true)">刷新</div>
+        </div>
         <div class="article-list" v-else>
           <div class="article-item" v-for="(item, i) in ideasItems" :key="'idea'+i">
             <div class="article-main">
@@ -96,9 +130,19 @@
         <!-- 政策法规 (列表风格) -->
         <h2 class="section-title" id="policy-regulation">
           政策法规
+          <span class="cache-indicator" v-if="policyCached" title="数据来自缓存">📦</span>
         </h2>
         <div v-if="policyLoading" class="loading-state">加载中...</div>
-        <div v-else-if="policyError" class="error-state">{{ policyError }}</div>
+        <div v-else-if="policyError" class="error-state">
+          {{ policyError }}
+          <div class="retry-button" @click="loadPolicies(null, true)">重试</div>
+        </div>
+        <div v-else-if="policyItems.length === 0" class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">暂时没有政策法规更新</div>
+          <div class="empty-subtitle">请稍后刷新</div>
+          <div class="retry-button" @click="loadPolicies(null, true)">刷新</div>
+        </div>
         <div class="article-list" v-else>
           <div class="article-item" v-for="(item, i) in policyItems" :key="'policy'+i">
              <div class="article-main">
@@ -131,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { getWeiboMediaNews } from '@/services/newsService'
@@ -143,6 +187,12 @@ const { logged, userText, isQualifiedInvestor, openLoginModal, logout } = useAut
 const showUserMenu = ref(false)
 const searchQuery = ref('')
 const activeCategory = ref('finance-news')
+const isRefreshing = ref(false)
+
+// 缓存配置
+const CACHE_DURATION = 30 * 60 * 1000 // 30分钟（毫秒）
+const AUTO_REFRESH_INTERVAL = 30 * 60 * 1000 // 30分钟自动刷新
+let autoRefreshTimer = null
 
 // 新闻数据相关
 const newsItems = ref([])
@@ -272,31 +322,121 @@ function getChangeClass(change) {
   return ''
 }
 
+// ==================== 缓存工具函数 ====================
+
+/**
+ * 从缓存中读取数据
+ * @param {string} key - 缓存键
+ * @returns {object|null} - 缓存数据或null
+ */
+function getCacheData(key) {
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    
+    const { data, timestamp } = JSON.parse(cached)
+    const now = Date.now()
+    
+    // 检查缓存是否过期
+    if (now - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(key)
+      return null
+    }
+    
+    return data
+  } catch (error) {
+    console.error('读取缓存失败:', error)
+    return null
+  }
+}
+
+/**
+ * 将数据保存到缓存
+ * @param {string} key - 缓存键
+ * @param {any} data - 要缓存的数据
+ */
+function setCacheData(key, data) {
+  try {
+    const cacheObject = {
+      data,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(key, JSON.stringify(cacheObject))
+  } catch (error) {
+    console.error('保存缓存失败:', error)
+  }
+}
+
+/**
+ * 清除指定缓存
+ * @param {string} key - 缓存键
+ */
+function clearCache(key) {
+  try {
+    localStorage.removeItem(key)
+  } catch (error) {
+    console.error('清除缓存失败:', error)
+  }
+}
+
 
 // 加载微博财经新闻
-async function loadWeiboNews(keyword = null) {
+async function loadWeiboNews(keyword = null, forceRefresh = false) {
+  const cacheKey = `finance_news_${keyword || 'default'}`
+  
+  // 如果不是强制刷新，优先从缓存读取
+  if (!forceRefresh) {
+    const cachedData = getCacheData(cacheKey)
+    if (cachedData) {
+      console.log('使用缓存的财经资讯数据')
+      newsItems.value = cachedData
+      newsCached.value = true
+      return
+    }
+  }
+  
   newsLoading.value = true
   newsError.value = ''
+  newsCached.value = false
   
   try {
-    const response = await getWeiboMediaNews({ limit: 20, keyword })
+    const response = await retryRequest(async () => {
+      return await getWeiboMediaNews({ limit: 20, keyword })
+    })
+    
     const payload = response?.data || response
     
-    if (payload && payload.items && payload.items.length > 0) {
+    if (payload && Array.isArray(payload.items)) {
       newsItems.value = payload.items
-      newsCached.value = payload.cached || false
+      
+      // 保存到缓存
+      setCacheData(cacheKey, payload.items)
       
       // 如果数据过期（stale），显示提示
       if (payload.stale) {
         console.warn('使用了过期的缓存数据')
       }
+      
+      // 如果没有数据，清空错误信息，让组件显示空状态
+      if (payload.items.length === 0) {
+        newsError.value = ''
+      }
     } else {
-      newsError.value = '暂无新闻数据'
+      // 只有在响应结构异常时才设置错误
+      console.error('响应数据结构异常:', payload)
+      newsError.value = '数据格式错误，请稍后重试'
       newsItems.value = []
     }
   } catch (error) {
-    console.error('加载微博新闻失败:', error)
-    newsError.value = '加载失败'
+    console.error('加载新闻失败:', error)
+    // 根据错误类型给出更具体的提示
+    if (error.status === 0 || error.message.includes('网络')) {
+      newsError.value = '网络连接异常，请检查网络后重试'
+    } else if (error.status >= 500) {
+      newsError.value = '服务器暂时无法访问，请稍后重试' 
+    } else {
+      newsError.value = '加载失败，请稍后重试'
+    }
     newsItems.value = []
   } finally {
     newsLoading.value = false
@@ -304,28 +444,56 @@ async function loadWeiboNews(keyword = null) {
 }
 
 // 加载市场数据
-async function loadMarketData() {
+async function loadMarketData(forceRefresh = false) {
+  const cacheKey = 'finance_market_data'
+  
+  // 如果不是强制刷新，优先从缓存读取
+  if (!forceRefresh) {
+    const cachedData = getCacheData(cacheKey)
+    if (cachedData) {
+      console.log('使用缓存的市场数据')
+      marketDataItems.value = cachedData
+      marketCached.value = true
+      return
+    }
+  }
+  
   marketLoading.value = true
   marketError.value = ''
+  marketCached.value = false
   
   try {
     const response = await getMarketData()
     const payload = response?.data || response
     
-    if (payload && payload.items && payload.items.length > 0) {
+    if (payload && Array.isArray(payload.items)) {
       marketDataItems.value = payload.items
-      marketCached.value = payload.cached || false
+      
+      // 保存到缓存
+      setCacheData(cacheKey, payload.items)
       
       if (payload.stale) {
         console.warn('市场数据使用了过期缓存')
       }
+      
+      // 如果没有数据，清空错误信息，让组件显示空状态
+      if (payload.items.length === 0) {
+        marketError.value = ''
+      }
     } else {
-      marketError.value = '暂无市场数据'
+      console.error('市场数据响应格式异常:', payload)
+      marketError.value = '数据格式错误，请稍后重试'
       marketDataItems.value = []
     }
   } catch (error) {
     console.error('加载市场数据失败:', error)
-    marketError.value = '加载失败'
+    if (error.status === 0 || error.message.includes('网络')) {
+      marketError.value = '网络连接异常，请检查网络后重试'
+    } else if (error.status >= 500) {
+      marketError.value = '服务器暂时无法访问，请稍后重试'
+    } else {
+      marketError.value = '加载失败，请稍后重试'
+    }
     marketDataItems.value = []
   } finally {
     marketLoading.value = false
@@ -334,28 +502,55 @@ async function loadMarketData() {
 
 
 // 加载投资观点
-async function loadIdeas(keyword = null) {
+async function loadIdeas(keyword = null, forceRefresh = false) {
+  const cacheKey = `finance_ideas_${keyword || 'default'}`
+  
+  // 如果不是强制刷新，优先从缓存读取
+  if (!forceRefresh) {
+    const cachedData = getCacheData(cacheKey)
+    if (cachedData) {
+      console.log('使用缓存的投资观点数据')
+      ideasItems.value = cachedData
+      ideasCached.value = true
+      return
+    }
+  }
+  
   ideasLoading.value = true
   ideasError.value = ''
+  ideasCached.value = false
   
   try {
     const response = await getIdeas({ limit: 10, keyword })
     const payload = response?.data || response
     
-    if (payload && payload.items && payload.items.length > 0) {
+    if (payload && Array.isArray(payload.items)) {
       ideasItems.value = payload.items
-      ideasCached.value = payload.cached || false
+      
+      // 保存到缓存
+      setCacheData(cacheKey, payload.items)
       
       if (payload.stale) {
         console.warn('观点数据使用了过期缓存')
       }
+      
+      if (payload.items.length === 0) {
+        ideasError.value = ''
+      }
     } else {
-      ideasError.value = '暂无观点数据'
+      console.error('投资观点响应格式异常:', payload)
+      ideasError.value = '数据格式错误，请稍后重试'
       ideasItems.value = []
     }
   } catch (error) {
     console.error('加载投资观点失败:', error)
-    ideasError.value = '加载失败'
+    if (error.status === 0 || error.message.includes('网络')) {
+      ideasError.value = '网络连接异常，请检查网络后重试'
+    } else if (error.status >= 500) {
+      ideasError.value = '服务器暂时无法访问，请稍后重试'
+    } else {
+      ideasError.value = '加载失败，请稍后重试'
+    }
     ideasItems.value = []
   } finally {
     ideasLoading.value = false
@@ -363,31 +558,74 @@ async function loadIdeas(keyword = null) {
 }
 
 // 加载政策法规
-async function loadPolicies(keyword = null) {
+async function loadPolicies(keyword = null, forceRefresh = false) {
+  const cacheKey = `finance_policies_${keyword || 'default'}`
+  
+  // 如果不是强制刷新，优先从缓存读取
+  if (!forceRefresh) {
+    const cachedData = getCacheData(cacheKey)
+    if (cachedData) {
+      console.log('使用缓存的政策法规数据')
+      policyItems.value = cachedData
+      policyCached.value = true
+      return
+    }
+  }
+  
   policyLoading.value = true
   policyError.value = ''
+  policyCached.value = false
   
   try {
     const response = await getPolicies({ limit: 10, keyword })
     const payload = response?.data || response
     
-    if (payload && payload.items && payload.items.length > 0) {
+    if (payload && Array.isArray(payload.items)) {
       policyItems.value = payload.items
-      policyCached.value = payload.cached || false
+      
+      // 保存到缓存
+      setCacheData(cacheKey, payload.items)
       
       if (payload.stale) {
         console.warn('政策数据使用了过期缓存')
       }
+      
+      if (payload.items.length === 0) {
+        policyError.value = ''
+      }
     } else {
-      policyError.value = '暂无政策数据'
+      console.error('政策法规响应格式异常:', payload)
+      policyError.value = '数据格式错误，请稍后重试'
       policyItems.value = []
     }
   } catch (error) {
     console.error('加载政策法规失败:', error)
-    policyError.value = '加载失败'
+    if (error.status === 0 || error.message.includes('网络')) {
+      policyError.value = '网络连接异常，请检查网络后重试'
+    } else if (error.status >= 500) {
+      policyError.value = '服务器暂时无法访问，请稍后重试'
+    } else {
+      policyError.value = '加载失败，请稍后重试'
+    }
     policyItems.value = []
   } finally {
     policyLoading.value = false
+  }
+}
+
+// 添加重试机制的通用函数
+async function retryRequest(fn, maxRetries = 2, delay = 1000) {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      if (i === maxRetries) {
+        throw error
+      }
+      // 等待后重试，避免过于频繁的请求
+      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)))
+      console.warn(`请求失败，第${i + 1}次重试...`)
+    }
   }
 }
 
@@ -403,12 +641,65 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+// 刷新所有数据
+async function refreshAllData(forceRefresh = false) {
+  if (isRefreshing.value) return
+  
+  isRefreshing.value = true
+  try {
+    await Promise.all([
+      loadWeiboNews(null, forceRefresh),
+      loadMarketData(forceRefresh),
+      loadIdeas(null, forceRefresh),
+      loadPolicies(null, forceRefresh)
+    ])
+  } finally {
+    setTimeout(() => {
+      isRefreshing.value = false
+    }, 500)
+  }
+}
+
+// 启动自动刷新定时器
+function startAutoRefresh() {
+  // 清除已存在的定时器
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+  }
+  
+  // 设置30分钟自动刷新
+  autoRefreshTimer = setInterval(() => {
+    console.log('自动刷新财经数据（30分钟）')
+    refreshAllData(true) // 强制刷新
+  }, AUTO_REFRESH_INTERVAL)
+  
+  console.log('已启动自动刷新定时器（30分钟间隔）')
+}
+
+// 停止自动刷新定时器
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+    console.log('已停止自动刷新定时器')
+  }
+}
+
 // 页面加载时获取所有数据
 onMounted(() => {
+  // 首次加载数据（优先使用缓存）
   loadWeiboNews()
   loadMarketData()
   loadIdeas()
   loadPolicies()
+  
+  // 启动自动刷新定时器
+  startAutoRefresh()
+})
+
+// 页面卸载时清理定时器
+onUnmounted(() => {
+  stopAutoRefresh()
 })
 </script>
 
@@ -424,7 +715,12 @@ onMounted(() => {
 /* 头部样式 */
 .header{background-color:#c83b3b;padding:12px 20px;color:white;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:99; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
 .logo{font-size:22px;font-weight:bold;color:#ffffff;cursor:pointer}
-.header-opt{display:flex;align-items:center;gap:20px}
+.header-opt{display:flex;align-items:center;gap:15px}
+.refresh-btn{background-color:rgba(255,255,255,0.2);color:#fff;padding:6px 12px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;width:36px;height:36px;transition:all 0.3s}
+.refresh-btn:hover{background-color:rgba(255,255,255,0.3);transform:rotate(0deg)}
+.refresh-btn.refreshing{animation:spin 1s linear infinite}
+.refresh-btn .icon{font-size:20px;font-weight:bold;line-height:1}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .user-menu-container{position:relative;display:inline-block}
 .header-opt .user-btn{background-color:rgba(255,255,255,0.2);color:#fff;padding:6px 15px;border-radius:20px;cursor:pointer;font-size:14px;}
 .user-menu-container:hover .user-btn{background-color:rgba(255,255,255,0.3)}
@@ -451,10 +747,57 @@ onMounted(() => {
 .main-content { background: white; padding: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .section-title{font-size:20px;color:#2c3e50;margin:30px 0 20px;padding-left:12px;border-left:4px solid #c83b3b; font-weight: 700; display: flex; align-items: center; gap: 10px;}
 .cache-badge{font-size:12px;color:#999;background:#f5f5f5;padding:2px 8px;border-radius:3px;font-weight:normal}
+.cache-indicator{font-size:14px;opacity:0.6;cursor:help;margin-left:5px}
 
 /* 加载/错误状态 */
-.loading-state, .error-state { text-align: center; padding: 30px; color: #999; }
-.error-state { color: #f5222d; }
+.loading-state, .error-state, .empty-state { 
+  text-align: center; 
+  padding: 30px; 
+  color: #999; 
+}
+.error-state { 
+  color: #f5222d; 
+}
+
+.empty-state {
+  color: #999;
+  font-size: 14px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+  opacity: 0.6;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.empty-subtitle {
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 20px;
+}
+
+.retry-button {
+  display: inline-block;
+  background-color: #c83b3b;
+  color: white;
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+  transition: background-color 0.2s;
+}
+
+.retry-button:hover {
+  background-color: #b53232;
+}
 
 /* 快讯列表风格 (List Style) */
 .kuaixun-list { display: flex; flex-direction: column; gap: 0; }
