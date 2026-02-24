@@ -36,7 +36,12 @@ def get_session() -> Generator[Session, None, None]:
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """异步数据库会话依赖注入"""
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            # Ensure any open transaction is cleaned up before returning to pool.
+            if session.in_transaction():
+                await session.rollback()
 
 
 async def init_db() -> None:

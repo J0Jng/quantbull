@@ -65,7 +65,7 @@
         <div class="section-header-inline" style="margin: 0 0 15px 0;">
           <h2 class="section-title" style="margin: 0;">财经头条</h2>
           <div class="header-actions">
-            <button class="refresh-icon-btn" @click="loadNews" :disabled="newsLoading" title="刷新新闻">
+            <button class="refresh-icon-btn" @click="loadNews(true)" :disabled="newsLoading" title="刷新新闻">
               <span v-if="!newsLoading">⟳</span>
               <span v-else>...</span>
             </button>
@@ -81,21 +81,20 @@
           
           <!-- 新闻内容 -->
           <template v-else>
-            <div v-if="bannerNews" class="news-banner" @click="goToNewsDetail(bannerNews.id)">
+            <div v-if="bannerNews" class="news-banner">
               <div class="banner-text">
                 <h3 class="mask-title">{{ bannerNews.title }}</h3>
                 <p class="mask-desc">{{ bannerNews.summary || '暂无摘要' }}</p>
-                <span class="banner-cta">查看详情</span>
               </div>
             </div>
             <div v-else class="empty-news">
               <p>{{ newsError || '暂无财经头条' }}</p>
-              <button v-if="newsError" @click="loadNews" class="retry-btn" style="margin-top: 10px;">重试</button>
+              <button v-if="newsError" @click="loadNews(true)" class="retry-btn" style="margin-top: 10px;">重试</button>
             </div>
             <div class="news-list" v-if="newsList.length">
               <ul>
-                <li v-for="news in newsList" :key="news.id">
-                  <a href="#" @click.prevent="goToNewsDetail(news.id)">{{ news.title }}</a>
+                <li v-for="news in newsList" :key="news.id || news.url">
+                  <span class="news-title">{{ news.title }}</span>
                 </li>
               </ul>
             </div>
@@ -523,13 +522,16 @@ import { getMarketData } from '@/services/financeChannelService'
 import { getLatestDailyReport, getDailyReportList, getDailyReportByDate } from '@/services/dailyReportService'
 import { getCompanyResearchList } from '@/services/companyResearchService'
 import { getProducts, formatPrice as serviceFormatPrice } from '@/services/productService'
-import { getHeadlines } from '@/services/newsService'
+import { getWeiboMediaNews } from '@/services/newsService'
 import { getPublicFundRanking } from '@/services/fundRankingService'
 import http from '@/services/http'
 import { useAuth } from '@/composables/useAuth'
 
 // 使用全局认证
 const { logged, userText, isQualifiedInvestor, showRiskTip, openLoginModal, logout, confirmRiskTip } = useAuth()
+
+// 缓存配置（与 FinanceChannelPage 保持一致）
+const CACHE_DURATION = 30 * 60 * 1000 // 30分钟（毫秒）
 
 const search = ref('')
 const dragonTab = ref('dragon-today')
@@ -578,6 +580,51 @@ const router = useRouter()
 
 let menuTimeout = null
 let hideTimeout = null
+
+// ==================== 缓存工具函数（与 FinanceChannelPage 保持一致）====================
+
+/**
+ * 从缓存中读取数据
+ * @param {string} key - 缓存键
+ * @returns {object|null} - 缓存数据或null
+ */
+function getCacheData(key) {
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    
+    const { data, timestamp } = JSON.parse(cached)
+    const now = Date.now()
+    
+    // 检查缓存是否过期
+    if (now - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(key)
+      return null
+    }
+    
+    return data
+  } catch (error) {
+    console.error('读取缓存失败:', error)
+    return null
+  }
+}
+
+/**
+ * 将数据保存到缓存
+ * @param {string} key - 缓存键
+ * @param {any} data - 要缓存的数据
+ */
+function setCacheData(key, data) {
+  try {
+    const cacheObject = {
+      data,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(key, JSON.stringify(cacheObject))
+  } catch (error) {
+    console.error('保存缓存失败:', error)
+  }
+}
 
 const onMenuEnter = () => {
   if (!logged.value) return
@@ -634,35 +681,62 @@ const goToUserProfile = () => {
 
 // 跳转到新闻详情页
 const goToNewsDetail = (id) => {
+  if (!id) return
   router.push(`/news-detail/${id}`)
 }
 
-// 加载财经新闻数据
-const loadNews = async () => {
+
+// 加载财经新闻数据（财经资讯）- 优先使用缓存
+const loadNews = async (forceRefresh = false) => {
+  // 使用与 FinanceChannelPage 相同的缓存 key，确保两个页面共享缓存
+  const cacheKey = 'finance_news_default'
+  
+  // 如果不是强制刷新，优先从缓存读取
+  if (!forceRefresh) {
+    const cachedData = getCacheData(cacheKey)
+    if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+      console.log('使用缓存的财经资讯数据（HomePage）')
+      
+      // 使用缓存数据填充 banner 和列表
+      bannerNews.value = {
+        id: cachedData[0].id,
+        title: cachedData[0].title || '暂无标题',
+        summary: cachedData[0].summary || '暂无摘要',
+        url: cachedData[0].url || cachedData[0].link || '',
+        img: '/1.png'
+      }
+      newsList.value = cachedData.slice(1, 6).map(item => ({
+        id: item.id,
+        title: item.title || '暂无标题',
+        url: item.url || item.link || ''
+      }))
+      return
+    }
+  }
+  
   try {
     newsLoading.value = true
     newsError.value = ''
-    const response = await getHeadlines({ page: 1, page_size: 6 })
+    const response = await getWeiboMediaNews({ limit: 20 })
+    const payload = response?.data || response
 
-    let items = []
-    if (response?.items) {
-      items = response.items
-    } else if (response?.data?.items) {
-      items = response.data.items
-    } else if (Array.isArray(response)) {
-      items = response
-    }
+    const items = Array.isArray(payload?.items) ? payload.items : []
 
     if (items.length > 0) {
+      // 保存完整数据到缓存（与 FinanceChannelPage 共享）
+      setCacheData(cacheKey, items)
+      
       bannerNews.value = {
         id: items[0].id,
         title: items[0].title || '暂无标题',
         summary: items[0].summary || '暂无摘要',
+        url: items[0].url || items[0].link || '',
         img: '/1.png'
       }
-      newsList.value = items.slice(1).map(item => ({
+      newsList.value = items.slice(1, 6).map(item => ({
         id: item.id,
-        title: item.title || '暂无标题'
+        title: item.title || '暂无标题',
+        url: item.url || item.link || ''
       }))
     } else {
       bannerNews.value = null
@@ -1173,13 +1247,12 @@ const formatDate = (dateStr) => {
   border: 1px solid #ffe0c0;
   border-radius: 10px;
   padding: 16px;
-  cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .news-banner:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(255, 127, 36, 0.18);
+  transform: none;
+  box-shadow: none;
 }
 
 .banner-text {
@@ -1223,20 +1296,13 @@ const formatDate = (dateStr) => {
   gap: 8px;
 }
 
-.news-list li a {
+.news-title {
   color: #333;
-  text-decoration: none;
   font-size: 14px;
   display: block;
   padding: 8px 10px;
   border-radius: 6px;
-  transition: background 0.2s ease, color 0.2s ease;
   background: #fff8f0;
-}
-
-.news-list li a:hover {
-  color: #ff7f24;
-  background: #fff1e3;
 }
 
 .empty-news {
