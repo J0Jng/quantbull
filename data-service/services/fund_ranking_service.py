@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from core.config import settings
-from core.response import success
+from core.response import error, success
 from models.public_fund_ranking_item import PublicFundRankingItemModel
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,6 +85,15 @@ class FundRankingService:
         if filters:
             base_query = base_query.where(*filters)
 
+        latest_as_of_query = select(func.max(PublicFundRankingItemModel.as_of))
+        if filters:
+            latest_as_of_query = latest_as_of_query.where(*filters)
+        latest_as_of = (await self.db_session.execute(latest_as_of_query)).scalar_one()
+        if latest_as_of is None:
+            return None
+
+        base_query = base_query.where(PublicFundRankingItemModel.as_of == latest_as_of)
+
         count_query = select(func.count()).select_from(base_query.subquery())
         total = (await self.db_session.execute(count_query)).scalar_one() or 0
         if total <= 0:
@@ -113,6 +122,7 @@ class FundRankingService:
         max_query = select(func.max(PublicFundRankingItemModel.fetched_at))
         if filters:
             max_query = max_query.where(*filters)
+        max_query = max_query.where(PublicFundRankingItemModel.as_of == latest_as_of)
         updated_at = (await self.db_session.execute(max_query)).scalar_one()
 
         items = [self._row_to_public_item(r) for r in rows]
@@ -125,6 +135,23 @@ class FundRankingService:
             "updated_at": (updated_at or datetime.now()).isoformat(),
         }
         return payload
+
+    def _is_db_payload_fresh(self, payload: Dict[str, Any]) -> bool:
+        """判断数据库返回结果是否在可接受的缓存时效内。"""
+        raw_updated_at = payload.get("updated_at")
+        if not raw_updated_at:
+            return False
+        try:
+            updated_at = datetime.fromisoformat(str(raw_updated_at))
+        except Exception:
+            return False
+
+        if updated_at.tzinfo is None:
+            now = datetime.now()
+        else:
+            now = datetime.now(updated_at.tzinfo)
+
+        return (now - updated_at).total_seconds() <= self.PUBLIC_CACHE_TTL_SECONDS
 
     def _row_to_public_item(self, row: PublicFundRankingItemModel) -> Dict[str, Any]:
         return {
@@ -254,7 +281,7 @@ class FundRankingService:
                     page=page,
                     page_size=page_size,
                 )
-                if cached_payload:
+                if cached_payload and self._is_db_payload_fresh(cached_payload):
                     return success(cached_payload)
             else:
                 now = datetime.now(timezone.utc)
@@ -281,14 +308,44 @@ class FundRankingService:
             logger.info("未配置 TUSHARE_TOKEN，公募排行直接使用 Eastmoney")
 
         # 2) Eastmoney 兜底
-        items, total, asof_dt = await self.eastmoney.fetch_public_ranking(
-            fund_type=fund_type,
-            sort_by=sort_by,  # type: ignore[arg-type]
-            order=order,  # type: ignore[arg-type]
-            page=page,
-            page_size=page_size,
-            keyword=keyword,
-        )
+        try:
+            items, total, asof_dt = await self.eastmoney.fetch_public_ranking(
+                fund_type=fund_type,
+                sort_by=sort_by,  # type: ignore[arg-type]
+                order=order,  # type: ignore[arg-type]
+                page=page,
+                page_size=page_size,
+                keyword=keyword,
+            )
+        except Exception as east_err:
+            logger.error(f"Eastmoney 公募排行抓取最终失败: {east_err}")
+
+            # --- 兜底策略 1：尝试返回 DB 中的旧数据（不限时效）---
+            if self.db_session:
+                stale_payload = await self._query_public_from_db(
+                    fund_type=fund_type,
+                    return_sign=return_sign,
+                    sort_by=sort_by,
+                    order=order,
+                    keyword=keyword,
+                    page=page,
+                    page_size=page_size,
+                )
+                if stale_payload:
+                    logger.info("Eastmoney 失败，回退到 DB 旧数据")
+                    stale_payload["stale"] = True
+                    return success(stale_payload)
+
+            # --- 兜底策略 2：尝试内存缓存（即使过期）---
+            entry = _public_cache.get(key)
+            if entry:
+                logger.info("Eastmoney 失败，回退到过期的内存缓存")
+                stale = dict(entry.payload)
+                stale["stale"] = True
+                return success(stale)
+
+            # --- 兜底策略 3：返回结构化错误，不触发 500 ---
+            return error(f"基金排行榜数据暂时不可用，请稍后重试（{east_err}）", code=50001)
 
         # return_sign 过滤（按近1年收益率）
         if return_sign in ["positive", "negative"]:

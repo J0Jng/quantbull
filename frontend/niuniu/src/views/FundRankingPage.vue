@@ -88,13 +88,32 @@
               </select>
             </div>
           </div>
-          
+
+          <!-- 数据更新状态栏 -->
+          <div class="data-status-bar">
+            <span class="update-time">
+              <template v-if="loadingPublic">数据加载中...</template>
+              <template v-else-if="errorPublic"><span class="update-error">加载失败</span></template>
+              <template v-else-if="updatedAt">数据更新于：{{ updatedAt }}</template>
+              <template v-else>暂无数据</template>
+            </span>
+            <button
+              class="refresh-btn"
+              :disabled="loadingPublic"
+              @click="loadPublicFunds({ refresh: true })"
+            >
+              <span v-if="loadingPublic">刷新中...</span>
+              <span v-else>&#x21bb; 刷新数据</span>
+            </button>
+          </div>
+
           <!-- 公募基金排行榜表格 -->
           <div class="fund-rank-table">
             <div class="table-header">
               <div class="rank-col">排名</div>
               <div class="name-col">基金名称</div>
               <div class="type-col">基金类型</div>
+              <div class="date-col">数据日期</div>
               <div class="nav-col">单位净值</div>
               <div class="change-col">日涨跌幅</div>
               <div class="return-col">近1周</div>
@@ -116,6 +135,7 @@
               </div>
               <div class="name-col">{{ fund.name }}</div>
               <div class="type-col">{{ fund.type }}</div>
+              <div class="date-col">{{ formatDataDate(fund.as_of) }}</div>
               <div class="nav-col">{{ fund.nav }}</div>
               <div :class="['change-col', fund.change >= 0 ? 'red' : 'green']">
                 {{ fund.change >= 0 ? '+' : '' }}{{ fund.change }}%
@@ -152,6 +172,7 @@
             <div class="modal-body">
               <div class="fund-info">
                 <p v-if="hasValue(selectedFund.type || selectedFund.strategy)"><strong>基金类型：</strong>{{ selectedFund.type || selectedFund.strategy }}</p>
+                <p v-if="hasValue(selectedFund.as_of)"><strong>数据日期：</strong>{{ formatDataDate(selectedFund.as_of) }}</p>
                 <p v-if="hasValue(selectedFund.nav)"><strong>单位净值：</strong>{{ selectedFund.nav }}</p>
                 <p v-if="hasValue(selectedFund.change)"><strong>日涨跌幅：</strong>{{ formatPercent(selectedFund.change) }}</p>
                 <p v-if="hasValue(selectedFund.return1y)"><strong>近1年收益率：</strong>{{ formatPercent(selectedFund.return1y) }}</p>
@@ -178,10 +199,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
-import { getPublicFundRanking } from '@/services/fundRankingService'
+import { getPublicFundRanking, clearFundRankingCache } from '@/services/fundRankingService'
 
 // 使用全局认证
 const { logged, userText, openLoginModal, logout } = useAuth()
@@ -248,6 +269,7 @@ const publicTotal = ref(0)
 
 const loadingPublic = ref(false)
 const errorPublic = ref('')
+const updatedAt = ref('')
 
 const publicFilter = ref({
   fund_type: '',
@@ -269,6 +291,18 @@ const formatPercent = (value, withSign = true) => {
 }
 
 const formatNumber = (value) => (hasValue(value) ? String(value) : '')
+
+const formatDataDate = (value) => {
+  if (!hasValue(value)) return '--'
+  const text = String(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) return text
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
 
 // 获取排名样式
 const getRankClass = (index) => {
@@ -324,9 +358,30 @@ async function loadPublicFunds(options = {}) {
       return
     }
 
+    // 后端返回业务错误（如东方财富拿取失败）
+    if (result.data?.code !== 0) {
+      errorPublic.value = result.data?.message || '基金排行榜数据暂时不可用，请稍后重试'
+      publicFunds.value = []
+      publicTotal.value = 0
+      return
+    }
+
     const payload = result.data?.data
     publicFunds.value = payload?.items || []
     publicTotal.value = payload?.total || 0
+
+    // 更新显示时间
+    const rawTime = payload?.updated_at
+    if (rawTime) {
+      try {
+        updatedAt.value = new Date(rawTime).toLocaleString('zh-CN', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        })
+      } catch {
+        updatedAt.value = rawTime
+      }
+    }
   } catch (e) {
     errorPublic.value = e?.message || '获取公募基金排行榜失败'
     publicFunds.value = []
@@ -347,8 +402,43 @@ watch(
   }
 )
 
+/**
+ * 计算距离下一个整点 8:00 的毫秒数
+ */
+function msUntilNextRefresh() {
+  const now = new Date()
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0, 0)
+  if (now >= next) {
+    // 今天 8 点已过，等到明天 8 点
+    next.setDate(next.getDate() + 1)
+  }
+  return next.getTime() - now.getTime()
+}
+
+const refreshTimer = ref(null)
+
+/**
+ * 在每天 8 点清空缓存并重新拉取数据，然后安排下一次刷新
+ */
+function scheduleDailyRefresh() {
+  const delay = msUntilNextRefresh()
+  refreshTimer.value = setTimeout(async () => {
+    clearFundRankingCache()
+    await loadPublicFunds({ refresh: true })
+    scheduleDailyRefresh() // 安排下一天的刷新
+  }, delay)
+}
+
 onMounted(async () => {
   await loadPublicFunds()
+  scheduleDailyRefresh()
+})
+
+onUnmounted(() => {
+  if (refreshTimer.value !== null) {
+    clearTimeout(refreshTimer.value)
+    refreshTimer.value = null
+  }
 })
 </script>
 
@@ -772,6 +862,48 @@ onMounted(async () => {
   font-size: 14px;
 }
 
+.data-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #fffbf5;
+  border: 1px solid #ffe0b2;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #888;
+}
+
+.update-time {
+  flex: 1;
+}
+
+.update-error {
+  color: #e53935;
+}
+
+.refresh-btn {
+  padding: 4px 14px;
+  background: #ff7f00;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #ff6a00;
+}
+
+.refresh-btn:disabled {
+  background: #ffbb80;
+  cursor: not-allowed;
+}
+
 .fund-rank-table {
   background: #fff;
   border-radius: 4px;
@@ -808,7 +940,7 @@ onMounted(async () => {
 }
 
 .name-col {
-  width: 18%;
+  width: 16%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -822,8 +954,15 @@ onMounted(async () => {
   justify-content: center;
 }
 
+.date-col {
+  width: 10%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .nav-col, .change-col, .return-col, .risk-col, .established-col {
-  width: 8%;
+  width: 7%;
   display: flex;
   align-items: center;
   justify-content: center;

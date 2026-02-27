@@ -787,6 +787,13 @@ const loadFundRanking = async () => {
       return
     }
 
+    // 后端返回业务错误（如东方财富拿取失败）
+    if (result.data?.code !== 0) {
+      fundsError.value = result.data?.message || '基金排行榜数据暂时不可用，请稍后重试'
+      funds.value = []
+      return
+    }
+
     const payload = result.data?.data
     const items = payload?.items || []
 

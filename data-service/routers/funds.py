@@ -1,8 +1,13 @@
+import logging
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
+from core.response import error
 from services.fund_ranking_service import FundRankingService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -26,17 +31,21 @@ async def get_public_fund_ranking(
 
     数据源策略：优先尝试 Tushare；当 token 未配置或数据不足/报错时回退到东方财富。
     """
-    service = FundRankingService(db_session=db)
-    return await service.get_public_ranking(
-        fund_type=fund_type,
-        return_sign=return_sign,
-        sort_by=sort_by,  # service 内部会兜底
-        order=order,
-        keyword=keyword,
-        page=page,
-        page_size=page_size,
-        refresh=refresh,
-    )
+    try:
+        service = FundRankingService(db_session=db)
+        return await service.get_public_ranking(
+            fund_type=fund_type,
+            return_sign=return_sign,
+            sort_by=sort_by,  # service 内部会兜底
+            order=order,
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
+            refresh=refresh,
+        )
+    except Exception as exc:
+        logger.exception(f"获取公募基金排行榜时发生未预期异常: {exc}")
+        return error("基金排行榜数据暂时不可用，请稍后重试", code=50001)
 
 
 @router.get(
