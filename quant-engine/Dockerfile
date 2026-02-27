@@ -30,20 +30,22 @@ RUN set -eux; \
         g++ \
         make \
         libpq-dev \
-        tzdata \
-        wget && \
+        tzdata && \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
-    # 安装 TA-Lib C 库
-    wget -q http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
-    tar -xzf ta-lib-0.4.0-src.tar.gz && \
-    cd ta-lib/ && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# 拷贝预先下载好的 TA-Lib 源码包（避免构建时从网络下载，防止卡住）
+COPY ta-lib-0.4.0-src.tar.gz /tmp/ta-lib-0.4.0-src.tar.gz
+
+# 编译安装 TA-Lib C 库
+RUN set -eux; \
+    tar -xzf /tmp/ta-lib-0.4.0-src.tar.gz -C /tmp && \
+    cd /tmp/ta-lib/ && \
     ./configure --prefix=/usr && \
     make && \
     make install && \
-    cd .. && \
-    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz && \
-    # 清理
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    cd / && \
+    rm -rf /tmp/ta-lib /tmp/ta-lib-0.4.0-src.tar.gz
 
 # 安装 Python 依赖
 RUN pip install --upgrade pip setuptools wheel
