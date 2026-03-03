@@ -10,6 +10,7 @@ from core.response import error, success
 from models.public_fund_ranking_item import PublicFundRankingItemModel
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from schemas.funds import (
     PrivateFundRankingItem,
     PublicFundRankingItem,
@@ -272,17 +273,24 @@ class FundRankingService:
 
         if not refresh:
             if self.db_session:
-                cached_payload = await self._query_public_from_db(
-                    fund_type=fund_type,
-                    return_sign=return_sign,
-                    sort_by=sort_by,
-                    order=order,
-                    keyword=keyword,
-                    page=page,
-                    page_size=page_size,
-                )
-                if cached_payload and self._is_db_payload_fresh(cached_payload):
-                    return success(cached_payload)
+                try:
+                    cached_payload = await self._query_public_from_db(
+                        fund_type=fund_type,
+                        return_sign=return_sign,
+                        sort_by=sort_by,
+                        order=order,
+                        keyword=keyword,
+                        page=page,
+                        page_size=page_size,
+                    )
+                    if cached_payload and self._is_db_payload_fresh(cached_payload):
+                        return success(cached_payload)
+                except SQLAlchemyError as db_err:
+                    logger.warning(f"公募排行读取数据库缓存失败，降级到外部数据源: {db_err}")
+                    try:
+                        await self.db_session.rollback()
+                    except Exception:
+                        pass
             else:
                 now = datetime.now(timezone.utc)
                 entry = _public_cache.get(key)
@@ -322,19 +330,26 @@ class FundRankingService:
 
             # --- 兜底策略 1：尝试返回 DB 中的旧数据（不限时效）---
             if self.db_session:
-                stale_payload = await self._query_public_from_db(
-                    fund_type=fund_type,
-                    return_sign=return_sign,
-                    sort_by=sort_by,
-                    order=order,
-                    keyword=keyword,
-                    page=page,
-                    page_size=page_size,
-                )
-                if stale_payload:
-                    logger.info("Eastmoney 失败，回退到 DB 旧数据")
-                    stale_payload["stale"] = True
-                    return success(stale_payload)
+                try:
+                    stale_payload = await self._query_public_from_db(
+                        fund_type=fund_type,
+                        return_sign=return_sign,
+                        sort_by=sort_by,
+                        order=order,
+                        keyword=keyword,
+                        page=page,
+                        page_size=page_size,
+                    )
+                    if stale_payload:
+                        logger.info("Eastmoney 失败，回退到 DB 旧数据")
+                        stale_payload["stale"] = True
+                        return success(stale_payload)
+                except SQLAlchemyError as db_err:
+                    logger.warning(f"Eastmoney 失败且数据库读取异常，跳过 DB 兜底: {db_err}")
+                    try:
+                        await self.db_session.rollback()
+                    except Exception:
+                        pass
 
             # --- 兜底策略 2：尝试内存缓存（即使过期）---
             entry = _public_cache.get(key)
@@ -369,17 +384,25 @@ class FundRankingService:
         }
 
         if self.db_session:
-            await self._upsert_public_items(items, fund_type)
-            cached_payload = await self._query_public_from_db(
-                fund_type=fund_type,
-                return_sign=return_sign,
-                sort_by=sort_by,
-                order=order,
-                keyword=keyword,
-                page=page,
-                page_size=page_size,
-            )
-            return success(cached_payload or payload)
+            try:
+                await self._upsert_public_items(items, fund_type)
+                cached_payload = await self._query_public_from_db(
+                    fund_type=fund_type,
+                    return_sign=return_sign,
+                    sort_by=sort_by,
+                    order=order,
+                    keyword=keyword,
+                    page=page,
+                    page_size=page_size,
+                )
+                return success(cached_payload or payload)
+            except SQLAlchemyError as db_err:
+                logger.warning(f"公募排行写入/读取数据库失败，直接返回实时结果: {db_err}")
+                try:
+                    await self.db_session.rollback()
+                except Exception:
+                    pass
+                return success(payload)
 
         _public_cache[key] = CacheEntry(
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=self.PUBLIC_CACHE_TTL_SECONDS),
