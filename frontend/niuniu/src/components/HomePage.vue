@@ -1,44 +1,11 @@
 <template>
   <div>
-    <!-- 动态风险提示弹窗 (登录弹窗已移至全局 LoginModal 组件) -->
-    <div class="risk-modal" v-show="showRiskTip">
-      <div class="risk-box">
-        <div class="risk-icon">⚠️</div>
-        <div class="risk-title">风险提示</div>
-        <div class="risk-content">
-          <p>尊敬的用户，您正在登录量化牛牛交易平台。投资有风险，入市需谨慎。请注意：</p>
-          <ul>
-            <li>量化交易可能面临市场风险、流动性风险等</li>
-            <li>过去业绩不代表未来表现</li>
-            <li>请根据自身风险承受能力合理配置资产</li>
-            <li>建议您详细了解产品风险收益特征</li>
-          </ul>
-        </div>
-        <button class="risk-confirm-btn" @click="confirmRiskTip">我已阅读并了解风险</button>
-      </div>
-    </div>
-
-
     <!-- 顶部栏 -->
     <header class="top-bar">
       <div class="container">
         <div class="top-left">
-          <h1 class="logo">量化牛牛</h1>
-          <span class="slogan">专业理财平台</span>
-        </div>
-        <div class="top-right">
-          <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
-            <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
-            <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-              <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-              <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
-            </div>
-            <!-- 如果未登录，显示登录/注册选项 -->
-            <div class="user-dropdown" v-show="showUserMenu && !logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-              <div class="dropdown-item" @click="openLoginModal">登录</div>
-              <div class="dropdown-item" @click="openLoginModal">注册</div>
-            </div>
-          </div>
+          <h1 class="logo">脑科学研究室</h1>
+          <span class="slogan">历史数据研究与模拟平台</span>
         </div>
       </div>
     </header>
@@ -48,35 +15,50 @@
       <div class="container">
         <ul class="nav-list">
           <li><a href="#" class="active">首页</a></li>
-          <li><router-link to="/finance-channel">财经频道</router-link></li>
-          <li><router-link to="/daily-insight">每日内参</router-link></li>
-          <li><router-link to="/shop">商城</router-link></li>
-          <li><router-link to="/fund-ranking">基金排行榜</router-link></li>
-          <li><router-link to="/stock-data">数据中心</router-link></li>
-          <li><router-link to="/niu-model">牛牛大模型</router-link></li>
+          <li><router-link to="/finance-channel">宏微观数据集</router-link></li>
+          <li><router-link to="/daily-insight">每日数据模拟分析</router-link></li>
+          <li><router-link to="/shop">研究数据样本库</router-link></li>
+          <li><router-link to="/stock-data">数据模拟中心</router-link></li>
+          <li><router-link to="/niu-model">脑科学技术研究中心</router-link></li>
         </ul>
       </div>
     </nav>
+
+    <div class="risk-banner" role="note" aria-label="风险提示">
+      <div class="container risk-banner__main">
+        <div class="risk-banner__text">
+          <span v-if="!riskExpanded">
+            仅历史研究与模拟，不荐股不建议；数据或延迟误差，后果自担
+          </span>
+          <span v-else>
+            本页面仅用于历史数据研究与数据模拟展示，不构成投资建议，不荐股、不做交易推荐。数据可能存在延迟、误差或不完整，历史表现不代表未来；用户应自行判断并承担使用后果。在法律允许范围内，平台不对使用本页面数据产生的损失承担责任。
+          </span>
+        </div>
+        <button class="risk-banner__toggle" type="button" @click="riskExpanded = !riskExpanded">
+          {{ riskExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
 
     <!-- 主内容区 -->
     <main class="main-content">
       <div class="container">
         <!-- 财经头条板块 -->
         <div class="section-header-inline" style="margin: 0 0 15px 0;">
-          <h2 class="section-title" style="margin: 0;">财经头条</h2>
+          <h2 class="section-title" style="margin: 0;">宏微观数据</h2>
           <div class="header-actions">
-            <button class="refresh-icon-btn" @click="loadNews(true)" :disabled="newsLoading" title="刷新新闻">
+            <button class="refresh-icon-btn" @click="loadNews(true)" :disabled="newsLoading" title="重新加载数据">
               <span v-if="!newsLoading">⟳</span>
               <span v-else>...</span>
             </button>
-            <router-link to="/news-list" class="more-link" style="font-size:14px;">更多&gt;</router-link>
           </div>
         </div>
+        <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
         <section class="news-section">
           <!-- 加载状态 -->
           <div v-if="newsLoading && !bannerNews" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>正在加载财经新闻...</p>
+            <p>正在加载宏微观数据快照...</p>
           </div>
           
           <!-- 新闻内容 -->
@@ -88,7 +70,7 @@
               </div>
             </div>
             <div v-else class="empty-news">
-              <p>{{ newsError || '暂无财经头条' }}</p>
+              <p>{{ newsError || '暂无宏微观数据快照' }}</p>
               <button v-if="newsError" @click="loadNews(true)" class="retry-btn" style="margin-top: 10px;">重试</button>
             </div>
             <div class="news-list" v-if="newsList.length">
@@ -101,11 +83,13 @@
           </template>
         </section>
 
-        <!-- 每日内参板块 -->
-        <h2 class="section-title">
-          每日内参
-        </h2>
-        <router-link to="/daily-insight" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
+        <div class="section-header-inline" style="margin: 20px 0 15px 0;">
+          <h2 class="section-title" style="margin: 0;">每日数据模拟分析</h2>
+          <div class="header-actions">
+            <router-link to="/daily-insight" class="more-link" style="font-size: 14px;">查看详情 &gt;</router-link>
+          </div>
+        </div>
+        <div class="module-tip">仅研究展示，不构成建议，历史不代表未来</div>
         <div class="tab-switch report-tab-switch">
           <a 
             href="javascript:;" 
@@ -120,7 +104,7 @@
           <!-- 加载状态 -->
           <div v-if="dailyReportLoading" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>正在加载每日内参...</p>
+            <p>正在加载每日数据模拟分析...</p>
           </div>
           
           <!-- 数据加载完成后的内容 -->
@@ -128,14 +112,14 @@
             <!-- 最新内参 -->
             <div v-show="reportTab==='report-latest'" class="tab-content report-content" id="report-latest">
               <div v-if="latestDailyReport" class="report-item">
-                <h3>{{ latestDailyReport.title || '最新投资策略' }}</h3>
+                <h3>{{ latestDailyReport.title || '最新数据模拟样本' }}</h3>
                 <p>{{ truncateText(latestDailyReport.market_sentiment, 120) }}</p>
-                <span class="design">系统 | AI分析</span>
+                <span class="design">系统 | 研究样本</span>
                 <span class="date">{{ formatReportDate(latestDailyReport.report_date) }}</span>
               </div>
               <div v-else class="report-item">
                 <h3>{{ dailyReportError || '暂无最新内参' }}</h3>
-                <p>{{ dailyReportError ? '请点击重试按钮重新加载' : '系统正在生成最新的投资策略分析，请稍后查看。' }}</p>
+                <p>{{ dailyReportError ? '请点击重试按钮重新加载' : '系统正在生成最新的数据模拟分析样本，请稍后查看。' }}</p>
                 <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
               </div>
             </div>
@@ -145,12 +129,12 @@
               <div v-if="getYesterdayReport()" class="report-item">
                 <h3>{{ getYesterdayReport().title }}</h3>
                 <p>{{ truncateText(getYesterdayReport().market_sentiment, 120) }}</p>
-                <span class="design">系统 | AI分析</span>
+                <span class="design">系统 | 研究样本</span>
                 <span class="date">{{ formatReportDate(getYesterdayReport().report_date) }}</span>
               </div>
               <div v-else class="report-item">
                 <h3>暂无昨日内参</h3>
-                <p>昨日投资策略分析暂未生成。</p>
+                <p>昨日数据模拟分析样本暂未生成。</p>
                 <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
               </div>
             </div>
@@ -165,13 +149,13 @@
                 >
                   <h3>{{ report.title }}</h3>
                   <p>{{ truncateText(report.market_sentiment, 100) }}</p>
-                  <span class="design">系统 | AI分析</span>
+                  <span class="design">系统 | 研究样本</span>
                   <span class="date">{{ formatReportDate(report.report_date) }}</span>
                 </div>
               </template>
               <div v-else class="report-item">
                 <h3>暂无历史内参</h3>
-                <p>历史投资策略分析暂未生成。</p>
+                <p>历史数据模拟分析样本暂未生成。</p>
                 <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
               </div>
             </div>
@@ -180,7 +164,10 @@
 
 
         <!-- 龙虎榜板块（新增切换内容容器） -->
-        <h2 class="section-title">{{ dragonFailed ? '大盘指数' : '龙虎榜' }}</h2>
+        <div class="section-header-inline" style="margin: 20px 0 15px 0;">
+          <h2 class="section-title" style="margin: 0;">{{ dragonFailed ? '大盘指数' : '公开异动统计' }}</h2>
+        </div>
+        <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
         <div v-if="!dragonFailed" class="tab-switch dragon-tab-switch">
           <a href="javascript:;" :class="{ active: dragonTab==='dragon-today' }" @click.prevent="dragonTab='dragon-today'">今日</a>
           <a href="javascript:;" :class="{ active: dragonTab==='dragon-5day' }" @click.prevent="dragonTab='dragon-5day'">5日</a>
@@ -204,7 +191,6 @@
                     <th>最新价</th>
                     <th>涨跌幅</th>
                     <th>涨跌额</th>
-                    <th>更新时间</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -213,7 +199,6 @@
                     <td>{{ row.price }}</td>
                     <td><span :class="row.change > 0 ? 'red' : 'green'">{{ row.changeText }}</span></td>
                     <td>{{ row.changeAmount }}</td>
-                    <td>{{ row.updatedAt }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -361,20 +346,21 @@
 
         <!-- 研报板块 -->
         <div class="section-header-inline">
-          <h2 class="section-title">研报</h2>
+          <h2 class="section-title">公开文本索引</h2>
           <div class="header-actions">
-            <button v-if="companyReportsData.length > 0" @click="loadCompanyReports" class="refresh-icon-btn" :disabled="companyReportsLoading" title="刷新">
+            <button v-if="companyReportsData.length > 0" @click="loadCompanyReports" class="refresh-icon-btn" :disabled="companyReportsLoading" title="重新加载数据">
               <span v-if="companyReportsLoading">⟳</span>
               <span v-else>↻</span>
             </button>
             <router-link to="/company-research" class="more-link">查看全部 &gt;</router-link>
           </div>
         </div>
+        <div class="module-tip">仅研究展示，不构成建议，历史不代表未来</div>
         <section class="company-report">
           <!-- 加载状态 -->
           <div v-if="companyReportsLoading && companyReportsData.length === 0" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>正在加载公司研报...</p>
+            <p>正在加载公开文本数据...</p>
           </div>
           
           <!-- 错误状态 -->
@@ -392,14 +378,14 @@
                   <span :class="getRatingClass(card.rating)">{{ getRatingTag(card.rating) }}</span>
                 </div>
                 <div class="report-meta">
-                  <span class="meta-item">{{ card.report_type === 'analysis' ? '深度分析' : '投研摘要' }}</span>
+                  <span class="meta-item">{{ card.report_type === 'analysis' ? '结构化分析' : '文本摘要样本' }}</span>
                   <span class="meta-item">{{ formatDate(card.created_at) }}</span>
                 </div>
                 <ul class="report-ul" v-if="card.tags && card.tags.length">
                   <li v-for="(t, i) in card.tags.slice(0, 3)" :key="i">{{ t }}</li>
                 </ul>
                 <div style="clear:both;"></div>
-                <button class="view-btn" @click.stop="viewCompanyReport(card)">查看研报</button>
+                <button class="view-btn" @click.stop="viewCompanyReport(card)">查看报告</button>
               </div>
             </div>
           </div>
@@ -411,99 +397,30 @@
           </div>
         </section>
 
-        <!-- 商城板块 -->
-        <h2 class="section-title">商城</h2>
-          <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
-        <section class="mall-section">
-          <!-- 加载状态 -->
-          <div v-if="mallProductsLoading" class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>正在加载商品...</p>
-          </div>
-          
-          <!-- 商品卡片 -->
-          <div v-else class="mall-cards">
-            <div class="mall-card" v-for="product in mallProducts" :key="product.id">
-              <div class="card-icon">
-                <img :src="product.img || defaultProductImg" :alt="product.name" />
-              </div>
-              <div class="card-info">
-                <span class="product-type-tag">{{ getProductTypeName(product.type) }}</span>
-                <h4>{{ product.name }}</h4>
-                <p>{{ product.description || '精选商品，品质保证' }}</p>
-                <p class="price">{{ formatPrice(product.price) }}</p>
-              </div>
-              <button class="buy-btn" @click="router.push('/shop')">立即购买</button>
-            </div>
-            
-            <!-- 无商品时显示默认 -->
-            <template v-if="mallProducts.length === 0">
-              <div class="mall-card">
-                <div class="card-icon">
-                  <img src="/4.png" alt="商品图标" />
-                </div>
-                <div class="card-info">
-                  <h4>更多商品</h4>
-                  <p>精选量化工具和服务，助力投资决策</p>
-                  <p class="price">敬请期待</p>
-                </div>
-                <button class="buy-btn" @click="router.push('/shop')">查看商城</button>
-              </div>
-            </template>
-          </div>
-        </section>
-
-        <!-- 基金排行榜板块 -->
+        <!-- 脑科学研究室板块 -->
         <div class="section-header-inline">
-          <h2 class="section-title">基金排行榜</h2>
+          <h2 class="section-title">研究数据样本库</h2>
           <div class="header-actions">
-            <router-link to="/fund-ranking" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
+            <router-link to="/shop" class="more-link" style="float:right;margin-top:15px;font-size: 14px;">查看详情 &gt;</router-link>
           </div>
         </div>
-        <section class="fund-rank">
-          <div v-if="fundsLoading" class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>正在加载基金排行榜...</p>
-          </div>
-          <div v-else-if="fundsError && funds.length === 0" class="error-state">
-            <p>{{ fundsError }}</p>
-            <button @click="loadFundRanking" class="retry-btn">重试</button>
-          </div>
-          <div v-else class="fund-list">
-            <div class="fund-item fund-header">
-              <div class="fund-col name-col">基金名称</div>
-              <div class="fund-col data-col">单位净值</div>
-              <div class="fund-col trend-col">日涨跌幅</div>
-              <div class="fund-col data-col">近1周</div>
-              <div class="fund-col data-col">近1月</div>
-              <div class="fund-col data-col">近3月</div>
-              <div class="fund-col data-col">近6月</div>
-              <div class="fund-col data-col">近1年</div>
-              <div class="fund-col data-col">近3年</div>
-              <div class="fund-col btn-col">操作</div>
+        <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
+        <section class="mall-section">
+          <div class="strategy-list">
+            <div class="strategy-item" @click="router.push('/shop')">
+              <h4>指数增强策略</h4>
+              <p>通过构建一个极度分散的股票组合，以较小的误差跟踪特定的市场指数...</p>
             </div>
-            <div class="fund-item" v-for="(fund, idx) in funds" :key="idx">
-              <div class="fund-col name-col">
-                <div class="fund-name">{{ fund.name }}</div>
-                <div class="fund-type">{{ fund.type }}</div>
-              </div>
-              <div class="fund-col data-col">
-                <div class="data-value">{{ fund.nav }}</div>
-                <div class="data-time">单位净值</div>
-              </div>
-              <div class="fund-col trend-col" :class="fund.trendColor">{{ fund.trend }}</div>
-
-              <div class="fund-col data-col" v-for="(p, i) in fund.periods" :key="i">
-                <div class="data-value" :class="p.class">{{ p.text }}</div>
-              </div>
-
-              <div class="fund-col btn-col">
-                <button class="fav-btn small" @click="$router.push('/fund-ranking')">自选</button>
-              </div>
+            <div class="strategy-item" @click="router.push('/shop')">
+              <h4>CTA策略</h4>
+              <p>同时监控并跟踪商品期货市场的高流动性期货合约，在维持头寸分散的基础上，利用商品...</p>
+            </div>
+            <div class="strategy-item" @click="router.push('/shop')">
+              <h4>量化对冲策略</h4>
+              <p>通过量化因子叠加形成策略组合对全市场股票进行分散投资形成股票多头组合...</p>
             </div>
           </div>
         </section>
-
 
       </div>
     </main>
@@ -523,12 +440,6 @@ import { getLatestDailyReport, getDailyReportList, getDailyReportByDate } from '
 import { getCompanyResearchList } from '@/services/companyResearchService'
 import { getProducts, formatPrice as serviceFormatPrice } from '@/services/productService'
 import { getWeiboMediaNews } from '@/services/newsService'
-import { getPublicFundRanking } from '@/services/fundRankingService'
-import http from '@/services/http'
-import { useAuth } from '@/composables/useAuth'
-
-// 使用全局认证
-const { logged, userText, isQualifiedInvestor, showRiskTip, openLoginModal, logout, confirmRiskTip } = useAuth()
 
 // 缓存配置（与 FinanceChannelPage 保持一致）
 const CACHE_DURATION = 30 * 60 * 1000 // 30分钟（毫秒）
@@ -536,6 +447,7 @@ const CACHE_DURATION = 30 * 60 * 1000 // 30分钟（毫秒）
 const search = ref('')
 const dragonTab = ref('dragon-today')
 const reportTab = ref('report-latest')
+const riskExpanded = ref(false)
 
 // 龙虎榜数据状态
 const dailyReportLoading = ref(false)
@@ -557,29 +469,18 @@ const companyReportsLoading = ref(false)
 const companyReportsError = ref('')
 const companyReportsData = ref([])
 
-// 商城商品数据状态
+// 脑科学研究室商品数据状态
 const mallProducts = ref([])
 const mallProductsLoading = ref(false)
 const defaultProductImg = 'https://picsum.photos/400/300?random=0'
 
-// 财经新闻数据状态
+// 宏微观数据快照状态
 const newsLoading = ref(false)
 const newsError = ref('')
 const newsList = ref([])
 const bannerNews = ref(null)
 
-// 基金排行榜数据状态
-const funds = ref([])
-const fundsLoading = ref(false)
-const fundsError = ref('')
-
-// 用户菜单相关状态
-const showUserMenu = ref(false)
-
 const router = useRouter()
-
-let menuTimeout = null
-let hideTimeout = null
 
 // ==================== 缓存工具函数（与 FinanceChannelPage 保持一致）====================
 
@@ -626,67 +527,18 @@ function setCacheData(key, data) {
   }
 }
 
-const onMenuEnter = () => {
-  if (!logged.value) return
-  clearTimeout(hideTimeout)
-  menuTimeout = setTimeout(() => {
-    showUserMenu.value = true
-  }, 300) // 300ms延迟显示
-}
-
-const onMenuLeave = () => {
-  clearTimeout(menuTimeout)
-  hideTimeout = setTimeout(() => {
-    if (showUserMenu.value) {
-      showUserMenu.value = false
-    }
-  }, 200) // 200ms延迟隐藏
-}
-
-const onDropdownEnter = () => {
-  clearTimeout(hideTimeout)
-}
-
-const onDropdownLeave = () => {
-  hideTimeout = setTimeout(() => {
-    showUserMenu.value = false
-  }, 200) // 200ms延迟隐藏
-}
-
-const toggleUserMenu = () => {
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false
-  } else {
-    clearTimeout(menuTimeout)
-    clearTimeout(hideTimeout)
-    showUserMenu.value = !showUserMenu.value
-  }
-}
-
 const goToCompanyResearch = () => {
   router.push('/company-research')
 }
 
-// 退出登录处理
-const handleLogout = () => {
-  logout()
-  showUserMenu.value = false
-}
-
-const goToUserProfile = () => {
-  showUserMenu.value = false
-  router.push('/profile')
-}
-
-// 跳转到新闻详情页
+// 跳转到详情页
 const goToNewsDetail = (id) => {
   if (!id) return
   router.push(`/news-detail/${id}`)
 }
 
 
-// 加载财经新闻数据（财经资讯）- 优先使用缓存
+// 加载宏微观数据快照（优先使用缓存）
 const loadNews = async (forceRefresh = false) => {
   // 使用与 FinanceChannelPage 相同的缓存 key，确保两个页面共享缓存
   const cacheKey = 'finance_news_default'
@@ -743,7 +595,7 @@ const loadNews = async (forceRefresh = false) => {
       newsList.value = []
     }
   } catch (e) {
-    console.error('加载财经新闻失败:', e)
+    console.error('加载宏微观数据快照失败:', e)
     newsError.value = '加载失败'
     bannerNews.value = null
     newsList.value = []
@@ -752,7 +604,7 @@ const loadNews = async (forceRefresh = false) => {
   }
 }
 
-// 加载商城商品数据
+// 加载脑科学研究室商品数据
 const loadMallProducts = async () => {
   mallProductsLoading.value = true
   try {
@@ -768,86 +620,6 @@ const loadMallProducts = async () => {
   }
 }
 
-// 加载基金排行榜数据（公募）
-const loadFundRanking = async () => {
-  fundsLoading.value = true
-  fundsError.value = ''
-
-  try {
-    const result = await getPublicFundRanking({
-      sort_by: 'return1m',
-      order: 'desc',
-      page: 1,
-      page_size: 3
-    })
-
-    if (!result.success) {
-      fundsError.value = result.message || '加载基金排行榜失败'
-      funds.value = []
-      return
-    }
-
-    // 后端返回业务错误（如东方财富拿取失败）
-    if (result.data?.code !== 0) {
-      fundsError.value = result.data?.message || '基金排行榜数据暂时不可用，请稍后重试'
-      funds.value = []
-      return
-    }
-
-    const payload = result.data?.data
-    const items = payload?.items || []
-
-    const uniqueByType = new Map()
-    const fallback = []
-    items.forEach((item) => {
-      const typeKey = item.type || '—'
-      if (!uniqueByType.has(typeKey)) {
-        uniqueByType.set(typeKey, item)
-      } else {
-        fallback.push(item)
-      }
-    })
-
-    const picked = Array.from(uniqueByType.values()).slice(0, 3)
-    if (picked.length < 3) {
-      picked.push(...fallback.slice(0, 3 - picked.length))
-    }
-
-    funds.value = picked.map((item, idx) => {
-      const change = Number(item.change ?? 0)
-      const trendText = `${change >= 0 ? '+' : ''}${change}%`
-      const formatVal = (val) => {
-        if (val === undefined || val === null || val === '—') return { text: '—', class: '' }
-        const num = parseFloat(val)
-        if (isNaN(num)) return { text: val, class: '' }
-        const text = `${num >= 0 ? '+' : ''}${num.toFixed(2)}%`
-        return { text, class: num < 0 ? 'green' : 'red' }
-      }
-
-      return {
-        name: item.name || '—',
-        type: item.type || '—',
-        nav: item.nav ?? '—',
-        trend: trendText,
-        trendColor: trendText.includes('-') ? 'green' : 'red',
-        periods: [
-          formatVal(item.return1w),
-          formatVal(item.return1m),
-          formatVal(item.return3m),
-          formatVal(item.return6m),
-          formatVal(item.return1y),
-          formatVal(item.return3y)
-        ]
-      }
-    })
-  } catch (error) {
-    fundsError.value = error?.message || '加载基金排行榜失败'
-    funds.value = []
-  } finally {
-    fundsLoading.value = false
-  }
-}
-
 // 格式化价格
 const formatPrice = (price) => {
   return serviceFormatPrice(price)
@@ -857,8 +629,8 @@ const formatPrice = (price) => {
 const getProductTypeName = (type) => {
   const typeMap = {
     'course': '课程',
-    'factor': '因子',
-    'strategy': '策略',
+    'factor': '模拟参数',
+    'strategy': '回测模型',
     'fund': '基金',
     'advisor': '投顾',
     'book': '书籍',
@@ -867,13 +639,11 @@ const getProductTypeName = (type) => {
   return typeMap[type] || '商品'
 }
 
-// 页面加载时的初始化（认证状态已在 App.vue 中初始化）
+// 页面加载时初始化
 onMounted(() => {
-  // 认证状态已由 useAuth 全局管理，不需要在这里重复初始化
   loadNews()
   loadCompanyReports()
   loadMallProducts()
-  loadFundRanking()
   loadDailyReports()
 })
 
@@ -1008,7 +778,7 @@ const loadMarketIndex = async () => {
   }
 }
 
-// 加载每日内参数据
+// 加载每日数据模拟分析数据
 const loadDailyReports = async () => {
   // 如果已经有数据，则不重复加载
   if (latestDailyReport.value) {
@@ -1055,10 +825,10 @@ const loadDailyReports = async () => {
         if (reportData.id && reportData.report_date) {
           latestDailyReport.value = reportData
         }
-      } else if (latestResult.status === 401) {
-        dailyReportError.value = '认证失败，请重新登录'
       } else if (latestResult.status === 404) {
         dailyReportError.value = '暂无最新报告'
+      } else if (latestResult.status === 401 || latestResult.status === 403) {
+        dailyReportError.value = '暂无数据'
       } else {
         dailyReportError.value = latestResult.message || '加载失败'
       }
@@ -1110,12 +880,6 @@ watch(dragonTab, (newTab) => {
 
 // 页面加载时检查API状态并加载龙虎榜
 onMounted(() => {
-  console.log('认证状态检查:', {
-    logged: logged.value,
-    sessionActive: localStorage.getItem('session_active') === 'true',
-    userText: userText.value
-  })
-
   loadDragonData(1) // 默认加载今日数据
 })
 
@@ -1235,11 +999,6 @@ const formatDate = (dateStr) => {
   background: #ff6a00;
 }
 
-.fund-header {
-  background: #f5f5f5;
-  font-weight: bold;
-}
-
 /* 财经头条展示优化 */
 .news-section {
   background: #fff;
@@ -1321,260 +1080,40 @@ const formatDate = (dateStr) => {
   margin-top: 8px;
 }
 
-/* 用户菜单样式 */
-.user-menu-container {
-  position: relative;
-  display: inline-block;
+.risk-banner {
+  background: #fff3e6;
+  border-bottom: 1px solid #ffb380;
+  padding: 10px 0;
 }
 
-.user-btn {
-  background-color: #000000;  /* 橙色实心背景 */
-  color: white;                /* 白色字体确保清晰显示 */
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;           /* 字体加粗增强可读性 */
-  border: none;               /* 移除默认边框 */
-  transition: background-color 0.3s ease; /* 添加过渡效果 */
-}
-
-.user-menu-container:hover .user-btn {
-  background-color: #ff6a00;  /* 鼠标悬停时稍深的橙色 */
-}
-
-.user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  z-index: 1000;
-  margin-top: 5px;
-  min-width: 120px;
-}
-
-.dropdown-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #333;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.dropdown-item:hover {
-  background-color: #f5f5f5;
-}
-
-.dropdown-item.logout {
-  color: #ff4444;
-  border-bottom: none;
-}
-
-.dropdown-item.logout:hover {
-  background-color: #ffe6e6;
-}
-
-/* 登录弹窗样式 */
-.login-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,.8);
+.risk-banner__main {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.login-box {
-  width: 90%;
-  max-width: 400px;
-  background: white;
-  border-radius: 10px;
-  padding: 30px;
-  position: relative;
-  border: 2px solid #ff7f24;
-}
-
-.close-login {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  font-size: 24px;
-  color: #ff7f24;
-  cursor: pointer;
-}
-
-.login-title {
-  font-size: 22px;
-  color: #ff7f24;
-  text-align: center;
-  margin-bottom: 20px;
-  font-weight: bold;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.login-form input {
-  padding: 12px 15px;
-  border: 1px solid #ffb380;
-  border-radius: 6px;
-}
-
-.login-btn {
-  background-color: #ff7f24;
-  color: white;
-  border: none;
-  padding: 12px 0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.login-btn:hover {
-  background-color: #ff6a00;
-}
-
-.login-btn:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.login-btn.register-btn {
-  background-color: #4CAF50;
-}
-
-.login-btn.register-btn:hover {
-  background-color: #45a049;
-}
-
-.login-switch {
-  text-align: center;
-  font-size: 14px;
+.risk-banner__text {
   color: #666;
-  margin-top: 15px;
-}
-
-.login-switch a {
-  color: #ff7f24;
-  text-decoration: none;
-  font-weight: bold;
-}
-
-.login-switch a:hover {
-  text-decoration: underline;
-}
-
-.login-tips {
-  text-align: center;
   font-size: 13px;
-  color: #999;
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
+  line-height: 1.5;
+  flex: 1;
 }
 
-.error-tips {
-  color: #ff4500;
-  text-align: center;
-  margin-bottom: 10px;
-  padding: 8px;
-  background-color: #fff0f0;
-  border-radius: 4px;
-}
-
-.success-tips {
-  color: #4CAF50;
-  text-align: center;
-  margin-bottom: 10px;
-  padding: 8px;
-  background-color: #f0fff0;
-  border-radius: 4px;
-}
-
-/* 动态风险提示样式 */
-.risk-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10000;
-}
-
-.risk-box {
-  width: 90%;
-  max-width: 500px;
-  background: white;
-  border-radius: 10px;
-  padding: 30px;
-  position: relative;
-  border: 3px solid #ff9933;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.risk-icon {
-  font-size: 40px;
-  text-align: center;
-  margin-bottom: 15px;
-}
-
-.risk-title {
-  font-size: 24px;
-  color: #ff4500;
-  text-align: center;
-  margin-bottom: 20px;
-  font-weight: bold;
-}
-
-.risk-content {
-  margin-bottom: 25px;
-  line-height: 1.6;
-}
-
-.risk-content p {
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.risk-content ul {
-  padding-left: 20px;
-  margin-bottom: 15px;
-}
-
-.risk-content li {
-  margin-bottom: 8px;
-  color: #666;
-}
-
-.risk-confirm-btn {
-  background-color: #ff7f24;
-  color: white;
+.risk-banner__toggle {
+  background: transparent;
   border: none;
-  padding: 12px 30px;
-  border-radius: 6px;
+  color: #ff7f24;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  display: block;
-  margin: 0 auto;
-  transition: background-color 0.3s;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
-.risk-confirm-btn:hover {
-  background-color: #ff6a00;
+.module-tip {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: -4px 0 10px;
 }
 
 /* 禁用的标签样式 */
@@ -1793,6 +1332,31 @@ const formatDate = (dateStr) => {
 }
 
 /* 商品类型标签样式 */
+.dragon-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.dragon-table th,
+.dragon-table td {
+  padding: 12px 8px;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+
+.dragon-table th {
+  background-color: #fafafa;
+  color: #333;
+  font-weight: 500;
+}
+
+.dragon-table td {
+  color: #666;
+  font-size: 14px;
+}
+
 .product-type-tag {
   display: inline-block;
   background: linear-gradient(to right, #ff7f24, #ff9933);
@@ -1833,6 +1397,55 @@ const formatDate = (dateStr) => {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+}
+.compliance-card h1 {
+  margin: 0 0 10px;
+  color: #333;
+}
+
+.strategy-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.strategy-item {
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 6px;
+  padding: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.strategy-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 127, 36, 0.15);
+}
+
+.strategy-item h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: #8c4b00;
+}
+
+.strategy-item p {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .strategy-list {
+    grid-template-columns: 1fr;
   }
 }
 </style>

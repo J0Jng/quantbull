@@ -38,13 +38,13 @@ class AIHubClient:
         Returns:
             str: 完整的 Prompt
         """
-        # 精简数据：只取 top 5 ETF 和 top 10 股票
-        prompt = f"""你是投资组合经理。基于今日全市场数据，输出每日投资方案。
+        prompt = f"""你是专业市场分析助手。基于今日全市场数据，输出每日数据模拟分析。
 
 要求：
 1. 不得承诺收益或提供投资建议
 2. 分析必须基于提供数据
 3. 必须包含风险提示
+    4. 不要输出 ETF 推荐或个股推荐
 
 输入数据：
 - 报告日期：{market_data.report_date}
@@ -53,20 +53,14 @@ class AIHubClient:
   上涨 {market_data.market_overview.rising_count} / 下跌 {market_data.market_overview.falling_count}
   指数：{', '.join([f'{k}({v:.2f})' for k, v in market_data.market_overview.indices.items()])}
 
-- ETF 数据（前20只）：
+- ETF 数据（前20只，仅用于市场风格判断）：
 {self._format_etf_data(market_data.etf_list[:20])}
 
-- 股票数据（前30只）：
+- 股票数据（前30只，仅用于市场情绪判断）：
 {self._format_stock_data(market_data.stock_list[:30])}
 
 请以 JSON 格式输出（不要 markdown 代码块）：
 {{
-  "etf_recommendations": [
-    {{"code": "代码", "name": "名称", "category": "类别", "reasoning": "推荐理由"}}
-  ],
-  "stock_recommendations": [
-    {{"code": "代码", "name": "名称", "factor_scores": {{"momentum": 8.5, "liquidity": 7.0, "sentiment": 6.5}}, "ai_analysis": "简要分析"}}
-  ],
   "market_sentiment": "市场情绪总结（1-2段话）",
   "risk_warning": "风险提示 & 免责声明",
   "article_outline": {{

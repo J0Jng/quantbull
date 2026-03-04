@@ -41,10 +41,10 @@ def _cors_config() -> tuple[list[str], bool]:
 
 async def seed_builtin_factors():
     """
-    初始化内设因子
+    初始化内设模拟参数
     
-    在启动时将 BUILTIN_INDICATORS 中定义的内设因子写入数据库。
-    如果因子已存在（按 name 匹配），则跳过。
+    在启动时将 BUILTIN_INDICATORS 中定义的内设模拟参数写入数据库。
+    如果模拟参数已存在（按 name 匹配），则跳过。
     """
     try:
         with get_session() as session:
@@ -57,7 +57,7 @@ async def seed_builtin_factors():
                 if existing:
                     continue
                 
-                # 创建新因子
+                # 创建新模拟参数
                 factor = Factor(
                     id=f"builtin_{indicator['name']}",
                     name=indicator["name"],
@@ -71,9 +71,9 @@ async def seed_builtin_factors():
                 session.add(factor)
             
             session.commit()
-            logger.info(f"内设因子初始化完成，共 {len(BUILTIN_INDICATORS)} 个因子")
+            logger.info(f"内设模拟参数初始化完成，共 {len(BUILTIN_INDICATORS)} 个模拟参数")
     except Exception as e:
-        logger.error(f"内设因子初始化失败: {e}")
+        logger.error(f"内设模拟参数初始化失败: {e}")
         # 不抛出异常，允许服务继续启动
 
 
@@ -83,14 +83,14 @@ def create_app() -> FastAPI:
     
     app = FastAPI(
         title="Quant Engine",
-        description="量化牛牛 量化引擎 - 回测、因子库、策略执行",
+        description="脑科学研究室 量化引擎 - 回测、模拟参数库、回测模型执行",
         version="0.1.0"
     )
 
     @app.on_event("startup")
     async def _startup():
         init_db()
-        # 初始化内设因子
+        # 初始化内设模拟参数
         await seed_builtin_factors()
     
     # CORS 中间件（生产必须显式白名单；local 才允许 *）
@@ -121,7 +121,7 @@ def create_app() -> FastAPI:
             "version": "0.1.0",
             "status": "running",
             "docs": "/docs",
-            "description": "量化引擎 - 回测、因子库、策略执行"
+            "description": "量化引擎 - 回测、模拟参数库、回测模型执行"
         })
     
     @app.get("/health")

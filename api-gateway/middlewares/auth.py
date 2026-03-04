@@ -32,8 +32,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         r"^/docs",
         r"^/openapi",
         r"^/redoc",
+        r"^/api/daily-report",  # 每日数据模拟分析公开访问
         r"^/api/company-research",  # 公司研报接口不需要认证
         r"^/api/market/overview",  # 市场概览不需要认证
+        r"^/api/market/is-trading-day",  # 交易日判断不需要认证
         r"^/api/finance-channel",  # 财经频道前台页面公开访问
         r"^/api/news/eastmoney",  # 东方财富新闻公开访问
         r"^/api/funds",  # 基金排行榜公开访问

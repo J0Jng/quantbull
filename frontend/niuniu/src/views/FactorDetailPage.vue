@@ -4,12 +4,12 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link to="/factors" class="back-btn">返回列表</router-link>
-        <h1 class="page-title">因子详情</h1>
+        <h1 class="page-title">模拟参数详情</h1>
       </div>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-indicator">
-        <p>正在加载因子详情...</p>
+        <p>正在加载模拟参数详情...</p>
       </div>
 
       <!-- 错误信息 -->
@@ -17,21 +17,21 @@
         {{ error }}
       </div>
 
-      <!-- 因子详情内容 -->
+      <!-- 模拟参数详情内容 -->
       <div v-if="!loading && factor" class="factor-detail-content">
         <div class="card factor-basic-info">
           <h2 class="section-title">{{ factor.name }}</h2>
           <div class="factor-meta">
             <div class="meta-item">
-              <span class="meta-label">因子ID:</span>
+              <span class="meta-label">模拟参数ID:</span>
               <span class="meta-value">{{ factor.id }}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">因子代码:</span>
+              <span class="meta-label">模拟参数代码:</span>
               <code class="meta-value code">{{ factor.code }}</code>
             </div>
             <div class="meta-item">
-              <span class="meta-label">因子类别:</span>
+              <span class="meta-label">模拟参数类别:</span>
               <span :class="['meta-value', getCategoryClass(factor.category)]">
                 {{ getCategoryText(factor.category) }}
               </span>
@@ -46,15 +46,15 @@
             </div>
           </div>
           <div class="factor-description">
-            <h3>因子描述</h3>
+            <h3>模拟参数描述</h3>
             <p>{{ factor.description || '暂无描述' }}</p>
           </div>
         </div>
 
-        <!-- 因子计算区域 -->
+        <!-- 模拟参数计算区域 -->
         <div class="card calculation-section">
           <div class="section-header">
-            <h2 class="section-title">因子计算</h2>
+            <h2 class="section-title">模拟参数计算</h2>
             <button 
               class="btn-primary"
               @click="runCalculation"
@@ -126,7 +126,7 @@
               <div class="chart-placeholder">
                 <!-- 这里可以集成ECharts等图表库 -->
                 <div class="chart-mockup">
-                  <div class="chart-title">因子时间序列图</div>
+                  <div class="chart-title">模拟参数时间序列图</div>
                   <div class="mockup-graph">
                     <div v-for="(point, index) in mockData" 
                          :key="index" 
@@ -152,7 +152,7 @@
                 <thead>
                   <tr>
                     <th>日期</th>
-                    <th>因子值</th>
+                    <th>模拟参数值</th>
                     <th>涨跌幅</th>
                   </tr>
                 </thead>
@@ -180,20 +180,20 @@
             :to="`/factors/${factor.id}/edit`" 
             class="btn-edit"
           >
-            编辑因子
+            编辑模拟参数
           </router-link>
-          <span v-else class="btn-edit disabled" title="内置因子不可编辑">
-            编辑因子
+          <span v-else class="btn-edit disabled" title="内置模拟参数不可编辑">
+            编辑模拟参数
           </span>
           <button 
             v-if="!isBuiltinFactor(factor.id)"
             @click="deleteFactor" 
             class="btn-delete"
           >
-            删除因子
+            删除模拟参数
           </button>
-          <span v-else class="btn-delete disabled" title="内置因子不可删除">
-            删除因子
+          <span v-else class="btn-delete disabled" title="内置模拟参数不可删除">
+            删除模拟参数
           </span>
           <router-link to="/factors" class="btn-secondary">
             返回列表
@@ -201,13 +201,13 @@
         </div>
       </div>
 
-      <!-- 因子不存在 -->
+      <!-- 模拟参数不存在 -->
       <div v-if="!loading && !factor" class="not-found">
         <div class="not-found-icon">🔍</div>
-        <h3>因子不存在</h3>
-        <p>您访问的因子不存在或已被删除。</p>
+        <h3>模拟参数不存在</h3>
+        <p>您访问的模拟参数不存在或已被删除。</p>
         <router-link to="/factors" class="btn-primary">
-          返回因子列表
+          返回模拟参数列表
         </router-link>
       </div>
     </div>
@@ -254,7 +254,7 @@ const tableData = computed(() => {
   return calculationResult.value.data.slice(0, 10)
 })
 
-// 获取因子详情
+// 获取模拟参数详情
 const fetchFactor = async () => {
   loading.value = true
   error.value = ''
@@ -268,13 +268,13 @@ const fetchFactor = async () => {
       factor.value = factorStore.currentFactor
     }
   } catch (err) {
-    error.value = `获取因子详情失败: ${err.message}`
+    error.value = `获取模拟参数详情失败: ${err.message}`
   } finally {
     loading.value = false
   }
 }
 
-// 运行因子计算
+// 运行模拟参数计算
 const runCalculation = async () => {
   calculating.value = true
   error.value = ''
@@ -311,7 +311,7 @@ const runCalculation = async () => {
       }
     }
   } catch (err) {
-    error.value = `因子计算失败: ${err.message}`
+    error.value = `模拟参数计算失败: ${err.message}`
   } finally {
     calculating.value = false
   }
@@ -336,9 +336,9 @@ const calculateStats = (values) => {
   }
 }
 
-// 删除因子
+// 删除模拟参数
 const deleteFactor = async () => {
-  if (confirm('确定要删除这个因子吗？此操作不可恢复。')) {
+  if (confirm('确定要删除这个模拟参数吗？此操作不可恢复。')) {
     try {
       await factorStore.removeFactor(route.params.id)
       
@@ -348,7 +348,7 @@ const deleteFactor = async () => {
         router.push('/factors')
       }
     } catch (err) {
-      error.value = `删除因子失败: ${err.message}`
+      error.value = `删除模拟参数失败: ${err.message}`
     }
   }
 }
@@ -362,7 +362,7 @@ const getCategoryClass = (category) => {
   }
 }
 
-// 判断是否为内置因子（不可编辑/删除）
+// 判断是否为内置模拟参数（不可编辑/删除）
 const isBuiltinFactor = (factorId) => {
   return factorId && factorId.startsWith('builtin')
 }
@@ -370,8 +370,8 @@ const isBuiltinFactor = (factorId) => {
 const getCategoryText = (category) => {
   const categoryMap = {
     'technical': '技术指标',
-    'fundamental': '基本面因子',
-    'macro': '宏观因子'
+    'fundamental': '基本面模拟参数',
+    'macro': '宏观模拟参数'
   }
   return categoryMap[category] || category
 }

@@ -2,8 +2,6 @@
  * 认证服务
  * 对接后端 /api/auth/* 接口
  */
-import http, { handleRequest } from './http'
-
 /**
  * 用户登录（JSON 格式）
  * POST /api/auth/login/json
@@ -12,25 +10,19 @@ import http, { handleRequest } from './http'
  * @param {string} credentials.password - 密码
  */
 export const login = async (credentials) => {
-  const result = await handleRequest(() => 
-    http.post('/auth/login/json', credentials)
-  )
-  
-  // 后端返回格式: {code: 0, message: "ok", data: {access_token: ..., user_id: ...}}
-  // handleRequest 包装后: {success: true, data: {code: 0, message: "ok", data: {...}}}
-  if (result.success) {
-    const payload = result.data?.data || result.data || {}
-    if (payload.access_token) {
-      localStorage.setItem('access_token', payload.access_token)
-      localStorage.setItem('token_type', payload.token_type || 'bearer')
+  localStorage.setItem('session_active', 'true')
+  localStorage.setItem('quantLoginUser', credentials?.username || '游客')
+  return {
+    success: true,
+    data: {
+      code: 0,
+      message: 'ok',
+      data: {
+        user_id: 0,
+        username: credentials?.username || '游客'
+      }
     }
-    if (payload.user_id) {
-      localStorage.setItem('user_id', String(payload.user_id))
-    }
-    localStorage.setItem('session_active', 'true')
   }
-  
-  return result
 }
 
 /**
@@ -42,19 +34,19 @@ export const login = async (credentials) => {
  * @param {string} userData.email - 邮箱（可选）
  */
 export const register = async (userData) => {
-  const result = await handleRequest(() => http.post('/auth/register', userData))
-  if (result.success) {
-    const payload = result.data?.data || result.data || {}
-    if (payload.access_token) {
-      localStorage.setItem('access_token', payload.access_token)
-      localStorage.setItem('token_type', payload.token_type || 'bearer')
+  localStorage.setItem('session_active', 'true')
+  localStorage.setItem('quantLoginUser', userData?.username || '游客')
+  return {
+    success: true,
+    data: {
+      code: 0,
+      message: 'ok',
+      data: {
+        user_id: 0,
+        username: userData?.username || '游客'
+      }
     }
-    if (payload.user_id) {
-      localStorage.setItem('user_id', String(payload.user_id))
-    }
-    localStorage.setItem('session_active', 'true')
   }
-  return result
 }
 
 /**
@@ -62,7 +54,19 @@ export const register = async (userData) => {
  * GET /api/auth/me
  */
 export const getCurrentUser = async () => {
-  return handleRequest(() => http.get('/auth/me'))
+  return {
+    success: true,
+    data: {
+      code: 0,
+      message: 'ok',
+      data: {
+        user_id: 0,
+        username: localStorage.getItem('quantLoginUser') || '游客',
+        role: 'admin',
+        qualified_investor: true
+      }
+    }
+  }
 }
 
 /**
@@ -70,15 +74,23 @@ export const getCurrentUser = async () => {
  * GET /api/auth/verify
  */
 export const verifyToken = async () => {
-  return handleRequest(() => http.get('/auth/verify'))
+  return {
+    success: true,
+    data: {
+      code: 0,
+      message: 'ok',
+      data: {
+        valid: true
+      }
+    }
+  }
 }
 
 /**
  * 退出登录
  */
 export const logout = async () => {
-  await handleRequest(() => http.post('/auth/logout'))
-  localStorage.removeItem('session_active')
+  localStorage.setItem('session_active', 'true')
   localStorage.removeItem('user_info')
   localStorage.removeItem('access_token')
   localStorage.removeItem('token_type')
@@ -90,7 +102,7 @@ export const logout = async () => {
  * @returns {boolean}
  */
 export const isAuthenticated = () => {
-  return localStorage.getItem('session_active') === 'true' && !!localStorage.getItem('access_token')
+  return true
 }
 
 /**
@@ -106,5 +118,17 @@ export const getToken = () => {
  * GET /api/tokens/balance
  */
 export const getTokenBalance = async () => {
-  return handleRequest(() => http.get('/tokens/balance'))
+  return {
+    success: true,
+    data: {
+      code: 0,
+      message: 'ok',
+      data: {
+        user_id: 0,
+        username: localStorage.getItem('quantLoginUser') || '游客',
+        role: 'guest',
+        ai_tokens: 3000
+      }
+    }
+  }
 }

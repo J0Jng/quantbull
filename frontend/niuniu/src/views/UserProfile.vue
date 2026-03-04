@@ -4,8 +4,8 @@
     <div class="header">
       <div class="logo" @click="goHome">个人主页</div>
       <div class="header-opt">
-        <a href="#">我的订单</a>
-        <a href="#">购物车</a>
+        <a href="#">我的实验记录</a>
+        <a href="#">已下线功能</a>
         <div class="user-menu-container">
           <div class="user-btn">已登录</div>
         </div>
@@ -65,7 +65,7 @@
                 <ul>
                   <li>查看高价值基金产品</li>
                   <li>参与私募投资机会</li>
-                  <li>获取专业投资咨询</li>
+                  <li>获取公开数据解读方法</li>
                 </ul>
               </div>
             </div>
@@ -154,7 +154,7 @@
             <div class="risk-confirm">
               <p>请仔细阅读并确认以下风险提示：</p>
               <div class="risk-content">
-                <p>• 投资有风险，入市需谨慎</p>
+                <p>• 本模块内容仅基于历史公开数据做技术研究，不、不做任何交易推荐，不承担任何相关法律风险</p>
                 <p>• 过往业绩不代表未来表现</p>
                 <p>• 高风险产品可能导致本金损失</p>
                 <p>• 请根据自身情况合理配置资产</p>

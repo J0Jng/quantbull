@@ -8,7 +8,6 @@ from sqlmodel import Session
 from core.config import settings
 from models import auth_engine, init_db, seed_admin_user, seed_products
 from auth.jwt import hash_password
-from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.ai_tokens import router as ai_tokens_router
 from routers.products import router as products_router
@@ -71,7 +70,6 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         return {"code": 0, "message": "ok", "data": {"service": "user-service"}}
 
-    app.include_router(auth_router)
     app.include_router(admin_router)
     app.include_router(ai_tokens_router)
     app.include_router(products_router)

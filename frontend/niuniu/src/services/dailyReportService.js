@@ -1,5 +1,5 @@
 /**
- * 每日内参服务
+ * 每日数据模拟分析服务
  * 对接后端 /api/daily-report/* 接口
  */
 import http, { handleRequest } from './http'
@@ -16,9 +16,15 @@ export const getLatestDailyReport = async () => {
  * 根据日期获取每日报告
  * GET /api/daily-report/date/{report_date}
  * @param {string} reportDate - 报告日期，格式 YYYY-MM-DD
+ * @param {Object} options - 查询选项
+ * @param {boolean} options.refresh - 是否强制刷新
  */
-export const getDailyReportByDate = async (reportDate) => {
-  return handleRequest(() => http.get(`/daily-report/date/${reportDate}`))
+export const getDailyReportByDate = async (reportDate, options = {}) => {
+  const params = {}
+  if (options.refresh) {
+    params.refresh = true
+  }
+  return handleRequest(() => http.get(`/daily-report/date/${reportDate}`, { params }))
 }
 
 /**

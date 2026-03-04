@@ -1,24 +1,33 @@
 <template>
   <div class="company-research-page" style="background: #fff8f0; min-height: 100vh;">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <router-link to="/" class="logo">脑科学研究室 - 数据模拟中心</router-link>
       <div class="header-nav">
-        <router-link to="/stock-data">股票数据</router-link>
-        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
-        <router-link to="/financial-report">财报</router-link>
-        <router-link to="/fund-source">资金流动</router-link>
-        <router-link to="/profit-forecast">盈利预测</router-link>
-        <router-link to="/company-research">公司研报</router-link>
-        <router-link to="/quant-analysis">量化分析工具</router-link>
-        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
-          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
-          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
-          </div>
-        </div>
+        <router-link to="/stock-data">历史行情数据</router-link>
+        <router-link to="/dragon-tiger-list">公开异动统计</router-link>
+        <router-link to="/financial-report">财报数据集</router-link>
+        <router-link to="/fund-source">资金流历史统计</router-link>
+        <router-link to="/profit-forecast">预测数据集（研究）</router-link>
+        <router-link to="/company-research">公开文本索引</router-link>
+        <router-link to="/quant-analysis">数据模拟分析工具</router-link>
       </div>
     </header>
+
+    <div class="risk-banner" role="note" aria-label="风险提示">
+      <div class="risk-banner__main">
+        <div class="risk-banner__text">
+          <span v-if="!riskExpanded">
+            仅历史研究与模拟，不荐股不建议；数据或延迟误差，后果自担
+          </span>
+          <span v-else>
+            本页面仅用于历史数据研究与数据模拟展示，不构成投资建议，不荐股、不做交易推荐。数据可能存在延迟、误差或不完整，历史表现不代表未来；用户应自行判断并承担使用后果。在法律允许范围内，平台不对使用本页面数据产生的损失承担责任。
+          </span>
+        </div>
+        <button class="risk-banner__toggle" type="button" @click="riskExpanded = !riskExpanded">
+          {{ riskExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
 
     <!-- 搜索栏 -->
     <div class="search-bar">
@@ -28,9 +37,10 @@
 
     <!-- 来源分类 -->
     <div class="category-nav">
-      <span class="category-item" :class="{ active: activeSource === 'ai' }" @click="setSource('ai')">AI 生成</span>
-      <span class="category-item" :class="{ active: activeSource === 'eastmoney' }" @click="setSource('eastmoney')">东方财富网</span>
+      <span class="category-item" :class="{ active: activeSource === 'ai' }" @click="setSource('ai')">结构化文本样本</span>
+      <span class="category-item" :class="{ active: activeSource === 'eastmoney' }" @click="setSource('eastmoney')">公开文本数据源</span>
     </div>
+    <div class="module-tip">仅研究展示，不构成建议，历史不代表未来</div>
 
     <!-- 东方财富栏目筛选 -->
     <div class="sub-category-nav" v-if="activeSource === 'eastmoney'">
@@ -49,7 +59,7 @@
     <div v-if="showDetailModal" class="modal-overlay" @click.self="closeDetailModal">
       <div class="modal-container">
         <div class="modal-header">
-          <h2>研报详情</h2>
+          <h2>研究报告详情</h2>
           <button class="close-btn" @click="closeDetailModal">✕</button>
         </div>
         
@@ -57,7 +67,7 @@
           <!-- 加载状态 -->
           <div v-if="detailLoading" class="loading-section">
             <div class="loading-spinner"></div>
-            <p>正在加载研报...</p>
+            <p>正在加载报告内容...</p>
           </div>
 
           <!-- 错误提示 -->
@@ -84,14 +94,14 @@
               <div class="header-meta">
                 <div class="meta-item">
                   <span class="meta-label">报告类型：</span>
-                  <span class="meta-value">{{ reportDetail.report_type === 'summary' ? '简要摘要' : '深度分析' }}</span>
+                  <span class="meta-value">{{ reportDetail.report_type === 'summary' ? '文本生成摘要' : '深度分析框架' }}</span>
                 </div>
                 <div class="meta-item">
                   <span class="meta-label">创建时间：</span>
                   <span class="meta-value">{{ formatDateTime(reportDetail.created_at) }}</span>
                 </div>
                 <div class="meta-item" v-if="reportDetail.model">
-                  <span class="meta-label">生成模型：</span>
+                  <span class="meta-label">处理引擎：</span>
                   <span class="meta-value">{{ reportDetail.model }}</span>
                 </div>
                 <div class="meta-item" v-if="reportDetail.include_risks">
@@ -119,8 +129,9 @@
             <section class="detail-section report-content">
               <h2 class="section-title">
                 <span class="title-icon">📄</span>
-                研报正文
+                报告正文
               </h2>
+              <div v-if="reportDetail.model" class="ai-disclaimer">{{ AI_DISCLAIMER }}</div>
               <div class="markdown-body" v-html="renderedContent"></div>
             </section>
 
@@ -142,12 +153,13 @@
       </div>
     </div>
 
-    <!-- AI 研报生成 -->
+    <!-- 结构化文本报告草稿 -->
     <div class="ai-report-section" v-if="activeSource !== 'eastmoney'">
       <div class="ai-header">
-        <h2 class="ai-title">AI 研报生成</h2>
-        <p class="ai-subtitle">输入公司信息，生成投研报告</p>
+        <h2 class="ai-title">结构化文本报告草稿</h2>
+        <p class="ai-subtitle">输入文本材料，生成研究用结构化草稿与分析框架</p>
       </div>
+      <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
       <div class="ai-form">
         <div class="input-row">
           <div class="input-group">
@@ -155,32 +167,32 @@
             <input v-model="companyName" type="text" placeholder="例如：Apple" class="text-input" />
           </div>
           <div class="input-group">
-            <label>股票代码</label>
-            <input v-model="stockCode" type="text" placeholder="例如：600000" class="text-input" />
+            <label>样本编号</label>
+            <input v-model="stockCode" type="text" placeholder="例如：000001" class="text-input" />
           </div>
         </div>
         <textarea
           v-model="reportInput"
           class="ai-textarea"
           rows="6"
-          placeholder="请输入公司信息（业务结构、财务亮点、行业地位等，如果留空将自动构造）"
+          placeholder="请输入用于实验分析的文本材料（业务结构、公开信息、行业背景等；留空将自动构造基础输入）"
         ></textarea>
         <div class="ai-controls">
           <div class="control-group">
             <label>报告类型</label>
             <select v-model="reportType">
-              <option value="summary">摘要</option>
-              <option value="analysis">深度分析</option>
+              <option value="summary">文本摘要样本</option>
+              <option value="analysis">结构化分析框架样本</option>
             </select>
           </div>
           <div class="control-group">
-            <label>评级</label>
+            <label>分析倾向</label>
             <select v-model="rating">
-              <option value="hold">持有</option>
-              <option value="buy">买入</option>
-              <option value="add">增持</option>
-              <option value="reduce">减持</option>
-              <option value="sell">卖出</option>
+              <option value="hold">中性</option>
+              <option value="buy">积极</option>
+              <option value="add">偏积极</option>
+              <option value="reduce">审慎</option>
+              <option value="sell">保守</option>
             </select>
           </div>
           <label class="checkbox">
@@ -188,13 +200,13 @@
             包含风险提示
           </label>
           <button class="generate-btn" :disabled="reportLoading || !companyName.trim()" @click="generateAiReport">
-            {{ reportLoading ? '生成中...' : '生成研报' }}
+            {{ reportLoading ? '处理中...' : '生成研究草稿' }}
           </button>
         </div>
 
         <div v-if="reportLoading" class="loading-section">
           <div class="loading-spinner"></div>
-          <p>正在生成研报，请稍候...</p>
+          <p>正在处理文本并生成草稿，请稍候...</p>
         </div>
 
         <div v-if="reportError && !reportLoading" class="error-section">
@@ -202,6 +214,7 @@
         </div>
 
         <div v-if="reportContent && !reportLoading" class="report-result">
+          <div class="ai-disclaimer">{{ AI_DISCLAIMER }}</div>
           <div class="result-meta">
             <span>模型：{{ reportModel || '未知' }}</span>
             <span>Token：{{ reportTokens ?? '-' }}</span>
@@ -213,7 +226,7 @@
           <div class="result-actions">
             <button class="ghost-btn" @click="copyReport">复制内容</button>
             <button class="ghost-btn" @click="clearReport">清空</button>
-            <span class="save-tip">💡 研报已自动保存到数据库</span>
+            <span class="save-tip">💡 报告草稿已自动保存到数据库</span>
           </div>
         </div>
       </div>
@@ -221,25 +234,26 @@
 
     <!-- 主容器 -->
     <div class="container">
-      <!-- 全部研报 -->
-      <h2 class="section-title" id="all">全部研报</h2>
+      <!-- 全部报告 -->
+      <h2 class="section-title" id="all">全部报告</h2>
+      <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
       
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-section">
         <div class="loading-spinner"></div>
-        <p>正在加载研报数据...</p>
+        <p>正在加载报告数据...</p>
       </div>
       
       <!-- 错误提示 -->
       <div v-if="error && !loading" class="error-section">
         <p class="error-text">{{ error }}</p>
-        <button class="retry-btn" @click="fetchReports">重新加载</button>
+        <button class="retry-btn" @click="fetchReports">重新加载数据</button>
       </div>
       
       <!-- 研报列表 -->
       <template v-if="!loading && !error">
         <div class="results-info">
-          共找到 {{ filteredReports.length }} 条研报
+          共找到 {{ filteredReports.length }} 条报告
         </div>
 
         <!-- 默认卡片展示 -->
@@ -254,14 +268,14 @@
                 <li v-for="(tag, i) in item.tags" :key="i">{{ tag }}</li>
               </ul>
               <div style="clear:both;"></div>
-              <button class="view-btn" @click.stop="viewCompanyReport(item)">查看研报</button>
+              <button class="view-btn" @click.stop="viewCompanyReport(item)">查看报告</button>
             </div>
           </div>
         </div>
         
         <!-- 无结果提示 -->
         <div v-if="filteredReports.length === 0" class="no-results">
-          <p>暂无符合条件的研报</p>
+          <p>暂无符合条件的报告</p>
         </div>
       </template>
     </div>
@@ -274,7 +288,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import FooterComponent from '@/components/FooterComponent.vue'
@@ -283,58 +296,8 @@ import { generateReport } from '@/services/aiService'
 import { getCompanyResearchById, generateCompanyResearch, getCompanyResearchList, getEastmoneyResearchList, getEastmoneyResearchDetail } from '@/services/companyResearchService'
 
 const router = useRouter()
-const { logged, userText, openLoginModal, logout } = useAuth()
-const showUserMenu = ref(false)
-let menuTimeout = null
-let hideTimeout = null
-
-function onMenuEnter() {
-  if (!logged.value) return
-  clearTimeout(hideTimeout)
-  menuTimeout = setTimeout(() => {
-    showUserMenu.value = true
-  }, 300)
-}
-
-function onMenuLeave() {
-  clearTimeout(menuTimeout)
-  hideTimeout = setTimeout(() => {
-    if (showUserMenu.value) {
-      showUserMenu.value = false
-    }
-  }, 200)
-}
-
-function onDropdownEnter() {
-  clearTimeout(hideTimeout)
-}
-
-function onDropdownLeave() {
-  hideTimeout = setTimeout(() => {
-    showUserMenu.value = false
-  }, 200)
-}
-
-function toggleUserMenu() {
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false
-  } else {
-    clearTimeout(menuTimeout)
-    clearTimeout(hideTimeout)
-    showUserMenu.value = !showUserMenu.value
-  }
-}
-
-function handleLogout() {
-  logout()
-  showUserMenu.value = false
-}
-
-function goToUserProfile() {
-  showUserMenu.value = false
-  router.push('/profile')
-}
+const AI_DISCLAIMER = '本页面内容仅用于历史研究与数据模拟，可能存在不准确或遗漏，不构成任何投资建议。请自行核验事实与数据。'
+const riskExpanded = ref(false)
 
 // 响应式状态
 const searchQuery = ref('')
@@ -359,11 +322,11 @@ const stockCode = ref('')
 const eastmoneyCategory = ref('stock')
 
 const eastmoneyCategories = [
-  { value: 'stock', label: '个股研报' },
-  { value: 'industry', label: '行业研报' },
+  { value: 'stock', label: '个股报告' },
+  { value: 'industry', label: '行业报告' },
   { value: 'macro', label: '宏观研究' },
   { value: 'newstock', label: '新股研究' },
-  { value: 'strategy', label: '策略报告' }
+  { value: 'strategy', label: '策略样本报告' }
 ]
 
 // 详情弹窗相关状态
@@ -377,11 +340,11 @@ const currentReportMeta = ref(null)
 
 // 评级映射
 const ratingMap = {
-  'buy': '买入',
-  'add': '增持',
-  'hold': '持有',
-  'reduce': '减持',
-  'sell': '卖出'
+  'buy': '积极',
+  'add': '偏积极',
+  'hold': '中性',
+  'reduce': '审慎',
+  'sell': '保守'
 }
 
 // 旧的评级映射（用于列表显示）
@@ -616,11 +579,12 @@ const filteredReports = computed(() => {
 })
 
 const extractPayload = (result) => result?.data?.data || result?.data || {}
+const withDisclaimer = (content) => `${AI_DISCLAIMER}\n\n${content || 'AI 未返回内容'}`
 
 const promptPreview = computed(() => {
   if (!companyName.value.trim()) return ''
   
-  const typeLabel = reportType.value === 'analysis' ? '深度分析' : '投研摘要'
+  const typeLabel = reportType.value === 'analysis' ? '深度分析框架' : '文本生成摘要'
   const riskLabel = includeRisks.value ? '并包含风险因素' : '可不包含风险因素'
   
   // 如果用户输入了公司信息，使用用户输入；否则使用公司名称和股票代码
@@ -628,7 +592,7 @@ const promptPreview = computed(() => {
   if (!companyInfo) {
     companyInfo = `公司名称：${companyName.value.trim()}`
     if (stockCode.value.trim()) {
-      companyInfo += `\n股票代码：${stockCode.value.trim()}`
+      companyInfo += `\n样本编号：${stockCode.value.trim()}`
     }
   }
   
@@ -800,12 +764,12 @@ const generateAiReport = async () => {
     if (!companyInfo) {
       companyInfo = `公司名称：${companyName.value.trim()}`
       if (stockCode.value.trim()) {
-        companyInfo += `\n股票代码：${stockCode.value.trim()}`
+        companyInfo += `\n样本编号：${stockCode.value.trim()}`
       }
-      companyInfo += '\n\n请根据公司名称查询相关信息进行分析。'
+      companyInfo += '\n\n请基于公开信息进行文本生成分析。'
     }
     
-    console.log('开始生成研报，参数:', {
+    console.log('开始生成报告草稿，参数:', {
       company_info: companyInfo,
       report_type: reportType.value,
       include_risks: includeRisks.value
@@ -819,12 +783,13 @@ const generateAiReport = async () => {
 
     if (result.success) {
       const payload = extractPayload(result)
-      reportContent.value = payload.report_content || payload.content || 'AI 未返回内容'
+      const content = payload.report_content || payload.content || '文本处理服务未返回内容'
+      reportContent.value = withDisclaimer(content)
       reportSections.value = payload.sections || []
       reportModel.value = payload.model || ''
       reportTokens.value = payload.tokens_used ?? null
       
-      console.log('研报生成成功，开始自动保存到数据库...')
+      console.log('报告草稿生成成功，开始自动保存到数据库...')
       
       // 自动保存到数据库
       try {
@@ -844,32 +809,32 @@ const generateAiReport = async () => {
         // 检查保存结果
         if (!saveResult || !saveResult.success) {
           console.warn('自动保存失败:', saveResult?.message)
-          reportError.value = '研报生成成功，但保存失败：' + (saveResult?.message || '未知错误')
+          reportError.value = '报告草稿生成成功，但保存失败：' + (saveResult?.message || '未知错误')
         } else {
           const saveBackendResponse = saveResult.data
           if (saveBackendResponse.code === 0) {
-            console.log('研报已自动保存到数据库')
+            console.log('报告草稿已自动保存到数据库')
             // 刷新研报列表
             await fetchReports()
             // 显示成功提示
             setTimeout(() => {
-              alert('研报生成成功并已保存到数据库！')
+              alert('报告草稿生成成功并已保存到数据库！')
             }, 100)
           } else {
             console.warn('保存失败，后端返回:', saveBackendResponse)
-            reportError.value = '研报生成成功，但保存失败：' + (saveBackendResponse.message || '未知错误')
+            reportError.value = '报告草稿生成成功，但保存失败：' + (saveBackendResponse.message || '未知错误')
           }
         }
       } catch (saveError) {
-        console.error('自动保存研报失败:', saveError)
-        reportError.value = '研报生成成功，但保存失败：' + (saveError.message || '网络错误')
+        console.error('自动保存报告草稿失败:', saveError)
+        reportError.value = '报告草稿生成成功，但保存失败：' + (saveError.message || '网络错误')
       }
     } else {
-      reportError.value = result.message || '生成研报失败'
+      reportError.value = result.message || '生成报告草稿失败'
     }
   } catch (e) {
-    reportError.value = '生成研报失败: ' + (e.message || '未知错误')
-    console.error('生成研报失败:', e)
+    reportError.value = '生成报告草稿失败: ' + (e.message || '未知错误')
+    console.error('生成报告草稿失败:', e)
   } finally {
     reportLoading.value = false
   }
@@ -1027,46 +992,40 @@ onMounted(() => {
   text-decoration: underline;
 }
 
-.header-nav .user-btn {
-  background-color: white;
+.risk-banner {
+  background: #fff3e6;
+  border-bottom: 1px solid #ffb380;
+  padding: 10px 20px;
+}
+
+.risk-banner__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.risk-banner__text {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.risk-banner__toggle {
+  background: transparent;
+  border: none;
   color: #ff7f24;
-  padding: 6px 12px;
-  border-radius: 4px;
   cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
-.user-menu-container {
-  position: relative;
-}
-
-.user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border: 1px solid #ffb380;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  min-width: 120px;
-}
-
-.dropdown-item {
-  padding: 10px 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #fff3e6;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-item:hover {
-  background-color: #fff8f0;
-}
-
-.dropdown-item.logout {
-  color: #ff4500;
+.module-tip {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 20px 0;
 }
 
 .search-bar {
@@ -1271,6 +1230,17 @@ onMounted(() => {
   border-radius: 8px;
   padding: 12px;
   background: #fffaf6;
+}
+
+.ai-disclaimer {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #a65300;
+  background-color: rgba(255, 127, 0, 0.1);
+  border: 1px solid rgba(255, 127, 0, 0.25);
 }
 
 .report-content {

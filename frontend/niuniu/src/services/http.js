@@ -13,7 +13,7 @@ const http = axios.create({
   baseURL: API_BASE_URL,
   // 延长超时时间以支持后端模型降级重试
   timeout: 600000,
-  withCredentials: true,
+  withCredentials: false,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -41,11 +41,6 @@ const getCsrfToken = () => {
 // 请求拦截器 - 添加 CSRF token（仅对非幂等请求）
 http.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      config.headers = config.headers || {}
-      config.headers.Authorization = `Bearer ${token}`
-    }
     const method = (config.method || 'get').toLowerCase()
     if (['post', 'put', 'patch', 'delete'].includes(method)) {
       const csrfToken = getCsrfToken()
@@ -74,16 +69,8 @@ http.interceptors.response.use(
         message = data.message
       } else if (data && data.detail) {
         message = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
-      } else if (status === 401) {
-        message = '认证失败，请重新登录'
-        // 清理会话标记并触发重新登录事件
-        localStorage.removeItem('session_active')
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('token_type')
-        localStorage.removeItem('user_id')
-        window.dispatchEvent(new CustomEvent('auth:required'))
-      } else if (status === 403) {
-        message = '无权限访问该资源'
+      } else if (status === 401 || status === 403) {
+        message = '暂无数据'
       } else if (status === 404) {
         message = '资源不存在'
       } else if (status === 422) {

@@ -23,8 +23,8 @@ export const ProductType = {
  * 商品类型名称映射
  */
 export const ProductTypeName = {
-  factor: '因子',
-  strategy: '策略',
+  factor: '模拟参数',
+  strategy: '回测模型',
   fund: '基金',
   advisor: '投顾',
   course: '课程',

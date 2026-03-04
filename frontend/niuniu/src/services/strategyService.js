@@ -1,11 +1,11 @@
 /**
- * 策略服务
+ * 回测模型服务
  * 对接后端 /api/strategy/* 接口
  */
 import http, { handleRequest } from './http'
 
 /**
- * 获取策略列表
+ * 获取回测模型列表
  * GET /api/strategy
  * @param {Object} params - 查询参数
  * @param {string} params.status - 状态筛选
@@ -27,27 +27,27 @@ export const getStrategies = async (params = {}) => {
 }
 
 /**
- * 获取策略详情
+ * 获取回测模型详情
  * GET /api/strategy/{id}
- * @param {number} id - 策略 ID
+ * @param {number} id - 回测模型 ID
  */
 export const getStrategy = async (id) => {
   return handleRequest(() => http.get(`/strategy/${id}`))
 }
 
 /**
- * 创建策略
+ * 创建回测模型
  * POST /api/strategy
- * @param {Object} strategyData - 策略数据
+ * @param {Object} strategyData - 回测模型数据
  */
 export const createStrategy = async (strategyData) => {
   return handleRequest(() => http.post('/strategy', strategyData))
 }
 
 /**
- * 更新策略
+ * 更新回测模型
  * PUT /api/strategy/{id}
- * @param {number} id - 策略 ID
+ * @param {number} id - 回测模型 ID
  * @param {Object} updateData - 更新数据
  */
 export const updateStrategy = async (id, updateData) => {
@@ -55,27 +55,27 @@ export const updateStrategy = async (id, updateData) => {
 }
 
 /**
- * 删除策略
+ * 删除回测模型
  * DELETE /api/strategy/{id}
- * @param {number} id - 策略 ID
+ * @param {number} id - 回测模型 ID
  */
 export const deleteStrategy = async (id) => {
   return handleRequest(() => http.delete(`/strategy/${id}`))
 }
 
 /**
- * 验证策略代码
+ * 验证回测模型代码
  * POST /api/strategy/validate
- * @param {string} code - 策略代码
+ * @param {string} code - 回测模型代码
  */
 export const validateStrategyCode = async (code) => {
   return handleRequest(() => http.post('/strategy/validate', { code }))
 }
 
 /**
- * 获取策略回测历史
+ * 获取回测模型回测历史
  * GET /api/backtest
- * @param {number} strategyId - 策略 ID
+ * @param {number} strategyId - 回测模型 ID
  */
 export const getStrategyBacktests = async (strategyId) => {
   return handleRequest(() => 
@@ -84,9 +84,9 @@ export const getStrategyBacktests = async (strategyId) => {
 }
 
 /**
- * 运行策略回测
+ * 运行回测模型回测
  * POST /api/backtest/run
- * @param {number} strategyId - 策略 ID
+ * @param {number} strategyId - 回测模型 ID
  * @param {Object} backtestParams - 回测参数
  */
 export const runBacktest = async (strategyId, backtestParams) => {
@@ -99,7 +99,7 @@ export const runBacktest = async (strategyId, backtestParams) => {
 }
 
 /**
- * 生成策略模板（AI 生成）
+ * 生成回测模型模板（AI 生成）
  * POST /api/ai/generate/strategy
  * @param {string} templateType - 模板类型描述
  */
@@ -113,7 +113,7 @@ export const generateStrategyTemplate = async (templateType) => {
 }
 
 /**
- * 获取内置策略列表
+ * 获取内置回测模型列表
  * GET /api/strategy/builtin
  */
 export const getBuiltinStrategies = async () => {
@@ -121,7 +121,7 @@ export const getBuiltinStrategies = async () => {
 }
 
 /**
- * 获取策略示例代码
+ * 获取回测模型示例代码
  * GET /api/strategy/examples
  */
 export const getStrategyExamples = async () => {
@@ -129,10 +129,10 @@ export const getStrategyExamples = async () => {
 }
 
 /**
- * AI 生成策略代码
+ * AI 生成回测模型代码
  * POST /api/ai/generate/strategy
  * @param {Object} data - 请求数据
- * @param {string} data.user_description - 策略描述
+ * @param {string} data.user_description - 回测模型描述
  * @param {string} data.framework - 框架类型
  */
 export const generateStrategyCode = async (data) => {

@@ -58,6 +58,15 @@ export const getMarketOverview = async (date) => {
 }
 
 /**
+ * 判断是否交易日
+ * GET /api/market/is-trading-day
+ * @param {string} date - 日期 YYYY-MM-DD
+ */
+export const getTradingDayStatus = async (date) => {
+  return handleRequest(() => http.get('/market/is-trading-day', { params: { date } }))
+}
+
+/**
  * 获取 ETF 列表
  * GET /api/etf/list
  * @param {Object} params - 查询参数

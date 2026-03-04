@@ -69,7 +69,7 @@ class ChatService {
     }
   }
 
-  // 生成投资策略代码
+  // 生成投资回测模型代码
   async generateStrategy(description, includeRiskControl = true) {
     try {
       const response = await http.post('/ai/generate/strategy', {

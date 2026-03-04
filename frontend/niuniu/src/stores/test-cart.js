@@ -1,30 +1,30 @@
-// 购物车功能测试文件
+// 已下线功能功能测试文件
 import { useCartStore } from './cart.js'
 
 // 测试函数
 export function testCartFunctionality() {
   const cartStore = useCartStore()
   
-  console.log('=== 量化牛牛购物车功能测试 ===')
+  console.log('=== 脑科学研究室已下线功能功能测试 ===')
   
   // 测试1: 初始状态
   console.log('测试1 - 初始状态:')
-  console.log('购物车商品数量:', cartStore.totalItems)
-  console.log('购物车总金额:', cartStore.formattedTotalAmount)
+  console.log('已下线功能商品数量:', cartStore.totalItems)
+  console.log('已下线功能总金额:', cartStore.formattedTotalAmount)
   console.log('是否有高风险产品:', cartStore.hasHighRiskProducts)
   
   // 测试数据
   const testProducts = [
     {
       id: 'factor-test-1',
-      name: '测试因子 - 动量因子',
+      name: '测试模拟参数 - 动量模拟参数',
       price: '¥999.00',
       img: 'https://picsum.photos/100/80',
       type: 'factor'
     },
     {
       id: 'strategy-test-1',
-      name: '测试策略 - MACD策略',
+      name: '测试回测模型 - MACD回测模型',
       price: '¥1,599.00',
       img: 'https://picsum.photos/100/80',
       type: 'strategy'
@@ -65,8 +65,8 @@ export function testCartFunctionality() {
     console.log('移除后商品数量:', cartStore.totalItems)
   }
   
-  // 测试5: 清空购物车
-  console.log('\n测试5 - 清空购物车:')
+  // 测试5: 清空已下线功能
+  console.log('\n测试5 - 清空已下线功能:')
   cartStore.clearCart()
   console.log('清空后商品数量:', cartStore.totalItems)
   console.log('清空后总金额:', cartStore.formattedTotalAmount)
@@ -85,21 +85,21 @@ export function generateTestData() {
   return {
     factor: {
       id: 'factor-demo-1',
-      name: '演示因子 - 估值因子合集',
+      name: '演示模拟参数 - 估值模拟参数合集',
       price: '¥1,299.00',
       img: 'https://picsum.photos/200/150?random=31',
       type: 'factor'
     },
     strategy: {
       id: 'strategy-demo-1',
-      name: '演示策略 - 均值回归策略',
+      name: '演示回测模型 - 均值回归回测模型',
       price: '¥2,499.00',
       img: 'https://picsum.photos/200/150?random=32',
       type: 'strategy'
     },
     fund: {
       id: 'fund-demo-1',
-      name: '演示基金 - 量化对冲基金',
+      name: '演示基金 - 量化风险模拟控制基金',
       price: '¥1,000,000.00',
       img: 'https://picsum.photos/200/150?random=33',
       type: 'fund'

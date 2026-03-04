@@ -1,7 +1,7 @@
 <template>
   <div class="strategy-list-page">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <router-link to="/" class="logo">脑科学研究室 - 数据模拟中心</router-link>
       <div class="header-nav">
         <router-link to="/stock-data">股票数据</router-link>
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
@@ -12,7 +12,6 @@
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
             <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
           </div>
         </div>
@@ -23,7 +22,7 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link to="/" class="back-btn" style="display:none">返回主页</router-link>
-        <h1 class="page-title">策略管理</h1>
+        <h1 class="page-title">回测模型管理</h1>
       </div>
 
       <!-- 搜索和筛选区域 -->
@@ -33,7 +32,7 @@
             <input 
               v-model="searchText" 
               type="text" 
-              placeholder="搜索策略名称或描述..."
+              placeholder="搜索回测模型名称或描述..."
               class="search-input"
               @input="handleSearch"
               @keyup.enter="handleSearch"
@@ -56,15 +55,15 @@
           </div>
           <router-link to="/strategies/create" class="btn-primary">
             <span class="create-icon">+</span>
-            创建新策略
+            创建新回测模型
           </router-link>
         </div>
       </div>
 
-      <!-- 策略列表表格 -->
+      <!-- 回测模型列表表格 -->
       <div class="strategy-table-section card">
         <div class="table-header">
-          <h2 class="section-title">策略列表</h2>
+          <h2 class="section-title">回测模型列表</h2>
           <div class="table-actions">
             <button 
               class="btn-secondary refresh-btn" 
@@ -78,7 +77,7 @@
 
         <!-- 加载状态 -->
         <div v-if="loading" class="loading-indicator">
-          <p>正在加载策略列表...</p>
+          <p>正在加载回测模型列表...</p>
         </div>
 
         <!-- 错误信息 -->
@@ -86,14 +85,14 @@
           {{ error }}
         </div>
 
-        <!-- 策略表格 -->
+        <!-- 回测模型表格 -->
         <div v-if="!loading && strategies.length > 0" class="table-container">
           <table class="strategy-table">
             <thead>
               <tr>
-                <th>策略ID</th>
-                <th>策略名称</th>
-                <th>策略描述</th>
+                <th>回测模型ID</th>
+                <th>回测模型名称</th>
+                <th>回测模型描述</th>
                 <th>状态</th>
                 <th>创建时间</th>
                 <th>更新时间</th>
@@ -124,14 +123,14 @@
                     <router-link 
                       :to="`/strategies/${strategy.id}/edit`" 
                       class="btn-edit"
-                      title="编辑策略"
+                      title="编辑回测模型"
                     >
                       编辑
                     </router-link>
                     <button 
                       @click="deleteStrategy(strategy.id)" 
                       class="btn-delete"
-                      title="删除策略"
+                      title="删除回测模型"
                       :disabled="strategy.status === 'active'"
                     >
                       删除
@@ -153,10 +152,10 @@
         <!-- 空状态 -->
         <div v-if="!loading && strategies.length === 0" class="empty-state">
           <div class="empty-icon">📊</div>
-          <h3>暂无策略</h3>
-          <p>您还没有创建任何策略，点击"创建新策略"开始创建您的第一个量化策略。</p>
+          <h3>暂无回测模型</h3>
+          <p>您还没有创建任何回测模型，点击"创建新回测模型"开始创建您的第一个量化回测模型。</p>
           <router-link to="/strategies/create" class="btn-primary">
-            创建新策略
+            创建新回测模型
           </router-link>
         </div>
 
@@ -256,7 +255,7 @@ const pageSize = ref(10)
 const totalCount = ref(0)
 let searchDebounceTimer = null
 
-// 获取策略列表（服务端分页 + 搜索）
+// 获取回测模型列表（服务端分页 + 搜索）
 const fetchStrategies = async () => {
   loading.value = true
   error.value = ''
@@ -276,12 +275,12 @@ const fetchStrategies = async () => {
       strategies.value = data.strategies || data.items || []
       totalCount.value = data.total || 0
     } else {
-      error.value = response.message || '获取策略列表失败'
+      error.value = response.message || '获取回测模型列表失败'
       strategies.value = []
       totalCount.value = 0
     }
   } catch (err) {
-    error.value = `获取策略列表失败: ${err.message}`
+    error.value = `获取回测模型列表失败: ${err.message}`
     strategies.value = []
     totalCount.value = 0
   } finally {
@@ -323,7 +322,7 @@ const changePage = (page) => {
 }
 
 const deleteStrategy = async (strategyId) => {
-  if (confirm('确定要删除这个策略吗？此操作不可恢复。')) {
+  if (confirm('确定要删除这个回测模型吗？此操作不可恢复。')) {
     try {
       loading.value = true
       
@@ -337,10 +336,10 @@ const deleteStrategy = async (strategyId) => {
         }
         await fetchStrategies()
       } else {
-        error.value = response.message || '删除策略失败'
+        error.value = response.message || '删除回测模型失败'
       }
     } catch (err) {
-      error.value = `删除策略失败: ${err.message}`
+      error.value = `删除回测模型失败: ${err.message}`
     } finally {
       loading.value = false
     }

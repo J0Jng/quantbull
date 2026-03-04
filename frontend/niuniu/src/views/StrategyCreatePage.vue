@@ -1,7 +1,7 @@
 <template>
   <div class="strategy-create-page">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <router-link to="/" class="logo">脑科学研究室 - 数据模拟中心</router-link>
       <div class="header-nav">
         <router-link to="/stock-data">股票数据</router-link>
         <router-link to="/dragon-tiger-list">龙虎榜</router-link>
@@ -12,7 +12,6 @@
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
             <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
           </div>
         </div>
@@ -23,7 +22,7 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link to="/strategies" class="back-btn">返回列表</router-link>
-        <h1 class="page-title">策略创建</h1>
+        <h1 class="page-title">回测模型创建</h1>
       </div>
 
       <div class="strategy-form-section card">
@@ -35,17 +34,17 @@
           </ul>
         </div>
 
-        <!-- 策略基本信息 -->
+        <!-- 回测模型基本信息 -->
         <div class="form-section">
-          <h2 class="section-title">策略信息</h2>
+          <h2 class="section-title">回测模型信息</h2>
           <div class="form-row">
             <div class="form-group">
-              <label for="strategy-name">策略名称 <span class="required">*</span></label>
+              <label for="strategy-name">回测模型名称 <span class="required">*</span></label>
               <input 
                 id="strategy-name"
                 v-model="strategyForm.name"
                 type="text"
-                placeholder="请输入策略名称（最大100字符）"
+                placeholder="请输入回测模型名称（最大100字符）"
                 maxlength="100"
                 class="form-control"
                 :class="{ 'error': fieldErrors.name }"
@@ -57,11 +56,11 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="strategy-description">策略描述</label>
+              <label for="strategy-description">回测模型描述</label>
               <textarea 
                 id="strategy-description"
                 v-model="strategyForm.description"
-                placeholder="请输入策略描述（最大1000字符）"
+                placeholder="请输入回测模型描述（最大1000字符）"
                 rows="3"
                 maxlength="1000"
                 class="form-control"
@@ -73,10 +72,10 @@
           </div>
         </div>
 
-        <!-- 策略代码编辑器 -->
+        <!-- 回测模型代码编辑器 -->
         <div class="form-section">
           <div class="section-header">
-            <h2 class="section-title">策略代码 <span class="required">*</span></h2>
+            <h2 class="section-title">回测模型代码 <span class="required">*</span></h2>
             <div class="code-actions">
               <select 
                 v-model="selectedExample" 
@@ -100,7 +99,7 @@
                 class="btn-secondary" 
                 @click="showAIDialog = true"
                 :disabled="generatingStrategy"
-                title="使用AI生成策略代码"
+                title="使用AI生成回测模型代码"
               >
                 {{ generatingStrategy ? 'AI生成中...' : 'AI生成' }}
               </button>
@@ -108,12 +107,12 @@
           </div>
 
           <div class="form-group">
-            <label>Python策略代码（最少10行）</label>
+            <label>Python回测模型代码（最少10行）</label>
             <div class="code-editor-container">
               <textarea
                 ref="codeEditor"
                 v-model="strategyForm.code"
-                placeholder="请输入Python策略代码..."
+                placeholder="请输入Python回测模型代码..."
                 rows="15"
                 class="code-input"
                 :class="{ 'error': fieldErrors.code }"
@@ -175,12 +174,12 @@
           </div>
         </div>
 
-        <!-- 因子选择 -->
+        <!-- 模拟参数选择 -->
         <div class="form-section">
-          <h2 class="section-title">关联因子（可选）</h2>
+          <h2 class="section-title">关联模拟参数（可选）</h2>
           <div class="factor-selection">
             <div class="selected-factors" v-if="selectedFactors.length > 0">
-              <h4>已选择的因子:</h4>
+              <h4>已选择的模拟参数:</h4>
               <div class="selected-factor-list">
                 <div 
                   v-for="factor in selectedFactors" 
@@ -192,7 +191,7 @@
                   <button 
                     class="remove-factor-btn" 
                     @click="removeSelectedFactor(factor.id)"
-                    title="移除因子"
+                    title="移除模拟参数"
                   >×</button>
                 </div>
               </div>
@@ -200,20 +199,20 @@
             
             <div class="factor-picker">
               <div class="factor-picker-header">
-                <label>选择因子:</label>
+                <label>选择模拟参数:</label>
                 <select 
                   v-model="factorCategoryFilter" 
                   class="factor-category-select"
                 >
                   <option value="">全部类别</option>
                   <option value="technical">技术指标</option>
-                  <option value="fundamental">基本面因子</option>
-                  <option value="macro">宏观因子</option>
+                  <option value="fundamental">基本面模拟参数</option>
+                  <option value="macro">宏观模拟参数</option>
                 </select>
               </div>
               
               <div v-if="loadingFactors" class="factor-loading">
-                加载因子列表中...
+                加载模拟参数列表中...
               </div>
               
               <div v-else class="available-factors">
@@ -232,20 +231,20 @@
                   </span>
                 </div>
                 <div v-if="availableFactors.length === 0" class="no-factors">
-                  暂无可用因子，<router-link to="/factors/create">创建因子</router-link>
+                  暂无可用模拟参数，<router-link to="/factors/create">创建模拟参数</router-link>
                 </div>
               </div>
             </div>
             
             <div class="factor-hint">
-              <p>提示：选择因子后，策略回测时可以使用这些因子的计算结果作为信号输入。</p>
+              <p>提示：选择模拟参数后，回测模型回测时可以使用这些模拟参数的计算结果作为信号输入。</p>
             </div>
           </div>
         </div>
 
-        <!-- 策略参数配置 -->
+        <!-- 回测模型参数配置 -->
         <div class="form-section">
-          <h2 class="section-title">策略参数配置</h2>
+          <h2 class="section-title">回测模型参数配置</h2>
           <div class="form-group">
             <label for="strategy-parameters">JSON参数配置</label>
             <textarea
@@ -270,7 +269,7 @@
             @click="createStrategy"
             :disabled="submitting"
           >
-            {{ submitting ? '创建中...' : '创建策略' }}
+            {{ submitting ? '创建中...' : '创建回测模型' }}
           </button>
           <router-link to="/strategies" class="btn-secondary">
             取消
@@ -295,7 +294,7 @@
           <p>{{ creationResult.message }}</p>
           <div v-if="creationResult.strategyId" class="result-actions">
             <router-link :to="`/strategies/${creationResult.strategyId}`" class="btn-primary">
-              查看策略详情
+              查看回测模型详情
             </router-link>
             <router-link to="/strategies" class="btn-secondary">
               返回列表
@@ -312,15 +311,15 @@
     <div v-if="showAIDialog" class="ai-dialog-overlay" @click="showAIDialog = false">
       <div class="ai-dialog" @click.stop>
         <div class="ai-dialog-header">
-          <h3>AI 生成策略代码</h3>
+          <h3>AI 生成回测模型代码</h3>
           <button class="close-btn" @click="showAIDialog = false">×</button>
         </div>
         <div class="ai-dialog-body">
-          <label for="ai-description">策略描述:</label>
+          <label for="ai-description">回测模型描述:</label>
           <textarea
             id="ai-description"
             v-model="aiDescription"
-            placeholder="请描述您想要的策略逻辑，例如：\n基于MACD指标的趋势跟踪策略，当MACD金叉时买入，死叉时卖出..."
+            placeholder="请描述您想要的回测模型逻辑，例如：\n基于MACD指标的趋势跟踪回测模型，当MACD金叉时买入，死叉时卖出..."
             rows="6"
             class="ai-textarea"
           ></textarea>
@@ -328,7 +327,7 @@
         <div class="ai-dialog-footer">
           <button class="btn-secondary" @click="showAIDialog = false">取消</button>
           <button class="btn-primary" @click="generateWithAI" :disabled="!aiDescription.trim() || generatingStrategy">
-            {{ generatingStrategy ? '生成中...' : '生成策略' }}
+            {{ generatingStrategy ? '生成中...' : '生成回测模型' }}
           </button>
         </div>
       </div>
@@ -432,13 +431,13 @@ const aiDescription = ref('')
 const generatingStrategy = ref(false)
 const isExampleCode = ref(false)
 
-// 因子选择相关
+// 模拟参数选择相关
 const loadingFactors = ref(false)
 const allFactors = ref([])
 const selectedFactors = ref([])
 const factorCategoryFilter = ref('')
 
-// 因子相关计算属性
+// 模拟参数相关计算属性
 const availableFactors = computed(() => {
   let factors = allFactors.value
   if (factorCategoryFilter.value) {
@@ -447,14 +446,14 @@ const availableFactors = computed(() => {
   return factors
 })
 
-// 因子相关方法
+// 模拟参数相关方法
 const fetchFactors = async () => {
   loadingFactors.value = true
   try {
     await factorStore.fetchFactors({ limit: 100, offset: 0 })
     allFactors.value = factorStore.factors || []
   } catch (error) {
-    console.error('加载因子列表失败:', error)
+    console.error('加载模拟参数列表失败:', error)
   } finally {
     loadingFactors.value = false
   }
@@ -549,7 +548,7 @@ const onCodeChange = () => {
 
 const validateCode = async () => {
   if (!strategyForm.value.code.trim()) {
-    fieldErrors.value.code = '请先输入策略代码'
+    fieldErrors.value.code = '请先输入回测模型代码'
     return
   }
 
@@ -601,7 +600,7 @@ const validateCode = async () => {
   }
 }
 
-// 加载策略示例
+// 加载回测模型示例
 const loadExamples = async () => {
   loadingExamples.value = true
   try {
@@ -637,7 +636,7 @@ const insertExample = () => {
   selectedExample.value = ''
 }
 
-// AI 生成策略代码
+// AI 生成回测模型代码
 const generateWithAI = async () => {
   if (!aiDescription.value.trim()) return
   
@@ -679,28 +678,28 @@ const validateForm = () => {
   formErrors.value = []
   fieldErrors.value = {}
   
-  // 验证策略名称
+  // 验证回测模型名称
   if (!strategyForm.value.name.trim()) {
-    fieldErrors.value.name = '策略名称不能为空'
-    formErrors.value.push('策略名称不能为空')
+    fieldErrors.value.name = '回测模型名称不能为空'
+    formErrors.value.push('回测模型名称不能为空')
   } else if (strategyForm.value.name.length > 100) {
-    fieldErrors.value.name = '策略名称不能超过100个字符'
-    formErrors.value.push('策略名称长度超标')
+    fieldErrors.value.name = '回测模型名称不能超过100个字符'
+    formErrors.value.push('回测模型名称长度超标')
   }
   
-  // 验证策略描述
+  // 验证回测模型描述
   if (strategyForm.value.description.length > 1000) {
-    fieldErrors.value.description = '策略描述不能超过1000个字符'
-    formErrors.value.push('策略描述长度超标')
+    fieldErrors.value.description = '回测模型描述不能超过1000个字符'
+    formErrors.value.push('回测模型描述长度超标')
   }
   
-  // 验证策略代码
+  // 验证回测模型代码
   if (!strategyForm.value.code.trim()) {
-    fieldErrors.value.code = '策略代码不能为空'
-    formErrors.value.push('策略代码不能为空')
+    fieldErrors.value.code = '回测模型代码不能为空'
+    formErrors.value.push('回测模型代码不能为空')
   } else if (lineCount.value < 10) {
-    fieldErrors.value.code = '策略代码至少需要10行'
-    formErrors.value.push('策略代码行数不足')
+    fieldErrors.value.code = '回测模型代码至少需要10行'
+    formErrors.value.push('回测模型代码行数不足')
   }
   
   // 验证JSON参数
@@ -713,7 +712,7 @@ const validateForm = () => {
   
   // 检查代码验证状态
   if (validationResult.value && !validationResult.value.valid) {
-    formErrors.value.push('策略代码验证未通过，请修正错误后再提交')
+    formErrors.value.push('回测模型代码验证未通过，请修正错误后再提交')
   }
   
   return formErrors.value.length === 0
@@ -742,22 +741,22 @@ const createStrategy = async () => {
     if (response.success) {
       creationResult.value = {
         status: 'success',
-        title: '策略创建成功！',
-        message: `策略 "${strategyForm.value.name}" 已成功创建。`,
+        title: '回测模型创建成功！',
+        message: `回测模型 "${strategyForm.value.name}" 已成功创建。`,
         strategyId: response.data.id
       }
     } else {
       creationResult.value = {
         status: 'error',
         title: '创建失败',
-        message: response.message || '创建策略时发生错误'
+        message: response.message || '创建回测模型时发生错误'
       }
     }
   } catch (error) {
     creationResult.value = {
       status: 'error',
       title: '创建失败',
-      message: `创建策略时发生错误: ${error.message}`
+      message: `创建回测模型时发生错误: ${error.message}`
     }
   } finally {
     submitting.value = false
@@ -778,7 +777,7 @@ const saveAsDraft = async () => {
     creationResult.value = {
       status: 'success',
       title: '草稿保存成功！',
-      message: `策略 "${strategyForm.value.name}" 已保存为草稿。`
+      message: `回测模型 "${strategyForm.value.name}" 已保存为草稿。`
     }
   } catch (error) {
     creationResult.value = {
@@ -1395,7 +1394,7 @@ onMounted(() => {
   color: #c62828;
 }
 
-/* 因子选择样式 */
+/* 模拟参数选择样式 */
 .factor-selection {
   display: flex;
   flex-direction: column;

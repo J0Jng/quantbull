@@ -1,7 +1,7 @@
 /**
- * 财经频道数据服务
+ * 宏微观数据数据服务
  * 
- * 对接后端财经频道 API
+ * 对接后端宏微观数据 API
  */
 import http from './http'
 
@@ -53,7 +53,7 @@ export async function getPolicies(params = {}) {
 }
 
 /**
- * 获取财经频道综合数据（一次性获取所有模块）
+ * 获取宏微观数据综合数据（一次性获取所有模块）
  * @param {Object} params - 查询参数
  * @param {string} params.keyword - 新闻/观点/政策的关键词过滤（可选）
  * @param {number} params.limit - 各模块返回条数，默认 10

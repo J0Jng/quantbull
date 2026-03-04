@@ -2,39 +2,32 @@
   <div class="page-wrapper">
     <!-- 头部 -->
     <div class="header">
-      <div class="logo" @click="goHome">量化牛牛财经频道</div>
+      <div class="logo" @click="goHome">脑科学研究室 - 宏微观数据</div>
       <div class="header-opt">
-        <div class="refresh-btn" @click="refreshAllData(true)" :class="{ refreshing: isRefreshing }" title="刷新数据">
+        <div class="refresh-btn" @click="refreshAllData(true)" :class="{ refreshing: isRefreshing }" title="重新加载">
           <span class="icon">⟳</span>
-        </div>
-        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
-          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
-          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
-          </div>
         </div>
       </div>
     </div>
 
     <!-- 分类导航 -->
     <div class="category-nav">
-      <a href="#finance-news" class="category-item" :class="{ active: activeCategory==='finance-news' }" @click.prevent="go('finance-news')">财经资讯</a>
+      <a href="#finance-news" class="category-item" :class="{ active: activeCategory==='finance-news' }" @click.prevent="go('finance-news')">公开信息索引</a>
       <a href="#market-data" class="category-item" :class="{ active: activeCategory==='market-data' }" @click.prevent="go('market-data')">市场数据</a>
-      <a href="#investment-ideas" class="category-item" :class="{ active: activeCategory==='investment-ideas' }" @click.prevent="go('investment-ideas')">投资观点</a>
-      <a href="#policy-regulation" class="category-item" :class="{ active: activeCategory==='policy-regulation' }" @click.prevent="go('policy-regulation')">政策法规</a>
-      <a href="/video" class="category-item" :class="{ active: activeCategory==='video' }" @click.prevent="goVideo">视频中心</a>
+      <a href="#investment-ideas" class="category-item" :class="{ active: activeCategory==='investment-ideas' }" @click.prevent="go('investment-ideas')">公告文本索引</a>
+      <a href="#policy-regulation" class="category-item" :class="{ active: activeCategory==='policy-regulation' }" @click.prevent="go('policy-regulation')">政策法规索引</a>
     </div>
 
     <!-- 主容器 -->
     <div class="container">
       <div class="main-content">
         
-        <!-- 财经资讯 (快讯风格) -->
+        <!-- 公开信息 (快讯风格) -->
         <h2 class="section-title" id="finance-news">
-          财经资讯
+          公开信息索引
           <span class="cache-indicator" v-if="newsCached" title="数据来自缓存">📦</span>
         </h2>
+        <div class="section-risk">模块提示：仅做公开信息索引与研究展示，不构成任何建议；内容可能延迟或不完整。</div>
         <div v-if="newsLoading" class="loading-state">加载中...</div>
         <div v-else-if="newsError" class="error-state">
           {{ newsError }}
@@ -42,9 +35,9 @@
         </div>
         <div v-else-if="newsItems.length === 0" class="empty-state">
           <div class="empty-icon">📰</div>
-          <div class="empty-text">暂时没有新的财经资讯</div>
-          <div class="empty-subtitle">请稍后刷新或尝试其他关键词</div>
-          <div class="retry-button" @click="loadWeiboNews(null, true)">刷新</div>
+          <div class="empty-text">暂时没有新的数据记录</div>
+          <div class="empty-subtitle">数据同步可能延迟，可稍后重新加载</div>
+          <div class="retry-button" @click="loadWeiboNews(null, true)">重新加载</div>
         </div>
         <div class="kuaixun-list" v-else>
           <div class="kuaixun-item" v-for="(item, i) in newsItems" :key="item.id || 'news'+i">
@@ -67,6 +60,7 @@
           市场数据
           <span class="cache-indicator" v-if="marketCached" title="数据来自缓存">📦</span>
         </h2>
+        <div class="section-risk">模块提示：数据为历史/缓存数据展示，非实时行情，不用于交易决策。</div>
         <div v-if="marketLoading" class="loading-state">加载中...</div>
         <div v-else-if="marketError" class="error-state">
           {{ marketError }}
@@ -74,15 +68,15 @@
         </div>
         <div v-else-if="marketDataItems.length === 0" class="empty-state">
           <div class="empty-icon">📈</div>
-          <div class="empty-text">暂时没有市场数据</div>
-          <div class="empty-subtitle">请稍后刷新</div>
-          <div class="retry-button" @click="loadMarketData(true)">刷新</div>
+          <div class="empty-text">暂时没有市场数据记录</div>
+          <div class="empty-subtitle">数据同步可能延迟，可稍后重新加载</div>
+          <div class="retry-button" @click="loadMarketData(true)">重新加载</div>
         </div>
         <div class="data-table" v-else>
           <div class="data-header">
             <div class="th name">名称</div>
-            <div class="th value">最新价</div>
-            <div class="th change">涨跌幅</div>
+            <div class="th value">记录值</div>
+            <div class="th change">变动率</div>
             <div class="th time">更新时间</div>
           </div>
           <div class="data-row" v-for="(item, i) in marketDataItems" :key="'data'+i">
@@ -95,11 +89,12 @@
           </div>
         </div>
 
-        <!-- 投资观点 (列表风格) -->
+        <!-- 公告文本索引 (列表风格) -->
         <h2 class="section-title" id="investment-ideas">
-          投资观点
+          公告文本索引
           <span class="cache-indicator" v-if="ideasCached" title="数据来自缓存">📦</span>
         </h2>
+        <div class="section-risk">模块提示：仅展示原始条目/链接索引，不提供解读或结论。</div>
         <div v-if="ideasLoading" class="loading-state">加载中...</div>
         <div v-else-if="ideasError" class="error-state">
           {{ ideasError }}
@@ -107,9 +102,9 @@
         </div>
         <div v-else-if="ideasItems.length === 0" class="empty-state">
           <div class="empty-icon">💡</div>
-          <div class="empty-text">暂时没有投资观点</div>
-          <div class="empty-subtitle">请稍后刷新</div>
-          <div class="retry-button" @click="loadIdeas(null, true)">刷新</div>
+          <div class="empty-text">暂时没有公告条目</div>
+          <div class="empty-subtitle">数据同步可能延迟，可稍后重新加载</div>
+          <div class="retry-button" @click="loadIdeas(null, true)">重新加载</div>
         </div>
         <div class="article-list" v-else>
           <div class="article-item" v-for="(item, i) in ideasItems" :key="'idea'+i">
@@ -127,11 +122,12 @@
           </div>
         </div>
 
-        <!-- 政策法规 (列表风格) -->
+        <!-- 政策法规索引 (列表风格) -->
         <h2 class="section-title" id="policy-regulation">
-          政策法规
+          政策法规索引
           <span class="cache-indicator" v-if="policyCached" title="数据来自缓存">📦</span>
         </h2>
+        <div class="section-risk">模块提示：政策文本来源于公开渠道，本平台不背书其准确性与完整性。</div>
         <div v-if="policyLoading" class="loading-state">加载中...</div>
         <div v-else-if="policyError" class="error-state">
           {{ policyError }}
@@ -139,9 +135,9 @@
         </div>
         <div v-else-if="policyItems.length === 0" class="empty-state">
           <div class="empty-icon">📋</div>
-          <div class="empty-text">暂时没有政策法规更新</div>
-          <div class="empty-subtitle">请稍后刷新</div>
-          <div class="retry-button" @click="loadPolicies(null, true)">刷新</div>
+          <div class="empty-text">暂时没有政策文本条目</div>
+          <div class="empty-subtitle">数据同步可能延迟，可稍后重新加载</div>
+          <div class="retry-button" @click="loadPolicies(null, true)">重新加载</div>
         </div>
         <div class="article-list" v-else>
           <div class="article-item" v-for="(item, i) in policyItems" :key="'policy'+i">
@@ -163,8 +159,8 @@
 
     <!-- 底部 -->
     <div class="footer">
-      <p>量化牛牛财经频道 © 2025 版权所有</p>
-      <p>风险提示：投资有风险，入市需谨慎。以上内容仅供参考，不构成投资建议</p>
+      <p>脑科学研究室 - 宏微观数据</p>
+      <p>风险提示：本平台仅展示历史公开数据，不构成任何投资建议或交易推荐。数据可能存在延迟误差，使用后果自担，在法律允许范围内本平台不承担相关责任。</p>
     </div>
 
     <!-- 悬浮按钮 (左下角) -->
@@ -177,14 +173,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
 import { getWeiboMediaNews } from '@/services/newsService'
 import { getMarketData, getIdeas, getPolicies } from '@/services/financeChannelService'
 
-// 使用全局认证
-const { logged, userText, isQualifiedInvestor, openLoginModal, logout } = useAuth()
-
-const showUserMenu = ref(false)
 const searchQuery = ref('')
 const activeCategory = ref('finance-news')
 const isRefreshing = ref(false)
@@ -225,58 +216,13 @@ function goHome() {
   router.push('/') 
 }
 
-function goToUserProfile() {
-  showUserMenu.value = false
-  router.push('/profile')
-}
-
 function go(id) {
   activeCategory.value = id
   const el = document.getElementById(id)
   if (el) window.scrollTo({ top: el.offsetTop - 120, behavior: 'smooth' })
 }
 
-function goVideo() {
-  activeCategory.value = 'video'
-  router.push('/video')
-}
-
 function toggleUserMenu() {
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false
-  } else {
-    showUserMenu.value = !showUserMenu.value
-  }
-}
-
-function onMenuEnter() {
-  if (!logged.value) return
-  showUserMenu.value = true
-}
-
-function onMenuLeave() {
-  setTimeout(() => {
-    showUserMenu.value = false
-  }, 300)
-}
-
-function onDropdownEnter() {
-  showUserMenu.value = true
-}
-
-function onDropdownLeave() {
-  showUserMenu.value = false
-}
-
-function handleLogout() {
-  logout()
-  showUserMenu.value = false
-}
-
-function openUrl(url) {
-  if (!url) return
-  window.open(url, '_blank')
 }
 
 function formatIdeaDate(value) {
@@ -424,11 +370,11 @@ async function loadWeiboNews(keyword = null, forceRefresh = false) {
     } else {
       // 只有在响应结构异常时才设置错误
       console.error('响应数据结构异常:', payload)
-      newsError.value = '数据格式错误，请稍后重试'
+      newsError.value = '数据同步可能延迟，可稍后重新加载'
       newsItems.value = []
     }
   } catch (error) {
-    console.error('加载新闻失败:', error)
+    console.error('加载公开信息失败:', error)
     // 根据错误类型给出更具体的提示
     if (error.status === 0 || error.message.includes('网络')) {
       newsError.value = '网络连接异常，请检查网络后重试'
@@ -482,7 +428,7 @@ async function loadMarketData(forceRefresh = false) {
       }
     } else {
       console.error('市场数据响应格式异常:', payload)
-      marketError.value = '数据格式错误，请稍后重试'
+      marketError.value = '数据同步可能延迟，可稍后重新加载'
       marketDataItems.value = []
     }
   } catch (error) {
@@ -538,12 +484,12 @@ async function loadIdeas(keyword = null, forceRefresh = false) {
         ideasError.value = ''
       }
     } else {
-      console.error('投资观点响应格式异常:', payload)
-      ideasError.value = '数据格式错误，请稍后重试'
+      console.error('公告文本响应格式异常:', payload)
+      ideasError.value = '数据同步可能延迟，可稍后重新加载'
       ideasItems.value = []
     }
   } catch (error) {
-    console.error('加载投资观点失败:', error)
+    console.error('加载公告文本失败:', error)
     if (error.status === 0 || error.message.includes('网络')) {
       ideasError.value = '网络连接异常，请检查网络后重试'
     } else if (error.status >= 500) {
@@ -747,6 +693,23 @@ onUnmounted(() => {
 .main-content { background: white; padding: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .section-title{font-size:20px;color:#2c3e50;margin:30px 0 20px;padding-left:12px;border-left:4px solid #c83b3b; font-weight: 700; display: flex; align-items: center; gap: 10px;}
 .cache-badge{font-size:12px;color:#999;background:#f5f5f5;padding:2px 8px;border-radius:3px;font-weight:normal}
+.global-risk-banner {
+  background-color: #fef0f0;
+  color: #c83b3b;
+  padding: 10px 20px;
+  font-size: 14px;
+  text-align: center;
+  border-bottom: 1px solid #fde2e2;
+  line-height: 1.5;
+}
+
+.section-risk {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 15px;
+  padding-left: 12px;
+}
+
 .cache-indicator{font-size:14px;opacity:0.6;cursor:help;margin-left:5px}
 
 /* 加载/错误状态 */
