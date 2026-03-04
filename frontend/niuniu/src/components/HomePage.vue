@@ -111,15 +111,15 @@
           <template v-else>
             <!-- 最新内参 -->
             <div v-show="reportTab==='report-latest'" class="tab-content report-content" id="report-latest">
-              <div v-if="latestDailyReport" class="report-item">
-                <h3>{{ latestDailyReport.title || '最新数据模拟样本' }}</h3>
-                <p>{{ truncateText(latestDailyReport.market_sentiment, 120) }}</p>
+              <div v-if="visibleLatestDailyReport" class="report-item">
+                <h3>{{ visibleLatestDailyReport.title || '最新数据模拟样本' }}</h3>
+                <p>{{ truncateText(visibleLatestDailyReport.market_sentiment, 120) }}</p>
                 <span class="design">系统 | 研究样本</span>
-                <span class="date">{{ formatReportDate(latestDailyReport.report_date) }}</span>
+                <span class="date">{{ formatReportDate(visibleLatestDailyReport.report_date) }}</span>
               </div>
               <div v-else class="report-item">
-                <h3>{{ dailyReportError || '暂无最新内参' }}</h3>
-                <p>{{ dailyReportError ? '请点击重试按钮重新加载' : '系统正在生成最新的数据模拟分析样本，请稍后查看。' }}</p>
+                <h3>{{ dailyReportError || (latestReportHiddenByTime ? '当日数据暂不展示' : '暂无最新内参') }}</h3>
+                <p>{{ dailyReportError ? '请点击重试按钮重新加载' : (latestReportHiddenByTime ? '每日数据模拟分析将在次日 04:00 后展示。' : '系统正在生成最新的数据模拟分析样本，请稍后查看。') }}</p>
                 <button v-if="dailyReportError" @click="loadDailyReports" class="retry-btn" style="margin-top: 10px;">重试</button>
               </div>
             </div>
@@ -669,6 +669,60 @@ const formatReportDate = (dateString) => {
 const handleLatestTabClick = () => {
   reportTab.value = 'report-latest'
 }
+
+const canDisplayDailyReportByDate = (dateString) => {
+  if (!dateString) return false
+  const datePart = String(dateString).split('T')[0]
+  const [year, month, day] = datePart.split('-').map(Number)
+  if (!year || !month || !day) return true
+
+  const unlockAt = new Date(year, month - 1, day + 1, 4, 0, 0, 0)
+  return new Date() >= unlockAt
+}
+
+const getDatePart = (dateString) => {
+  if (!dateString) return ''
+  return String(dateString).split('T')[0]
+}
+
+const getOffsetDatePart = (dateString, offsetDays) => {
+  const datePart = getDatePart(dateString)
+  const [year, month, day] = datePart.split('-').map(Number)
+  if (!year || !month || !day) return ''
+
+  const date = new Date(year, month - 1, day + offsetDays)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+const getPreviousDailyReport = () => {
+  const latest = latestDailyReport.value
+  if (!latest?.report_date) return null
+
+  const latestDate = getDatePart(latest.report_date)
+  const previousDate = getOffsetDatePart(latest.report_date, -1)
+
+  if (!dailyReportHistory.value || dailyReportHistory.value.length === 0) return null
+
+  const previousDayReport = dailyReportHistory.value.find(report => getDatePart(report.report_date) === previousDate)
+  if (previousDayReport) return previousDayReport
+
+  return dailyReportHistory.value.find(report => getDatePart(report.report_date) !== latestDate) || null
+}
+
+const visibleLatestDailyReport = computed(() => {
+  const report = latestDailyReport.value
+  if (!report?.report_date) return null
+  if (canDisplayDailyReportByDate(report.report_date)) {
+    return report
+  }
+  return getPreviousDailyReport()
+})
+
+const latestReportHiddenByTime = computed(() => {
+  const report = latestDailyReport.value
+  if (!report?.report_date) return false
+  return !canDisplayDailyReportByDate(report.report_date)
+})
 
 // 辅助函数：获取昨日报告
 const getYesterdayReport = () => {
