@@ -1,30 +1,41 @@
 <template>
   <div class="quant-analysis-tool">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 股票数据中心</router-link>
+      <router-link to="/" class="logo">脑科学研究室 - 数据模拟中心</router-link>
       <div class="header-nav">
-        <router-link to="/stock-data">股票数据</router-link>
-        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
-        <router-link to="/financial-report">财报</router-link>
-        <router-link to="/fund-source">资金流动</router-link>
-        <router-link to="/company-research">公司研报</router-link>
-        <router-link to="/quant-analysis">量化分析工具</router-link>
-        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
-          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
-          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
-          </div>
-        </div>
+        <router-link to="/stock-data">历史行情数据</router-link>
+        <router-link to="/dragon-tiger-list">公开异动统计</router-link>
+        <router-link to="/financial-report">财报数据集</router-link>
+        <router-link to="/fund-source">资金流历史统计</router-link>
+        <router-link to="/company-research">公开文本索引</router-link>
+        <router-link to="/quant-analysis">数据模拟分析工具</router-link>
       </div>
     </header>
 
+    <div class="risk-banner" role="note" aria-label="风险提示">
+      <div class="risk-banner__main">
+        <div class="risk-banner__text">
+          <span v-if="!riskExpanded">
+            仅历史研究与模拟，不荐股不建议；数据或延迟误差，后果自担
+          </span>
+          <span v-else>
+            本页面仅用于历史数据研究与数据模拟展示，不构成投资建议，不荐股、不做交易推荐。数据可能存在延迟、误差或不完整，历史表现不代表未来；用户应自行判断并承担使用后果。在法律允许范围内，平台不对使用本页面数据产生的损失承担责任。
+          </span>
+        </div>
+        <button class="risk-banner__toggle" type="button" @click="riskExpanded = !riskExpanded">
+          {{ riskExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
     <div class="container">
-      <h1 class="page-title">量化分析工具</h1>
+      <h1 class="page-title">数据模拟分析工具</h1>
+      <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
       
-      <!-- 策略创建与回测 -->
+      <!-- 回测模型创建与回测 -->
       <div class="section card">
-        <h2 class="section-title">策略创建与回测</h2>
+        <h2 class="section-title">回测模型创建与回测</h2>
+        <div class="module-tip">仅研究展示，不构成建议，历史不代表未来</div>
         <div class="strategy-form">
           <div class="form-group">
             <label for="stock-code">股票代码:</label>
@@ -60,39 +71,39 @@
           </div>
           
           <div class="form-group">
-            <label for="strategy-mode">策略模式:</label>
+            <label for="strategy-mode">回测模型模式:</label>
             <select id="strategy-mode" v-model="backtestForm.strategy_mode" class="form-control">
-              <option value="saved">已保存策略</option>
-              <option value="builtin">内置策略</option>
+              <option value="saved">已保存回测模型</option>
+              <option value="builtin">内置回测模型</option>
             </select>
           </div>
           
           <div v-if="backtestForm.strategy_mode === 'saved'" class="form-group">
-            <label for="saved-strategy">选择策略:</label>
+            <label for="saved-strategy">选择回测模型:</label>
             <select id="saved-strategy" v-model="backtestForm.strategy_id" class="form-control">
-              <option value="">请选择策略</option>
+              <option value="">请选择回测模型</option>
               <option v-for="item in savedStrategies" :key="item.id" :value="item.id">
                 {{ item.name }}{{ item.description ? ' - ' + item.description : '' }}
               </option>
             </select>
-            <div v-if="loadingSavedStrategies" class="loading-indicator">加载策略列表...</div>
+            <div v-if="loadingSavedStrategies" class="loading-indicator">加载回测模型列表...</div>
             <div v-if="!loadingSavedStrategies && savedStrategies.length === 0" class="info-text">
-              暂无已保存的策略，请先<router-link to="/strategies/create">创建策略</router-link>
+              暂无已保存的回测模型，请先<router-link to="/strategies/create">创建回测模型</router-link>
             </div>
           </div>
           
           <div v-if="backtestForm.strategy_mode === 'builtin'" class="form-group">
-            <label for="strategy-name">内置策略:</label>
+            <label for="strategy-name">内置回测模型:</label>
             <select id="strategy-name" v-model="backtestForm.strategy_name" class="form-control">
               <option v-for="item in builtinStrategies" :key="item.name" :value="item.name">
                 {{ (item.display_name || item.name) + (item.description ? ' - ' + item.description : '') }}
               </option>
             </select>
-            <div v-if="loadingBuiltin" class="loading-indicator">加载内置策略...</div>
+            <div v-if="loadingBuiltin" class="loading-indicator">加载内置回测模型...</div>
           </div>
 
           <div v-if="backtestForm.strategy_mode === 'builtin'" class="form-group">
-            <label>策略参数（可自定义）:</label>
+            <label>回测模型参数（可自定义）:</label>
             <div v-if="currentParamSchema.length" class="param-grid">
               <div v-for="field in currentParamSchema" :key="field.key" class="param-field">
                 <span class="param-label">{{ field.label }}</span>
@@ -117,7 +128,7 @@
                 </template>
               </div>
             </div>
-            <div v-else class="param-tip">该策略暂未配置参数表，请填写下方 JSON 来自定义参数（与策略代码示例一致）。</div>
+            <div v-else class="param-tip">该回测模型暂未配置参数表，请填写下方 JSON 来自定义参数（与回测模型代码示例一致）。</div>
 
             <div v-if="!currentParamSchema.length" class="param-json-wrapper">
               <label class="param-label">参数 JSON（会直接传给后端 parameters 字段）</label>
@@ -131,7 +142,7 @@
           </div>
           
           <div v-if="generatedStrategy || backtestForm.strategy_code" class="form-group">
-            <label>生成的策略代码:</label>
+            <label>生成的回测模型代码:</label>
             <pre class="code-preview">{{ generatedStrategy || backtestForm.strategy_code }}</pre>
           </div>
           
@@ -249,6 +260,7 @@
       <!-- 回测结束提示与详情入口 -->
       <div v-if="backtestResult" class="section card">
         <h2 class="section-title">回测已结束</h2>
+        <div class="module-tip">仅研究展示，不构成建议，历史不代表未来</div>
         <p class="info-text">回测结果已生成，请前往详情查看。</p>
         <button
           class="btn-view-detail"
@@ -272,9 +284,11 @@
             :disabled="loadingHistory" 
             @click="fetchHistoryRecords"
           >
-            {{ loadingHistory ? '加载中...' : '刷新' }}
+            {{ loadingHistory ? '加载中...' : '重新加载数据' }}
           </button>
         </div>
+        <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
+        <div class="module-tip">仅加载最新已入库数据</div>
         
         <div v-if="loadingHistory" class="loading-indicator">
           加载中...
@@ -288,7 +302,7 @@
                   <th>回测ID</th>
                   <th>股票代码</th>
                   <th>回测日期范围</th>
-                  <th>策略类型</th>
+                  <th>回测模型类型</th>
                   <th>年化收益率</th>
                   <th>夏普比率</th>
                   <th>最大回撤</th>
@@ -338,64 +352,12 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
 import { getBuiltinStrategies, getStrategies, getStrategy } from '@/services/strategyService'
 import { runBacktest as runBacktestService, runBacktestAsync as runBacktestAsyncService, getBacktestResult, getBacktestList } from '@/services/backtestService'
 
 const router = useRouter()
 const route = useRoute()
-const { logged, userText, openLoginModal, logout } = useAuth()
-const showUserMenu = ref(false)
-let menuTimeout = null
-let hideTimeout = null
-
-function onMenuEnter() {
-  if (!logged.value) return
-  clearTimeout(hideTimeout)
-  menuTimeout = setTimeout(() => {
-    showUserMenu.value = true
-  }, 300)
-}
-
-function onMenuLeave() {
-  clearTimeout(menuTimeout)
-  hideTimeout = setTimeout(() => {
-    if (showUserMenu.value) {
-      showUserMenu.value = false
-    }
-  }, 200)
-}
-
-function onDropdownEnter() {
-  clearTimeout(hideTimeout)
-}
-
-function onDropdownLeave() {
-  hideTimeout = setTimeout(() => {
-    showUserMenu.value = false
-  }, 200)
-}
-
-function toggleUserMenu() {
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false
-  } else {
-    clearTimeout(menuTimeout)
-    clearTimeout(hideTimeout)
-    showUserMenu.value = !showUserMenu.value
-  }
-}
-
-function handleLogout() {
-  logout()
-  showUserMenu.value = false
-}
-
-function goToUserProfile() {
-  showUserMenu.value = false
-  router.push('/profile')
-}
+const riskExpanded = ref(false)
 
 // 表单数据
 const backtestForm = reactive({
@@ -455,8 +417,8 @@ const builtinParamSchemas = {
     { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
   ],
   multifactor_topk: [
-    { key: 'lookback', label: '因子回看期', type: 'number', default: 60, min: 5, step: 5 },
-    { key: 'top_k', label: '选股数量', type: 'number', default: 10, min: 1, step: 1 },
+    { key: 'lookback', label: '模拟参数回看期', type: 'number', default: 60, min: 5, step: 5 },
+    { key: 'top_k', label: '样本筛选数量', type: 'number', default: 10, min: 1, step: 1 },
     { key: 'rebalance_frequency', label: '再平衡频率 D/W/M', type: 'text', default: 'M' }
   ],
   pairs_trading_zscore: [
@@ -544,16 +506,16 @@ const fetchBuiltinStrategies = async () => {
         resetBuiltinParams(backtestForm.strategy_name)
       }
     } else {
-      error.value = result.message || '获取内置策略失败'
+      error.value = result.message || '获取内置回测模型失败'
     }
   } catch (err) {
-    error.value = err.message || '获取内置策略失败'
+    error.value = err.message || '获取内置回测模型失败'
   } finally {
     loadingBuiltin.value = false
   }
 }
 
-// 加载已保存的策略列表
+// 加载已保存的回测模型列表
 const loadSavedStrategies = async () => {
   loadingSavedStrategies.value = true
   try {
@@ -562,16 +524,16 @@ const loadSavedStrategies = async () => {
       const data = result.data?.data || result.data || {}
       savedStrategies.value = data.strategies || data.items || []
     } else {
-      error.value = `加载策略列表失败: ${result.message}`
+      error.value = `加载回测模型列表失败: ${result.message}`
     }
   } catch (err) {
-    error.value = `加载策略列表失败: ${err.message}`
+    error.value = `加载回测模型列表失败: ${err.message}`
   } finally {
     loadingSavedStrategies.value = false
   }
 }
 
-// 获取选中策略的代码
+// 获取选中回测模型的代码
 const loadStrategyCode = async (strategyId) => {
   if (!strategyId) {
     backtestForm.strategy_code = null
@@ -584,10 +546,10 @@ const loadStrategyCode = async (strategyId) => {
       const data = result.data?.data || result.data || {}
       backtestForm.strategy_code = data.code
     } else {
-      error.value = `获取策略代码失败: ${result.message}`
+      error.value = `获取回测模型代码失败: ${result.message}`
     }
   } catch (err) {
-    error.value = `获取策略代码失败: ${err.message}`
+    error.value = `获取回测模型代码失败: ${err.message}`
   }
 }
 
@@ -604,17 +566,17 @@ const runBacktest = async () => {
   }
   
   if (backtestForm.strategy_mode === 'saved' && !backtestForm.strategy_id) {
-    error.value = '请选择一个策略'
+    error.value = '请选择一个回测模型'
     return
   }
   
   if (backtestForm.strategy_mode === 'saved' && !backtestForm.strategy_code) {
-    error.value = '策略代码加载失败，请重新选择'
+    error.value = '回测模型代码加载失败，请重新选择'
     return
   }
   
   if (backtestForm.strategy_mode === 'builtin' && !backtestForm.strategy_name) {
-    error.value = '请选择内置策略'
+    error.value = '请选择内置回测模型'
     return
   }
   
@@ -686,7 +648,7 @@ const runSyncBacktest = async (payload) => {
        throw new Error('未获取到 backtest_id')
     }
 
-    // 使用指数退避策略进行轮询
+    // 使用指数退避回测模型进行轮询
     let retryCount = 0
     const maxRetries = 60 // 最多等待60次
     const baseDelay = 1000 // 基础延迟1秒
@@ -945,15 +907,15 @@ const getTaskStatusText = (status) => {
 onMounted(async () => {
   fetchBuiltinStrategies()
   
-  // 先加载已保存的策略列表
+  // 先加载已保存的回测模型列表
   await loadSavedStrategies()
   
-  // 检查 URL 参数，自动选择策略
+  // 检查 URL 参数，自动选择回测模型
   const strategyId = route.query.strategy
   if (strategyId) {
-    // 切换到已保存策略模式
+    // 切换到已保存回测模型模式
     backtestForm.strategy_mode = 'saved'
-    // 设置策略 ID（会触发 watch 自动加载代码）
+    // 设置回测模型 ID（会触发 watch 自动加载代码）
     backtestForm.strategy_id = strategyId
   }
   
@@ -966,7 +928,7 @@ watch(() => backtestForm.strategy_name, (newVal) => {
   }
 })
 
-// 监听策略选择变化，自动加载策略代码
+// 监听回测模型选择变化，自动加载回测模型代码
 watch(() => backtestForm.strategy_id, (newId) => {
   if (newId && backtestForm.strategy_mode === 'saved') {
     loadStrategyCode(newId)
@@ -975,6 +937,44 @@ watch(() => backtestForm.strategy_id, (newId) => {
 </script>
 
 <style scoped>
+.risk-banner {
+  background: #fff3e6;
+  border-bottom: 1px solid #ffb380;
+  padding: 10px 20px;
+}
+
+.risk-banner__main {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.risk-banner__text {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.risk-banner__toggle {
+  background: transparent;
+  border: none;
+  color: #ff7f24;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.module-tip {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
 .header {
   background-color: #ff7f24;
   padding: 12px 20px;
@@ -1014,48 +1014,6 @@ watch(() => backtestForm.strategy_id, (newId) => {
 .header-nav .router-link-active,
 .header-nav .router-link-exact-active {
   text-decoration: underline;
-}
-
-.header-nav .user-btn {
-  background-color: white;
-  color: #ff7f24;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.user-menu-container {
-  position: relative;
-}
-
-.user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border: 1px solid #ffb380;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  min-width: 120px;
-}
-
-.dropdown-item {
-  padding: 10px 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #fff3e6;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-item:hover {
-  background-color: #fff8f0;
-}
-
-.dropdown-item.logout {
-  color: #ff4500;
 }
 
 .quant-analysis-tool {

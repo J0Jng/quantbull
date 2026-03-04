@@ -4,7 +4,7 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link to="/" class="back-btn">返回主页</router-link>
-        <h1 class="page-title">因子管理</h1>
+        <h1 class="page-title">模拟参数管理</h1>
       </div>
 
       <!-- 搜索和筛选区域 -->
@@ -14,7 +14,7 @@
             <input 
               v-model="searchText" 
               type="text" 
-              placeholder="搜索因子名称或代码..."
+              placeholder="搜索模拟参数名称或代码..."
               class="search-input"
               @input="handleSearch"
             />
@@ -28,23 +28,23 @@
               class="filter-select"
               @change="handleFilter"
             >
-              <option value="all">全部因子</option>
+              <option value="all">全部模拟参数</option>
               <option value="technical">技术指标</option>
-              <option value="fundamental">基本面因子</option>
-              <option value="macro">宏观因子</option>
+              <option value="fundamental">基本面模拟参数</option>
+              <option value="macro">宏观模拟参数</option>
             </select>
           </div>
           <router-link to="/factors/create" class="btn-primary">
             <span class="create-icon">+</span>
-            创建新因子
+            创建新模拟参数
           </router-link>
         </div>
       </div>
 
-      <!-- 因子列表表格 -->
+      <!-- 模拟参数列表表格 -->
       <div class="factor-table-section card">
         <div class="table-header">
-          <h2 class="section-title">因子列表</h2>
+          <h2 class="section-title">模拟参数列表</h2>
           <div class="table-actions">
             <button 
               class="btn-secondary refresh-btn" 
@@ -58,7 +58,7 @@
 
         <!-- 加载状态 -->
         <div v-if="loading" class="loading-indicator">
-          <p>正在加载因子列表...</p>
+          <p>正在加载模拟参数列表...</p>
         </div>
 
         <!-- 错误信息 -->
@@ -66,16 +66,16 @@
           {{ error }}
         </div>
 
-        <!-- 因子表格 -->
+        <!-- 模拟参数表格 -->
         <div v-if="!loading && factors.length > 0" class="table-container">
           <table class="factor-table">
             <thead>
               <tr>
-                <th>因子ID</th>
-                <th>因子名称</th>
-                <th>因子代码</th>
-                <th>因子类别</th>
-                <th>因子描述</th>
+                <th>模拟参数ID</th>
+                <th>模拟参数名称</th>
+                <th>模拟参数代码</th>
+                <th>模拟参数类别</th>
+                <th>模拟参数描述</th>
                 <th>创建时间</th>
                 <th>操作</th>
               </tr>
@@ -113,14 +113,14 @@
                       v-if="!isBuiltinFactor(factor.id)"
                       :to="`/factors/${factor.id}/edit`" 
                       class="btn-edit"
-                      title="编辑因子"
+                      title="编辑模拟参数"
                     >
                       编辑
                     </router-link>
                     <span 
                       v-else
                       class="btn-edit disabled"
-                      title="内置因子不可编辑"
+                      title="内置模拟参数不可编辑"
                     >
                       编辑
                     </span>
@@ -128,14 +128,14 @@
                       v-if="!isBuiltinFactor(factor.id)"
                       @click="deleteFactor(factor.id)" 
                       class="btn-delete"
-                      title="删除因子"
+                      title="删除模拟参数"
                     >
                       删除
                     </button>
                     <span 
                       v-else
                       class="btn-delete disabled"
-                      title="内置因子不可删除"
+                      title="内置模拟参数不可删除"
                     >
                       删除
                     </span>
@@ -156,16 +156,16 @@
         <!-- 空状态 -->
         <div v-if="!loading && factors.length === 0" class="empty-state">
           <div class="empty-icon">📊</div>
-          <h3>暂无因子</h3>
-          <p>您还没有创建任何因子，点击"创建新因子"开始创建您的第一个量化因子。</p>
+          <h3>暂无模拟参数</h3>
+          <p>您还没有创建任何模拟参数，点击"创建新模拟参数"开始创建您的第一个量化模拟参数。</p>
           <router-link to="/factors/create" class="btn-primary">
-            创建新因子
+            创建新模拟参数
           </router-link>
         </div>
 
         <!-- 分页控件 -->
         <div v-if="totalItems > 0" class="pagination">
-          <span class="total-info">共 {{ totalItems }} 个因子</span>
+          <span class="total-info">共 {{ totalItems }} 个模拟参数</span>
           <button 
             :disabled="currentPage === 1" 
             @click="changePage(currentPage - 1)"
@@ -208,7 +208,7 @@ const totalItems = ref(0)
 // 防抖搜索定时器
 let searchDebounceTimer = null
 
-// 获取因子列表（服务端分页）
+// 获取模拟参数列表（服务端分页）
 const fetchFactors = async () => {
   loading.value = true
   error.value = ''
@@ -229,7 +229,7 @@ const fetchFactors = async () => {
       totalItems.value = factorStore.total || 0
     }
   } catch (err) {
-    error.value = `获取因子列表失败: ${err.message}`
+    error.value = `获取模拟参数列表失败: ${err.message}`
   } finally {
     loading.value = false
   }
@@ -270,7 +270,7 @@ const changePage = (page) => {
 }
 
 const deleteFactor = async (factorId) => {
-  if (confirm('确定要删除这个因子吗？此操作不可恢复。')) {
+  if (confirm('确定要删除这个模拟参数吗？此操作不可恢复。')) {
     try {
       loading.value = true
       await factorStore.removeFactor(factorId)
@@ -288,7 +288,7 @@ const deleteFactor = async (factorId) => {
         }
       }
     } catch (err) {
-      error.value = `删除因子失败: ${err.message}`
+      error.value = `删除模拟参数失败: ${err.message}`
     } finally {
       loading.value = false
     }
@@ -306,13 +306,13 @@ const getCategoryClass = (category) => {
 const getCategoryText = (category) => {
   const categoryMap = {
     'technical': '技术指标',
-    'fundamental': '基本面因子',
-    'macro': '宏观因子'
+    'fundamental': '基本面模拟参数',
+    'macro': '宏观模拟参数'
   }
   return categoryMap[category] || category
 }
 
-// 判断是否为内置因子（不可编辑/删除）
+// 判断是否为内置模拟参数（不可编辑/删除）
 const isBuiltinFactor = (factorId) => {
   return factorId && factorId.startsWith('builtin')
 }

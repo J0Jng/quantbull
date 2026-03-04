@@ -8,10 +8,10 @@ export { default as http, handleRequest } from './http'
 // 认证服务
 export * from './authService'
 
-// 策略服务
+// 回测模型服务
 export * from './strategyService'
 
-// 因子服务  
+// 模拟参数服务  
 export * from './factorService'
 
 // 回测服务

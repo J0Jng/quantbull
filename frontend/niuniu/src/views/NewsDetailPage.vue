@@ -4,7 +4,7 @@
     <div class="breadcrumb">
       <div class="container">
         <router-link to="/">首页</router-link> > 
-        <router-link to="/news-list">财经头条</router-link> > 
+        <router-link to="/finance-channel">宏微观数据</router-link> > 
         <span>{{ newsDetail.title }}</span>
       </div>
     </div>

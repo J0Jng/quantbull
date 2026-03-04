@@ -2,23 +2,19 @@
   <div class="daily-insight-page" style="background: #fff8f0; min-height: 100vh;">
     <!-- 头部 -->
     <div class="header">
-      <div class="logo" @click="goHome">量化牛牛 - 每日内参</div>
+      <div class="logo" @click="goHome">
+        <span class="logo-icon">🧠</span> 
+        <span class="logo-text">脑科学研究室 <span class="logo-divider">|</span> 每日数据模拟分析</span>
+      </div>
       <div class="date-selector">
-        <button class="date-btn" @click="previousDay">← 前一天</button>
+        <button class="date-btn" @click="previousDay" title="前一天">←</button>
         <input v-model="selectedDate" type="date" class="date-input" @change="loadDailyData" />
-        <button class="date-btn" @click="nextDay">后一天 →</button>
+        <button class="date-btn" @click="nextDay" title="后一天">→</button>
       </div>
       <div class="header-opt">
-        <a
-          href="#"
-          class="admin-generate-btn"
-          v-if="isAdmin"
-          :class="{ disabled: loading || generating }"
-          @click.prevent="regenerateReport"
-        >
-          {{ generating ? '生成中...' : '生成' }}
-        </a>
-        <router-link to="/">返回首页</router-link>
+        <router-link to="/" class="nav-btn">
+          <span class="btn-icon">🏠</span> 返回首页
+        </router-link>
       </div>
     </div>
 
@@ -26,157 +22,94 @@
     <div class="content">
       <!-- 页面标题 -->
       <div class="page-title-section">
-        <h1>每日内参</h1>
-        <p class="page-subtitle">{{ formatDate(selectedDate) }} | 专业市场分析与投资建议</p>
+        <h1>每日数据模拟分析</h1>
+        <p class="page-subtitle">{{ formatDate(selectedDate) }} | 专业数据分析</p>
       </div>
 
-      <!-- 加载状态 -->
-      <div v-if="loading" class="loading-section">
-        <div class="loading-spinner"></div>
-        <p>正在加载数据...</p>
-      </div>
-
-      <!-- 错误提示 -->
-      <div v-if="error && !loading && !nonTradingDay" class="error-section">
-        <div class="error-icon">⚠️</div>
-        <p>{{ error }}</p>
-        <p v-if="generating" class="generating-tip">正在生成日报...</p>
-        <button class="retry-btn" :disabled="loading || generating" @click="loadDailyData">重新加载</button>
-      </div>
-
-      <!-- 非交易日提示 -->
-      <div v-if="nonTradingDay && !loading" class="empty-section">
-        <div class="empty-icon">📭</div>
-        <p>非交易日缺失数据</p>
-      </div>
-
-      <!-- 生成中状态 -->
-      <div v-if="!loading && generating" class="loading-section">
-        <div class="loading-spinner"></div>
-        <p>正在生成日报...</p>
-      </div>
-
-      <!-- 空状态 -->
-      <div v-if="!loading && !error && !hasReportContent && !nonTradingDay && !generating" class="empty-section">
-        <div class="empty-icon">📭</div>
-        <p>该日期暂无内参数据</p>
-        <button class="retry-btn" :disabled="loading || generating" @click="loadDailyData">刷新</button>
-      </div>
-
-      <!-- 市场概览模块 -->
-      <section class="module market-overview" v-if="!loading && !error && hasReportContent">
-        <h2 class="module-title">
-          <span class="title-icon">📊</span>
-          市场概览
-        </h2>
-        <!-- 市场情绪分析 -->
-        <div class="market-sentiment">
-          <h3>市场情绪分析</h3>
-          <div class="sentiment-content">
-            <p>{{ marketSentiment }}</p>
-          </div>
+      <div class="state-container">
+        <!-- 1. 加载状态 -->
+        <div v-if="loading" class="status-section loading-section">
+          <div class="loading-spinner"></div>
+          <p>{{ loadingText }}</p>
         </div>
 
-        <!-- ETF推荐 -->
-        <div class="etf-recommendations" v-if="etfRecommendations.length > 0">
-          <h3>ETF推荐</h3>
-          <div class="etf-list">
-            <div class="etf-card" v-for="etf in etfRecommendations" :key="etf.code">
-              <div class="etf-header">
-                <div class="etf-basic">
-                  <div class="etf-name">{{ etf.name }}</div>
-                  <div class="etf-code">{{ etf.code }}</div>
+        <!-- 2. 非交易日提示 -->
+        <div v-else-if="nonTradingDay" class="status-section empty-section">
+          <div class="empty-icon">📅</div>
+          <p>非交易日缺失数据</p>
+        </div>
+
+        <!-- 3. 错误提示 -->
+        <div v-else-if="error" class="status-section error-section">
+          <div class="error-icon">⚠️</div>
+          <p>{{ error }}</p>
+          <button class="retry-btn" @click="forceRegenerate">重新生成</button>
+        </div>
+
+        <!-- 4. 空状态 -->
+        <div v-else-if="!hasReportContent" class="status-section empty-section">
+          <div class="empty-icon">📭</div>
+          <p>该日期暂无内参数据</p>
+          <button class="retry-btn" @click="forceRegenerate">重新生成</button>
+        </div>
+
+        <!-- 5. 正常展示模块 -->
+        <div v-else class="report-content layout-fadeIn">
+          <!-- 市场概览模块 -->
+          <section class="module market-overview">
+            <h2 class="module-title">
+              <span class="title-icon">📊</span>
+              市场概览
+            </h2>
+            <!-- 市场情绪分析 -->
+            <div class="market-sentiment">
+              <h3>市场情绪分析</h3>
+              <div class="sentiment-content">
+                <p>{{ marketSentiment }}</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 重点关注模块 -->
+          <section class="module key-focus">
+            <h2 class="module-title">
+              <span class="title-icon">⭐</span>
+              重点关注
+            </h2>
+            <div class="focus-content">
+              <div class="focus-item">
+                <h3>文章要点</h3>
+                <div v-if="articleSections.length > 0">
+                  <ul class="article-sections">
+                    <li v-for="(section, index) in articleSections" :key="index" class="section-item">
+                      <span class="section-index">{{ index + 1 }}.</span>
+                      <span class="section-content">{{ section }}</span>
+                    </li>
+                  </ul>
                 </div>
-                <div class="etf-category">{{ etf.category }}</div>
-              </div>
-              <div class="etf-reasoning">
-                <p>{{ etf.reasoning }}</p>
+                <div v-else class="no-content">
+                  <p>暂无内容要点</p>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        <div v-else>
-          <p class="no-data">暂无ETF推荐</p>
-        </div>
-      </section>
+          </section>
 
-      <!-- 重点关注模块 -->
-      <section class="module key-focus" v-if="!loading && !error && hasReportContent">
-        <h2 class="module-title">
-          <span class="title-icon">⭐</span>
-          重点关注
-        </h2>
-        <div class="focus-content">
-          <div class="focus-item">
-            <h3>文章要点</h3>
-            <div v-if="articleSections.length > 0">
-              <ul class="article-sections">
-                <li v-for="(section, index) in articleSections" :key="index" class="section-item">
-                  <span class="section-index">{{ index + 1 }}.</span>
-                  <span class="section-content">{{ section }}</span>
-                </li>
-              </ul>
-            </div>
-            <div v-else class="no-content">
-              <p>暂无内容要点</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 个股分析模块 -->
-      <section class="module stock-analysis" v-if="!loading && !error && hasReportContent && stockAnalysis.length > 0">
-        <h2 class="module-title">
-          <span class="title-icon">💡</span>
-          个股分析
-        </h2>
-        <div class="stocks-grid">
-          <div class="stock-card" v-for="stock in stockAnalysis" :key="stock.code">
-            <div class="stock-header">
-              <div class="stock-basic">
-                <div class="stock-name">{{ stock.name }}</div>
-                <div class="stock-code">{{ stock.code }}</div>
-              </div>
-              <div class="stock-recommendation recommend">
-                {{ stock.recommendation }}
+          <!-- 风险提示模块 -->
+          <section class="module risk-alert">
+            <h2 class="module-title">
+              <span class="title-icon">⚠️</span>
+              风险提示
+            </h2>
+            <div class="risk-content">
+              <div class="risk-item">
+                <div class="risk-warning-content">
+                  <p>{{ riskWarning }}</p>
+                </div>
               </div>
             </div>
-            <!-- 因子评分 -->
-            <div class="factor-scores" v-if="Object.keys(stock.factorScores).length > 0">
-              <h4>因子评分</h4>
-              <div class="score-tags">
-                <span 
-                  v-for="(score, factor) in stock.factorScores" 
-                  :key="factor" 
-                  class="score-tag"
-                >
-                  {{ factor }}: {{ typeof score === 'number' ? score.toFixed(1) : score }}
-                </span>
-              </div>
-            </div>
-            <!-- AI分析 -->
-            <div class="stock-analysis">
-              <h4>AI分析</h4>
-              <p>{{ stock.aiAnalysis }}</p>
-            </div>
-          </div>
+          </section>
         </div>
-      </section>
-
-      <!-- 风险提示模块 -->
-      <section class="module risk-alert" v-if="!loading && !error && hasReportContent">
-        <h2 class="module-title">
-          <span class="title-icon">⚠️</span>
-          风险提示
-        </h2>
-        <div class="risk-content">
-          <div class="risk-item">
-            <div class="risk-warning-content">
-              <p>{{ riskWarning }}</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
 
     <!-- 统一页脚 -->
@@ -185,164 +118,75 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
-import { getDailyReportByDate, getLatestDailyReport, generateDailyReport } from '@/services/dailyReportService'
-import { getMarketOverview } from '@/services/marketService'
-import { useAuth } from '@/composables/useAuth'
-import {
-  getYesterdayString,
-  getAccessDeniedMessage
-} from '@/utils/accessControl'
+import { getDailyReportByDate } from '@/services/dailyReportService'
+import { getTradingDayStatus } from '@/services/marketService'
+import { getYesterdayString } from '@/utils/accessControl'
 
 const router = useRouter()
-const { isAdmin, initAuth } = useAuth()
 
-// 响应式数据
+// ─── 响应式状态 ──────────────────────────────────────────────
 const loading = ref(true)
+const loadingText = ref('正在加载数据...')
 const error = ref('')
 const selectedDate = ref(getYesterdayString())
 const reportData = ref(null)
-const generating = ref(false)
 const nonTradingDay = ref(false)
 const requestSeq = ref(0)
 
-// 市场情绪（从 market_sentiment 获取）
-const marketSentiment = computed(() => {
-  return reportData.value?.market_sentiment || '暂无市场情绪分析'
-})
+// ─── 轮询相关 ─────────────────────────────────────────────────
+const POLL_INTERVAL_MS = 3000
+const POLL_MAX_MS = 60000
+let pollTimer = null
 
-// ETF 推荐
-const etfRecommendations = computed(() => {
-  if (reportData.value?.etf_recommendations && Array.isArray(reportData.value.etf_recommendations)) {
-    return reportData.value.etf_recommendations.map(etf => ({
-      code: etf.code || '',
-      name: etf.name || '',
-      category: etf.category || '',
-      reasoning: etf.reasoning || '暂无推荐理由'
-    }))
+const clearPoll = () => {
+  if (pollTimer !== null) {
+    clearTimeout(pollTimer)
+    pollTimer = null
   }
-  return []
-})
+}
 
-// 重点关注 - 文章大纲
+// ─── 计算属性 ─────────────────────────────────────────────────
+const marketSentiment = computed(() =>
+  reportData.value?.market_sentiment || '暂无市场情绪分析'
+)
+
 const articleSections = computed(() => {
-  if (reportData.value?.article_outline?.sections && Array.isArray(reportData.value.article_outline.sections)) {
-    return reportData.value.article_outline.sections
-  }
-  return []
+  const sections = reportData.value?.article_outline?.sections
+  return Array.isArray(sections) ? sections : []
 })
 
-// 个股分析（从 stock_recommendations 映射）
-const stockAnalysis = computed(() => {
-  if (reportData.value?.stock_recommendations && Array.isArray(reportData.value.stock_recommendations)) {
-    return reportData.value.stock_recommendations.map(stock => ({
-      code: stock.code || '',
-      name: stock.name || '',
-      recommendation: '推荐',  // 简化推荐级别
-      factorScores: stock.factor_scores || {},
-      aiAnalysis: stock.ai_analysis || '暂无分析',
-      // 简化其他字段以匹配后端
-      currentPrice: '-',
-      change: 0,
-      targetPrice: '-',
-      upside: 0
-    }))
-  }
-  return []
-})
+const riskWarning = computed(() =>
+  reportData.value?.risk_warning ||
+  '本模块内容仅基于历史公开数据做技术研究，不做任何交易推荐，不承担任何相关法律风险。请根据自身风险承受能力合理配置资产。'
+)
 
-// 风险提示（从 risk_warning 获取）
-const riskWarning = computed(() => {
-  return reportData.value?.risk_warning || '投资有风险，入市需谨慎。请根据自身风险承受能力合理配置资产。'
-})
+const hasReportContent = computed(() =>
+  !!reportData.value && !isReportTextEmpty(reportData.value)
+)
 
+// ─── 工具函数 ─────────────────────────────────────────────────
 const isReportTextEmpty = (data) => {
-  if (!data) {
-    return true
-  }
-
-  const marketText = (data.market_sentiment || '').trim()
-  const etfList = Array.isArray(data.etf_recommendations) ? data.etf_recommendations : []
-  const outlineSections = Array.isArray(data.article_outline?.sections) ? data.article_outline.sections : []
-  const stockList = Array.isArray(data.stock_recommendations) ? data.stock_recommendations : []
-  const riskText = (data.risk_warning || '').trim()
-
-  const hasMarket = marketText.length > 0
-  const hasEtf = etfList.length > 0
-  const hasOutline = outlineSections.length > 0
-  const hasStocks = stockList.length > 0
-  const hasRisk = riskText.length > 0
-
-  return !(hasMarket || hasEtf || hasOutline || hasStocks || hasRisk)
+  if (!data) return true
+  const hasMarket = (data.market_sentiment || '').trim().length > 0
+  const hasOutline = Array.isArray(data.article_outline?.sections) && data.article_outline.sections.length > 0
+  const hasRisk = (data.risk_warning || '').trim().length > 0
+  return !(hasMarket || hasOutline || hasRisk)
 }
 
-const normalizeGenerationStatus = (status) => {
-  return String(status || '').toLowerCase()
-}
-
-const hasReportContent = computed(() => {
-  return !!reportData.value && !isReportTextEmpty(reportData.value)
-})
+const normalizeGenerationStatus = (status) =>
+  String(status || '').toLowerCase()
 
 const unwrapBackendData = (result) => {
-  if (!result || !result.success || !result.data) {
-    return null
-  }
+  if (!result || !result.success || !result.data) return null
   let data = result.data
-  if (data && data.data && data.code === 0) {
-    data = data.data
-  }
+  if (data && data.data && data.code === 0) data = data.data
   return data
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const pollReportUntilReady = async (dateString, reqId, options = {}) => {
-  const timeoutMs = Number(options.timeoutMs ?? 60000)
-  const initialDelayMs = Number(options.initialDelayMs ?? 800)
-  const intervalMs = Number(options.intervalMs ?? 2000)
-  const maxIntervalMs = Number(options.maxIntervalMs ?? 5000)
-
-  const start = Date.now()
-  let waitMs = intervalMs
-
-  if (initialDelayMs > 0) {
-    await sleep(initialDelayMs)
-  }
-
-  while (Date.now() - start < timeoutMs) {
-    if (reqId !== requestSeq.value) {
-      return null
-    }
-
-    const refreshed = await getDailyReportByDate(dateString)
-    const data = unwrapBackendData(refreshed)
-    if (data?.id && data?.report_date) {
-      const status = normalizeGenerationStatus(data.generation_status)
-      if (status === 'failed') {
-        return { status: 'failed', data }
-      }
-      if (status === 'completed') {
-        if (!isReportTextEmpty(data)) {
-          return { status: 'ready', data }
-        }
-        return { status: 'empty', data }
-      }
-    }
-
-    await sleep(waitMs)
-    waitMs = Math.min(maxIntervalMs, Math.round(waitMs * 1.3))
-  }
-
-  return { status: 'timeout', data: null }
-}
-
-// 方法
-const goHome = () => {
-  router.push('/')
-}
+const goHome = () => router.push('/')
 
 const formatDate = (dateString) => {
   const date = new Date(dateString)
@@ -350,46 +194,165 @@ const formatDate = (dateString) => {
 }
 
 const isFutureDate = (dateString) => {
-  const target = new Date(dateString)
-  const latestAvailable = new Date(getYesterdayString())
-  return target.getTime() > latestAvailable.getTime()
+  return new Date(dateString).getTime() > new Date(getYesterdayString()).getTime()
 }
 
+// ─── 交易日判断（仅使用专用接口，失败时降级为交易日以避免误判）──
 const checkTradingDayStatus = async (dateString) => {
-  const result = await getMarketOverview(dateString)
-  if (!result.success || !result.data) {
-    return {
-      isTrading: null,
-      message: '无法判断是否交易日，请稍后重试'
+  try {
+    const tradingResult = await getTradingDayStatus(dateString)
+    if (tradingResult.success && tradingResult.data) {
+      let payload = tradingResult.data
+      if (payload.data && payload.code === 0) payload = payload.data
+      if (typeof payload.is_trading_day === 'boolean') {
+        return payload.is_trading_day
+          ? { isTrading: true }
+          : { isTrading: false }
+      }
     }
+  } catch (e) {
+    console.warn('交易日接口判断失败，按交易日处理:', e)
   }
 
-  let data = result.data
-  if (data.data && data.code === 0) {
-    data = data.data
-  }
-
-  const tradeDate = data.trade_date || data.tradeDate || ''
-  const indices = Array.isArray(data.indices) ? data.indices : []
-  const totalTurnover = Number(data.total_turnover ?? data.totalTurnover ?? 0)
-
-  if (tradeDate !== dateString) {
-    return {
-      isTrading: false,
-      message: '非交易日缺失数据'
-    }
-  }
-
-  if (indices.length === 0 || totalTurnover <= 0) {
-    return {
-      isTrading: false,
-      message: '非交易日缺失数据'
-    }
-  }
-
+  // 接口不可用或返回结构异常时，不阻断日报加载
+  // 非交易日情况由日报接口的 409 响应兜底处理
   return { isTrading: true }
 }
 
+// ─── 将生成状态+数据转换为页面状态 ────────────────────────────
+const applyReportData = (data, reqId) => {
+  if (reqId !== requestSeq.value) return
+  if (!data?.id || !data?.report_date) {
+    reportData.value = null
+    error.value = '暂无该日期数据，可点击重新生成'
+    return
+  }
+  const status = normalizeGenerationStatus(data.generation_status)
+  if (status === 'failed') {
+    reportData.value = data
+    error.value = '日报生成失败，请稍后重试'
+    return
+  }
+  if (status === 'completed' && !isReportTextEmpty(data)) {
+    reportData.value = data
+    error.value = ''
+    return
+  }
+  if (status === 'completed' && isReportTextEmpty(data)) {
+    reportData.value = data
+    error.value = '日报生成完成但内容为空，请稍后重试'
+    return
+  }
+  // pending / processing：保持 loading 继续轮询
+  // 调用方负责启动轮询，此处不关闭 loading
+}
+
+// ─── 轮询（用于普通加载后遇到 pending/processing 的兜底）────────
+const startPolling = (dateStr, startTime, reqId) => {
+  clearPoll()
+  pollTimer = setTimeout(async () => {
+    if (reqId !== requestSeq.value) return
+
+    if (Date.now() - startTime > POLL_MAX_MS) {
+      if (reqId === requestSeq.value) {
+        error.value = '生成时间较长，可稍后手动重新生成'
+        loading.value = false
+      }
+      return
+    }
+
+    try {
+      const result = await getDailyReportByDate(dateStr, { refresh: false })
+      if (reqId !== requestSeq.value) return
+
+      const data = unwrapBackendData(result)
+      const status = normalizeGenerationStatus(data?.generation_status)
+
+      if (status === 'completed' || status === 'failed') {
+        applyReportData(data, reqId)
+        if (reqId === requestSeq.value) loading.value = false
+      } else {
+        // 仍在生成中，继续轮询
+        startPolling(dateStr, startTime, reqId)
+      }
+    } catch (e) {
+      if (reqId === requestSeq.value) {
+        error.value = '轮询获取数据失败，可手动重新生成'
+        loading.value = false
+      }
+    }
+  }, POLL_INTERVAL_MS)
+}
+
+// ─── 主加载函数 ───────────────────────────────────────────────
+/**
+ * @param {boolean} forceRefresh - true 时调用 ?refresh=true 强制重建
+ */
+const loadDailyData = async (forceRefresh = false) => {
+  clearPoll()
+  const reqId = (requestSeq.value += 1)
+  loading.value = true
+  loadingText.value = forceRefresh ? '正在重新生成...' : '正在加载数据...'
+  error.value = ''
+  nonTradingDay.value = false
+  reportData.value = null
+
+  try {
+    if (isFutureDate(selectedDate.value)) {
+      error.value = '无法查看未来日期的每日数据模拟分析'
+      return
+    }
+
+    const tradingStatus = await checkTradingDayStatus(selectedDate.value)
+    if (reqId !== requestSeq.value) return
+
+    if (tradingStatus.isTrading === false) {
+      nonTradingDay.value = true
+      return
+    }
+
+    const result = await getDailyReportByDate(selectedDate.value, { refresh: forceRefresh })
+    if (reqId !== requestSeq.value) return
+
+    // 处理 HTTP 层错误（handleRequest 捕获后返回 { success: false, status, message }）
+    if (!result.success) {
+      if (result.status === 409) {
+        error.value = result.message || '市场数据日期不匹配，该日期无法生成日报'
+      } else {
+        error.value = result.message || '加载数据失败，请稍后重试'
+      }
+      return
+    }
+
+    const data = unwrapBackendData(result)
+    const status = normalizeGenerationStatus(data?.generation_status)
+
+    if (status === 'pending' || status === 'processing') {
+      // 接口同步返回了处理中状态（非 forceRefresh 场景可能遇到）
+      // 保持 loading spinner，启动轮询直到 completed/failed
+      loadingText.value = '数据生成中，请稍候...'
+      startPolling(selectedDate.value, Date.now(), reqId)
+      return // loading 由轮询结束时关闭
+    }
+
+    applyReportData(data, reqId)
+  } catch (e) {
+    if (reqId === requestSeq.value) {
+      error.value = '加载数据失败，请稍后重试'
+      console.error('加载每日数据模拟分析失败:', e)
+    }
+  } finally {
+    // 仅在非轮询路径上关闭 loading（轮询路径已提前 return）
+    if (reqId === requestSeq.value && !pollTimer) {
+      loading.value = false
+    }
+  }
+}
+
+// 错误态/空态按钮触发强制重新生成
+const forceRegenerate = () => loadDailyData(true)
+
+// ─── 日期导航 ─────────────────────────────────────────────────
 const previousDay = () => {
   const date = new Date(selectedDate.value)
   date.setDate(date.getDate() - 1)
@@ -401,261 +364,20 @@ const nextDay = () => {
   const date = new Date(selectedDate.value)
   date.setDate(date.getDate() + 1)
   const nextDateStr = date.toISOString().split('T')[0]
-
   if (isFutureDate(nextDateStr)) {
-    error.value = '无法查看未来日期的每日内参'
+    error.value = '无法查看未来日期的每日数据模拟分析'
     return
   }
-  
   selectedDate.value = nextDateStr
   loadDailyData()
 }
 
-const loadDailyData = async () => {
-  const reqId = (requestSeq.value += 1)
-  loading.value = true
-  error.value = ''
-  nonTradingDay.value = false
-  generating.value = false
-  
-  try {
-    if (isFutureDate(selectedDate.value)) {
-      error.value = '无法查看未来日期的每日内参'
-      reportData.value = null
-      return
-    }
-    const tradingStatus = await checkTradingDayStatus(selectedDate.value)
-    if (reqId !== requestSeq.value) {
-      return
-    }
-    if (tradingStatus.isTrading === false) {
-      nonTradingDay.value = true
-      error.value = ''
-      reportData.value = null
-      return
-    }
-    if (tradingStatus.isTrading === null) {
-      error.value = tradingStatus.message
-      reportData.value = null
-      return
-    }
-
-    const result = await getDailyReportByDate(selectedDate.value)
-    if (reqId !== requestSeq.value) {
-      return
-    }
-
-    let data = unwrapBackendData(result)
-
-    if (data?.id && data?.report_date) {
-      const status = normalizeGenerationStatus(data.generation_status)
-      if (status === 'failed') {
-        reportData.value = data
-        error.value = '日报生成失败，请稍后重试'
-        return
-      }
-      if (status === 'completed' && !isReportTextEmpty(data)) {
-        reportData.value = data
-        error.value = ''
-        return
-      }
-      if (status === 'completed' && isReportTextEmpty(data)) {
-        reportData.value = data
-        error.value = '日报生成完成但内容为空，请稍后重试'
-        return
-      }
-      // pending/processing：继续轮询
-      reportData.value = data
-    }
-
-    // 走到这里：要么没有报告，要么报告还在生成中
-    error.value = ''
-    generating.value = true
-    loading.value = false
-
-    if (!data?.id) {
-      const generateResult = await generateDailyReport({ report_date: selectedDate.value })
-      if (!generateResult.success) {
-        generating.value = false
-        error.value = generateResult.message || '触发生成失败，请稍后重试'
-        return
-      }
-    }
-
-    const ready = await pollReportUntilReady(selectedDate.value, reqId, {
-      timeoutMs: 60000,
-      initialDelayMs: 800,
-      intervalMs: 2000,
-      maxIntervalMs: 5000
-    })
-
-    if (reqId !== requestSeq.value) {
-      return
-    }
-
-    if (ready?.status === 'ready') {
-      reportData.value = ready.data
-      error.value = ''
-      return
-    }
-
-    if (ready?.status === 'failed') {
-      reportData.value = ready.data
-      error.value = '日报生成失败，请稍后重试'
-      return
-    }
-
-    if (ready?.status === 'empty') {
-      reportData.value = ready.data
-      error.value = '日报生成完成但内容为空，请稍后重试'
-      return
-    }
-
-    // 超时仍未拿到“非空”内容：给出明确提示，让用户可刷新重试
-    reportData.value = null
-    error.value = `${formatDate(selectedDate.value)} 日报正在生成中，请稍后刷新`
-  } catch (e) {
-    // 处理 403 错误（后端拒绝）
-    if (e.status === 403) {
-      error.value = getAccessDeniedMessage()
-      // 自动回退到昨天
-      selectedDate.value = getYesterdayString()
-      // 重新加载昨天的数据
-      setTimeout(() => loadDailyData(), 100)
-    } else {
-      error.value = '加载数据失败，请稍后重试'
-    }
-    console.error('加载每日内参失败:', e)
-    reportData.value = null
-  } finally {
-    if (reqId === requestSeq.value) {
-      loading.value = false
-      generating.value = false
-    }
-  }
-}
-
-const shareContent = () => {
-  if (navigator.share) {
-    navigator.share({
-      title: `量化牛牛每日内参 - ${formatDate(selectedDate.value)}`,
-      text: '查看最新的市场分析和投资建议',
-      url: window.location.href
-    })
-  } else {
-    navigator.clipboard.writeText(window.location.href)
-    alert('链接已复制到剪贴板')
-  }
-}
-
-const regenerateReport = async () => {
-  if (!isAdmin.value) {
-    return
-  }
-
-  if (loading.value || generating.value) {
-    return
-  }
-
-  if (isFutureDate(selectedDate.value)) {
-    error.value = '无法生成未来日期的每日内参'
-    return
-  }
-
-  // 交易日校验：非交易日不生成
-  loading.value = true
-  error.value = ''
-  nonTradingDay.value = false
-  const reqId = (requestSeq.value += 1)
-  try {
-    const tradingStatus = await checkTradingDayStatus(selectedDate.value)
-    if (reqId !== requestSeq.value) {
-      return
-    }
-
-    if (tradingStatus.isTrading === false) {
-      nonTradingDay.value = true
-      loading.value = false
-      return
-    }
-    if (tradingStatus.isTrading === null) {
-      error.value = tradingStatus.message
-      loading.value = false
-      return
-    }
-  } catch (e) {
-    error.value = '无法判断是否交易日，请稍后重试'
-    loading.value = false
-    return
-  } finally {
-    if (reqId === requestSeq.value) {
-      loading.value = false
-    }
-  }
-
-  const ok = window.confirm(`确认重新生成 ${formatDate(selectedDate.value)} 的每日内参？\n\n提示：该操作会覆盖现有内容（force=true）。`)
-  if (!ok) {
-    return
-  }
-
-  generating.value = true
-  error.value = ''
-  reportData.value = null
-
-  try {
-    const generateResult = await generateDailyReport({ report_date: selectedDate.value, force: true })
-    if (!generateResult.success) {
-      error.value = generateResult.message || '触发生成失败，请稍后重试'
-      return
-    }
-
-    const ready = await pollReportUntilReady(selectedDate.value, reqId, {
-      timeoutMs: 90000,
-      initialDelayMs: 800,
-      intervalMs: 2000,
-      maxIntervalMs: 5000
-    })
-
-    if (reqId !== requestSeq.value) {
-      return
-    }
-
-    if (ready?.status === 'ready') {
-      reportData.value = ready.data
-      error.value = ''
-      return
-    }
-
-    if (ready?.status === 'failed') {
-      reportData.value = ready.data
-      error.value = '日报生成失败，请稍后重试'
-      return
-    }
-
-    if (ready?.status === 'empty') {
-      reportData.value = ready.data
-      error.value = '日报生成完成但内容为空，请稍后重试'
-      return
-    }
-
-    error.value = `${formatDate(selectedDate.value)} 日报生成超时，请稍后刷新`
-  } catch (e) {
-    if (e?.status === 403) {
-      error.value = '无权限执行生成操作'
-    } else {
-      error.value = '生成失败，请稍后重试'
-    }
-  } finally {
-    if (reqId === requestSeq.value) {
-      generating.value = false
-    }
-  }
-}
-
-// 生命周期
-onMounted(async () => {
-  await initAuth()
-  loadDailyData()
+// ─── 生命周期 ─────────────────────────────────────────────────
+onMounted(() => loadDailyData())
+onBeforeUnmount(() => {
+  clearPoll()
+  // 令所有 in-flight 请求结果失效
+  requestSeq.value += 1
 })
 </script>
 
@@ -730,13 +452,37 @@ onMounted(async () => {
   color: white;
   text-decoration: none;
   font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
+  padding: 8px 16px;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon {
+  font-size: 16px;
+}
+
+.logo-icon {
+  margin-right: 5px;
+  font-size: 24px;
+  vertical-align: middle;
+}
+
+.logo-divider {
+  margin: 0 8px;
+  opacity: 0.6;
+  font-weight: normal;
 }
 
 .header-opt a:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.nav-btn {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .share-btn {
@@ -744,13 +490,15 @@ onMounted(async () => {
 }
 
 .admin-generate-btn {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
+  font-weight: bold;
 }
 
 .admin-generate-btn.disabled {
   opacity: 0.6;
   cursor: not-allowed;
   pointer-events: none;
+  transform: none;
 }
 
 .content {
@@ -779,20 +527,58 @@ onMounted(async () => {
   font-size: 16px;
 }
 
-.loading-section {
+.status-section {
   text-align: center;
   padding: 60px 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+  animation: fadeIn 0.3s ease;
 }
 
-.generating-tip {
+.loading-section {
   color: #ff7f00;
-  margin: 10px 0;
+}
+
+.error-section, .empty-section {
+  color: #666;
+}
+
+.error-icon, .empty-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.retry-btn {
+  margin-top: 20px;
+  background: #ff7f00;
+  color: white;
+  border: none;
+  padding: 8px 24px;
+  border-radius: 20px;
+  cursor: pointer;
   font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.retry-btn:hover {
+  background: #e67300;
+  box-shadow: 0 4px 12px rgba(255, 127, 0, 0.2);
 }
 
 .retry-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.layout-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .loading-spinner {
@@ -850,60 +636,6 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
-/* ETF推荐样式 */
-.etf-recommendations h3 {
-  color: #ff7f00;
-  margin-bottom: 15px;
-  font-size: 16px;
-}
-
-.etf-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 15px;
-}
-
-.etf-card {
-  border: 2px solid #ffb380;
-  border-radius: 8px;
-  padding: 15px;
-  background: #fff;
-}
-
-.etf-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.etf-basic .etf-name {
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
-}
-
-.etf-basic .etf-code {
-  font-size: 12px;
-  color: #666;
-}
-
-.etf-category {
-  background: #ff7f00;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.etf-reasoning p {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.4;
-}
-
 /* 文章要点样式 */
 .article-sections {
   list-style: none;
@@ -938,42 +670,6 @@ onMounted(async () => {
   text-align: center;
   color: #999;
   padding: 20px 0;
-}
-
-/* 因子评分样式 */
-.factor-scores {
-  margin-bottom: 15px;
-}
-
-.factor-scores h4 {
-  color: #333;
-  margin: 10px 0 8px;
-  font-size: 14px;
-}
-
-.score-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.score-tag {
-  background: #f0f8ff;
-  color: #333;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  border: 1px solid #d0e7ff;
-}
-
-/* 推荐级别样式 */
-.stock-recommendation.recommend {
-  background: #4CAF50;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
 }
 
 /* 风险提示样式 */
@@ -1121,86 +817,6 @@ onMounted(async () => {
   font-weight: bold;
 }
 
-/* 个股分析样式 */
-.stocks-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.stock-card {
-  border: 2px solid #ffb380;
-  border-radius: 8px;
-  padding: 15px;
-  background: #fff;
-}
-
-.stock-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.stock-basic .stock-name {
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
-}
-
-.stock-basic .stock-code {
-  font-size: 12px;
-  color: #666;
-}
-
-.stock-recommendation {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  color: white;
-}
-
-.stock-recommendation.买入 { background: #18A44B; }
-.stock-recommendation.增持 { background: #F5A623; }
-.stock-recommendation.持有 { background: #4A90E2; }
-
-.stock-price {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.current-price {
-  font-size: 20px;
-  font-weight: bold;
-  color: #ff7f00;
-}
-
-.stock-analysis h4 {
-  color: #333;
-  margin: 10px 0 5px;
-  font-size: 14px;
-}
-
-.stock-analysis p {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.4;
-}
-
-.stock-target {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 15px;
-  padding-top: 10px;
-  border-top: 1px dashed #f0f0f0;
-  font-size: 13px;
-}
-
 /* 风险提示样式 */
 .risk-content {
   display: grid;
@@ -1281,11 +897,7 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
   
-  .stocks-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .institution-views {
+.institution-views {
     grid-template-columns: 1fr;
   }
   

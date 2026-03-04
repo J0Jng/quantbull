@@ -22,7 +22,7 @@ export const useStrategyStore = defineStore('strategy', {
   }),
 
   actions: {
-    // 获取策略列表
+    // 获取回测模型列表
     async fetchStrategies(params = {}) {
       this.loading = true
       this.error = null
@@ -41,7 +41,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 获取策略详情
+    // 获取回测模型详情
     async fetchStrategy(id) {
       this.loading = true
       this.error = null
@@ -61,7 +61,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 创建策略
+    // 创建回测模型
     async createNewStrategy(strategyData) {
       this.loading = true
       this.error = null
@@ -82,7 +82,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 更新策略
+    // 更新回测模型
     async updateExistingStrategy(id, updateData) {
       this.loading = true
       this.error = null
@@ -90,13 +90,13 @@ export const useStrategyStore = defineStore('strategy', {
       try {
         const response = await updateStrategy(id, updateData)
         if (response.success) {
-          // 更新列表中的策略
+          // 更新列表中的回测模型
           const index = this.strategies.findIndex(s => s.id === id)
           if (index !== -1) {
             this.strategies[index] = response.data
           }
           
-          // 更新当前策略
+          // 更新当前回测模型
           if (this.currentStrategy && this.currentStrategy.id === id) {
             this.currentStrategy = response.data
           }
@@ -113,7 +113,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 删除策略
+    // 删除回测模型
     async removeStrategy(id) {
       this.loading = true
       this.error = null
@@ -124,7 +124,7 @@ export const useStrategyStore = defineStore('strategy', {
           // 从列表中删除
           this.strategies = this.strategies.filter(s => s.id !== id)
           
-          // 如果当前策略是被删除的策略，清空currentStrategy
+          // 如果当前回测模型是被删除的回测模型，清空currentStrategy
           if (this.currentStrategy?.id === id) {
             this.currentStrategy = null
           }
@@ -138,7 +138,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 验证策略代码
+    // 验证回测模型代码
     async validateCode(code) {
       this.validationResult = null
       
@@ -155,7 +155,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 获取策略回测历史
+    // 获取回测模型回测历史
     async fetchBacktests(strategyId) {
       this.loading = true
       this.error = null
@@ -196,7 +196,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 生成策略模板
+    // 生成回测模型模板
     async generateTemplate(templateType) {
       this.loading = true
       this.error = null
@@ -216,7 +216,7 @@ export const useStrategyStore = defineStore('strategy', {
       }
     },
 
-    // 清除当前策略
+    // 清除当前回测模型
     clearCurrentStrategy() {
       this.currentStrategy = null
     },
@@ -228,17 +228,17 @@ export const useStrategyStore = defineStore('strategy', {
   },
 
   getters: {
-    // 获取活跃策略
+    // 获取活跃回测模型
     activeStrategies: (state) => {
       return state.strategies.filter(s => s.status === 'active')
     },
 
-    // 获取非活跃策略
+    // 获取非活跃回测模型
     inactiveStrategies: (state) => {
       return state.strategies.filter(s => s.status === 'inactive')
     },
 
-    // 获取策略详情
+    // 获取回测模型详情
     getStrategyById: (state) => (id) => {
       return state.strategies.find(s => s.id === id)
     },

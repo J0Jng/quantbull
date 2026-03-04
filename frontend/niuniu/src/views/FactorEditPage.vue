@@ -4,13 +4,13 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link :to="`/factors/${factorId}`" class="back-btn">返回详情</router-link>
-        <h1 class="page-title">编辑因子</h1>
+        <h1 class="page-title">编辑模拟参数</h1>
       </div>
 
       <!-- 加载状态 -->
       <div v-if="pageLoading" class="loading-state card">
         <div class="loading-spinner"></div>
-        <p>正在加载因子数据...</p>
+        <p>正在加载模拟参数数据...</p>
       </div>
 
       <!-- 加载错误 -->
@@ -29,17 +29,17 @@
           </ul>
         </div>
 
-        <!-- 因子基本信息 -->
+        <!-- 模拟参数基本信息 -->
         <div class="form-section">
-          <h2 class="section-title">因子信息</h2>
+          <h2 class="section-title">模拟参数信息</h2>
           <div class="form-row">
             <div class="form-group">
-              <label for="factor-name">因子名称 <span class="required">*</span></label>
+              <label for="factor-name">模拟参数名称 <span class="required">*</span></label>
               <input 
                 id="factor-name"
                 v-model="factorForm.name"
                 type="text"
-                placeholder="请输入因子名称（最大100字符）"
+                placeholder="请输入模拟参数名称（最大100字符）"
                 maxlength="100"
                 class="form-control"
                 :class="{ 'error': fieldErrors.name }"
@@ -48,12 +48,12 @@
               <div class="char-count">{{ factorForm.name.length }}/100</div>
             </div>
             <div class="form-group">
-              <label for="factor-code">因子代码 <span class="required">*</span></label>
+              <label for="factor-code">模拟参数代码 <span class="required">*</span></label>
               <input 
                 id="factor-code"
                 v-model="factorForm.code"
                 type="text"
-                placeholder="请输入因子代码（如：RSI, MACD等）"
+                placeholder="请输入模拟参数代码（如：RSI, MACD等）"
                 maxlength="50"
                 class="form-control"
                 :class="{ 'error': fieldErrors.code }"
@@ -65,7 +65,7 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="factor-category">因子类别 <span class="required">*</span></label>
+              <label for="factor-category">模拟参数类别 <span class="required">*</span></label>
               <select 
                 id="factor-category"
                 v-model="factorForm.category"
@@ -74,8 +74,8 @@
               >
                 <option value="">请选择类别</option>
                 <option value="technical">技术指标</option>
-                <option value="fundamental">基本面因子</option>
-                <option value="macro">宏观因子</option>
+                <option value="fundamental">基本面模拟参数</option>
+                <option value="macro">宏观模拟参数</option>
               </select>
               <div v-if="fieldErrors.category" class="field-error">{{ fieldErrors.category }}</div>
             </div>
@@ -83,11 +83,11 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="factor-description">因子描述</label>
+              <label for="factor-description">模拟参数描述</label>
               <textarea 
                 id="factor-description"
                 v-model="factorForm.description"
-                placeholder="请输入因子描述（最大1000字符）"
+                placeholder="请输入模拟参数描述（最大1000字符）"
                 rows="3"
                 maxlength="1000"
                 class="form-control"
@@ -99,10 +99,10 @@
           </div>
         </div>
 
-        <!-- 因子表达式编辑区域 -->
+        <!-- 模拟参数表达式编辑区域 -->
         <div class="form-section">
           <div class="section-header">
-            <h2 class="section-title">因子表达式 <span class="required">*</span></h2>
+            <h2 class="section-title">模拟参数表达式 <span class="required">*</span></h2>
             <div class="expression-actions">
               <button 
                 class="btn-secondary" 
@@ -115,12 +115,12 @@
           </div>
 
           <div class="form-group">
-            <label>因子表达式（数学公式或Python函数）</label>
+            <label>模拟参数表达式（数学公式或Python函数）</label>
             <div class="expression-editor-container">
               <textarea
                 ref="expressionEditor"
                 v-model="factorForm.expression"
-                placeholder="请输入因子表达式，例如：(close - open) / volume * 100"
+                placeholder="请输入模拟参数表达式，例如：(close - open) / volume * 100"
                 rows="8"
                 class="expression-input"
                 :class="{ 'error': fieldErrors.expression }"
@@ -153,9 +153,9 @@
           </div>
         </div>
 
-        <!-- 因子参数配置 -->
+        <!-- 模拟参数参数配置 -->
         <div class="form-section">
-          <h2 class="section-title">因子参数配置</h2>
+          <h2 class="section-title">模拟参数参数配置</h2>
           <div class="form-group">
             <label for="factor-parameters">JSON参数配置</label>
             <textarea
@@ -180,7 +180,7 @@
             @click="updateFactor"
             :disabled="submitting"
           >
-            {{ submitting ? '更新中...' : '更新因子' }}
+            {{ submitting ? '更新中...' : '更新模拟参数' }}
           </button>
           <router-link :to="`/factors/${factorId}`" class="btn-secondary">
             取消
@@ -198,7 +198,7 @@
           <p>{{ updateResult.message }}</p>
           <div class="result-actions">
             <router-link :to="`/factors/${factorId}`" class="btn-primary">
-              查看因子详情
+              查看模拟参数详情
             </router-link>
             <router-link to="/factors" class="btn-secondary">
               返回列表
@@ -285,7 +285,7 @@ const onExpressionChange = () => {
 
 const validateExpression = async () => {
   if (!factorForm.value.expression.trim()) {
-    fieldErrors.value.expression = '请先输入因子表达式'
+    fieldErrors.value.expression = '请先输入模拟参数表达式'
     return
   }
 
@@ -301,7 +301,7 @@ const validateExpression = async () => {
         message: '表达式验证通过！',
         details: response.warnings?.length > 0 
           ? '提示: ' + response.warnings.join('\n') 
-          : '因子表达式语法正确。'
+          : '模拟参数表达式语法正确。'
       }
     } else {
       validationResult.value = {
@@ -328,43 +328,43 @@ const validateForm = () => {
   formErrors.value = []
   fieldErrors.value = {}
   
-  // 验证因子名称
+  // 验证模拟参数名称
   if (!factorForm.value.name.trim()) {
-    fieldErrors.value.name = '因子名称不能为空'
-    formErrors.value.push('因子名称不能为空')
+    fieldErrors.value.name = '模拟参数名称不能为空'
+    formErrors.value.push('模拟参数名称不能为空')
   } else if (factorForm.value.name.length > 100) {
-    fieldErrors.value.name = '因子名称不能超过100个字符'
-    formErrors.value.push('因子名称长度超标')
+    fieldErrors.value.name = '模拟参数名称不能超过100个字符'
+    formErrors.value.push('模拟参数名称长度超标')
   }
   
-  // 验证因子代码
+  // 验证模拟参数代码
   if (!factorForm.value.code.trim()) {
-    fieldErrors.value.code = '因子代码不能为空'
-    formErrors.value.push('因子代码不能为空')
+    fieldErrors.value.code = '模拟参数代码不能为空'
+    formErrors.value.push('模拟参数代码不能为空')
   } else if (factorForm.value.code.length > 50) {
-    fieldErrors.value.code = '因子代码不能超过50个字符'
-    formErrors.value.push('因子代码长度超标')
+    fieldErrors.value.code = '模拟参数代码不能超过50个字符'
+    formErrors.value.push('模拟参数代码长度超标')
   }
   
-  // 验证因子类别
+  // 验证模拟参数类别
   if (!factorForm.value.category) {
-    fieldErrors.value.category = '请选择因子类别'
-    formErrors.value.push('因子类别不能为空')
+    fieldErrors.value.category = '请选择模拟参数类别'
+    formErrors.value.push('模拟参数类别不能为空')
   }
   
-  // 验证因子描述
+  // 验证模拟参数描述
   if (factorForm.value.description.length > 1000) {
-    fieldErrors.value.description = '因子描述不能超过1000个字符'
-    formErrors.value.push('因子描述长度超标')
+    fieldErrors.value.description = '模拟参数描述不能超过1000个字符'
+    formErrors.value.push('模拟参数描述长度超标')
   }
   
-  // 验证因子表达式
+  // 验证模拟参数表达式
   if (!factorForm.value.expression.trim()) {
-    fieldErrors.value.expression = '因子表达式不能为空'
-    formErrors.value.push('因子表达式不能为空')
+    fieldErrors.value.expression = '模拟参数表达式不能为空'
+    formErrors.value.push('模拟参数表达式不能为空')
   } else if (expressionLength.value < 5) {
-    fieldErrors.value.expression = '因子表达式过于简单'
-    formErrors.value.push('因子表达式需要更复杂')
+    fieldErrors.value.expression = '模拟参数表达式过于简单'
+    formErrors.value.push('模拟参数表达式需要更复杂')
   }
   
   // 验证JSON参数
@@ -401,21 +401,21 @@ const updateFactor = async () => {
     if (response) {
       updateResult.value = {
         status: 'success',
-        title: '因子更新成功！',
-        message: `因子 "${factorForm.value.name}" 已成功更新。`
+        title: '模拟参数更新成功！',
+        message: `模拟参数 "${factorForm.value.name}" 已成功更新。`
       }
     } else {
       updateResult.value = {
         status: 'error',
         title: '更新失败',
-        message: factorStore.error || '更新因子时发生错误'
+        message: factorStore.error || '更新模拟参数时发生错误'
       }
     }
   } catch (error) {
     updateResult.value = {
       status: 'error',
       title: '更新失败',
-      message: `更新因子时发生错误: ${error.message}`
+      message: `更新模拟参数时发生错误: ${error.message}`
     }
   } finally {
     submitting.value = false
@@ -426,13 +426,13 @@ const updateFactor = async () => {
 const pageLoading = ref(true)
 const loadError = ref(null)
 
-// 加载因子数据
+// 加载模拟参数数据
 const loadFactorData = async () => {
   const id = factorId.value
   
   // 检查 factorId 是否有效
   if (!id) {
-    loadError.value = '无效的因子ID'
+    loadError.value = '无效的模拟参数ID'
     pageLoading.value = false
     console.error('factorId 无效:', id)
     return
@@ -442,11 +442,11 @@ const loadFactorData = async () => {
   loadError.value = null
   
   try {
-    console.log('开始加载因子数据, factorId:', id)
+    console.log('开始加载模拟参数数据, factorId:', id)
     await factorStore.fetchFactor(id)
     
     const factor = factorStore.currentFactor
-    console.log('获取到的因子数据:', factor)
+    console.log('获取到的模拟参数数据:', factor)
     
     if (factor) {
       factorForm.value = {
@@ -459,12 +459,12 @@ const loadFactorData = async () => {
       }
       console.log('表单已填充:', factorForm.value)
     } else {
-      loadError.value = factorStore.error || '因子数据未找到'
-      console.error('因子数据未找到, factorStore.error:', factorStore.error)
+      loadError.value = factorStore.error || '模拟参数数据未找到'
+      console.error('模拟参数数据未找到, factorStore.error:', factorStore.error)
     }
   } catch (error) {
     loadError.value = error.message || '加载失败'
-    console.error('加载因子数据失败:', error)
+    console.error('加载模拟参数数据失败:', error)
   } finally {
     pageLoading.value = false
   }

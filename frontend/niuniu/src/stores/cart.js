@@ -22,7 +22,7 @@ export const useCartStore = defineStore('cart', () => {
     'talent': riskLevels.medium
   }
 
-  // 获取购物车商品总数
+  // 获取已下线功能商品总数
   const totalItems = computed(() => items.value.length)
 
   // 计算总金额
@@ -38,7 +38,7 @@ export const useCartStore = defineStore('cart', () => {
     return items.value.some(item => item.riskLevel === 'high')
   })
 
-  // 添加商品到购物车
+  // 添加商品到已下线功能
   const addToCart = (product) => {
     const existingItem = items.value.find(item => 
       item.id === product.id && item.type === product.type
@@ -59,7 +59,7 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  // 从购物车移除商品
+  // 从已下线功能移除商品
   const removeFromCart = (productId, productType) => {
     const index = items.value.findIndex(item => 
       item.id === productId && item.type === productType
@@ -72,7 +72,7 @@ export const useCartStore = defineStore('cart', () => {
     return false
   }
 
-  // 清空购物车
+  // 清空已下线功能
   const clearCart = () => {
     items.value = []
   }

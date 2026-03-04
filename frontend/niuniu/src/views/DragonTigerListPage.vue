@@ -1,24 +1,33 @@
 <template>
   <div class="dragon-tiger-page">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 数据中心</router-link>
+      <router-link to="/" class="logo">脑科学研究室 - 数据模拟中心</router-link>
       <div class="header-nav">
-        <router-link to="/stock-data">股票数据</router-link>
-        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
-        <router-link to="/financial-report">财报</router-link>
-        <router-link to="/fund-source">资金流动</router-link>
-        <router-link to="/profit-forecast">盈利预测</router-link>
-        <router-link to="/company-research">公司研报</router-link>
-        <router-link to="/quant-analysis">量化分析工具</router-link>
-        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
-          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
-          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
-          </div>
-        </div>
+        <router-link to="/stock-data">历史行情数据</router-link>
+        <router-link to="/dragon-tiger-list">公开异动统计</router-link>
+        <router-link to="/financial-report">财报数据集</router-link>
+        <router-link to="/fund-source">资金流历史统计</router-link>
+        <router-link to="/profit-forecast">预测数据集（研究）</router-link>
+        <router-link to="/company-research">公开文本索引</router-link>
+        <router-link to="/quant-analysis">数据模拟分析工具</router-link>
       </div>
     </header>
+
+    <div class="risk-banner" role="note" aria-label="风险提示">
+      <div class="risk-banner__main">
+        <div class="risk-banner__text">
+          <span v-if="!riskExpanded">
+            仅历史研究与模拟，不荐股不建议；数据或延迟误差，后果自担
+          </span>
+          <span v-else>
+            本页面仅用于历史数据研究与数据模拟展示，不构成投资建议，不荐股、不做交易推荐。数据可能存在延迟、误差或不完整，历史表现不代表未来；用户应自行判断并承担使用后果。在法律允许范围内，平台不对使用本页面数据产生的损失承担责任。
+          </span>
+        </div>
+        <button class="risk-banner__toggle" type="button" @click="riskExpanded = !riskExpanded">
+          {{ riskExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
 
       <div class="table-card">
         <div class="tabs">
@@ -33,6 +42,7 @@
         </div>
 
         <div class="filters">
+          <div class="module-tip">仅研究展示，不构成建议，数据或延迟误差</div>
           <div class="filter-left">
             <div class="filter-item" v-if="isTradeDateMode && tradeDate">
               <span class="label">交易日：</span>
@@ -72,6 +82,7 @@
             <span v-if="loading">加载中...</span>
           </div>
         </div>
+        <div class="module-tip table-tip">仅研究展示，不构成建议，历史不代表未来</div>
 
         <div v-if="copyMessage" class="copy-tip">{{ copyMessage }}</div>
         <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
@@ -128,7 +139,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
 import {
   getLhbStocks,
   getLhbSummary,
@@ -140,58 +150,7 @@ import {
 } from '@/services/dragonTigerService'
 
 const router = useRouter()
-const { logged, userText, openLoginModal, logout } = useAuth()
-const showUserMenu = ref(false)
-let menuTimeout = null
-let hideTimeout = null
-
-function onMenuEnter() {
-  if (!logged.value) return
-  clearTimeout(hideTimeout)
-  menuTimeout = setTimeout(() => {
-    showUserMenu.value = true
-  }, 300)
-}
-
-function onMenuLeave() {
-  clearTimeout(menuTimeout)
-  hideTimeout = setTimeout(() => {
-    if (showUserMenu.value) {
-      showUserMenu.value = false
-    }
-  }, 200)
-}
-
-function onDropdownEnter() {
-  clearTimeout(hideTimeout)
-}
-
-function onDropdownLeave() {
-  hideTimeout = setTimeout(() => {
-    showUserMenu.value = false
-  }, 200)
-}
-
-function toggleUserMenu() {
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false
-  } else {
-    clearTimeout(menuTimeout)
-    clearTimeout(hideTimeout)
-    showUserMenu.value = !showUserMenu.value
-  }
-}
-
-function handleLogout() {
-  logout()
-  showUserMenu.value = false
-}
-
-function goToUserProfile() {
-  showUserMenu.value = false
-  router.push('/profile')
-}
+const riskExpanded = ref(false)
 
 const modes = [
   { label: '上榜个股', value: 'stocks' },
@@ -707,46 +666,50 @@ onMounted(() => {
   text-decoration: underline;
 }
 
-.header-nav .user-btn {
-  background-color: white;
-  color: #ff7f24;
-  padding: 6px 12px;
+.risk-banner {
+  background-color: #fffbe6;
+  border-bottom: 1px solid #ffe58f;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #d46b08;
+}
+
+.risk-banner__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 16px;
+}
+
+.risk-banner__text {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.risk-banner__toggle {
+  background: transparent;
+  border: none;
+  color: #1890ff;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.risk-banner__toggle:hover {
+  text-decoration: underline;
+}
+
+.module-tip {
+  font-size: 12px;
+  color: #8c8c8c;
+  background: #f5f5f5;
+  padding: 4px 8px;
   border-radius: 4px;
-  cursor: pointer;
-}
-
-.user-menu-container {
-  position: relative;
-}
-
-.user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border: 1px solid #ffb380;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  min-width: 120px;
-}
-
-.dropdown-item {
-  padding: 10px 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #fff3e6;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-item:hover {
-  background-color: #fff8f0;
-}
-
-.dropdown-item.logout {
-  color: #ff4500;
+  display: inline-block;
+  margin-bottom: 8px;
 }
 
 .dragon-tiger-page {

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Header
-from typing import cast, Optional
+from fastapi import APIRouter, HTTPException
+from typing import cast
 
 from schemas.ai import (
     ChatRequest,
@@ -24,7 +24,6 @@ from services.summary_service import SummaryService
 from services.strategy_service import StrategyService
 from services.report_service import ReportService
 from services.digital_human_service import DigitalHumanService
-from services.token_service import token_service, TokenConsumeError
 
 from core.logger import get_logger
 from core.response import success, ApiResponse
@@ -58,7 +57,6 @@ async def ai_health_check() -> dict:
 @router.post("/generate/news", response_model=NewsGenerationResponse, summary="生成新闻解读")
 async def generate_news(
     request: NewsGenerationRequest,
-    authorization: Optional[str] = Header(None),
 ) -> NewsGenerationResponse:
     """
     根据财经快讯生成新闻解读
@@ -69,26 +67,6 @@ async def generate_news(
     """
     try:
         result = await news_service.generate_news(request)
-        
-        # 扣减 token
-        if authorization and result.tokens_used and result.tokens_used > 0:
-            try:
-                await token_service.consume_tokens(
-                    authorization=authorization,
-                    tokens=result.tokens_used,
-                    reason="generate_news",
-                )
-            except TokenConsumeError as e:
-                raise HTTPException(
-                    status_code=e.status_code,
-                    detail={
-                        "code": e.status_code,
-                        "message": e.message,
-                        "required": e.required,
-                        "remaining": e.remaining,
-                    }
-                )
-        
         return result
     except HTTPException as http_exc:
         raise http_exc
@@ -104,7 +82,6 @@ async def generate_news(
 )
 async def generate_summary(
     request: SummaryGenerationRequest,
-    authorization: Optional[str] = Header(None),
 ) -> ApiResponse[SummaryGenerationResponse]:
     """
     生成投研摘要（偏结构化、要点式输出）
@@ -115,26 +92,6 @@ async def generate_summary(
     """
     try:
         result = await summary_service.generate_summary(request)
-        
-        # 扣减 token
-        if authorization and result.tokens_used and result.tokens_used > 0:
-            try:
-                await token_service.consume_tokens(
-                    authorization=authorization,
-                    tokens=result.tokens_used,
-                    reason="generate_summary",
-                )
-            except TokenConsumeError as e:
-                raise HTTPException(
-                    status_code=e.status_code,
-                    detail={
-                        "code": e.status_code,
-                        "message": e.message,
-                        "required": e.required,
-                        "remaining": e.remaining,
-                    }
-                )
-        
         return cast(ApiResponse[SummaryGenerationResponse], success(data=result))
     except HTTPException as http_exc:
         raise http_exc
@@ -146,7 +103,6 @@ async def generate_summary(
 @router.post("/generate/strategy", response_model=StrategyGenerationResponse, summary="生成策略代码")
 async def generate_strategy(
     request: StrategyGenerationRequest,
-    authorization: Optional[str] = Header(None),
 ) -> StrategyGenerationResponse:
     """
     生成 Backtrader 策略 Python 代码
@@ -157,26 +113,6 @@ async def generate_strategy(
     """
     try:
         result = await strategy_service.generate_strategy(request)
-        
-        # 扣减 token
-        if authorization and result.tokens_used and result.tokens_used > 0:
-            try:
-                await token_service.consume_tokens(
-                    authorization=authorization,
-                    tokens=result.tokens_used,
-                    reason="generate_strategy",
-                )
-            except TokenConsumeError as e:
-                raise HTTPException(
-                    status_code=e.status_code,
-                    detail={
-                        "code": e.status_code,
-                        "message": e.message,
-                        "required": e.required,
-                        "remaining": e.remaining,
-                    }
-                )
-        
         return result
     except HTTPException as http_exc:
         raise http_exc
@@ -190,7 +126,6 @@ async def generate_strategy(
 @router.post("/chat", response_model=ChatResponse, summary="通用聊天接口")
 async def chat(
     request: ChatRequest,
-    authorization: Optional[str] = Header(None),
 ) -> ChatResponse:
     """
     通用 AI 聊天接口
@@ -216,25 +151,6 @@ async def chat(
             finish_reason=response.finish_reason,
         )
         
-        # 扣减 token
-        if authorization and result.tokens_used and result.tokens_used > 0:
-            try:
-                await token_service.consume_tokens(
-                    authorization=authorization,
-                    tokens=result.tokens_used,
-                    reason="chat",
-                )
-            except TokenConsumeError as e:
-                raise HTTPException(
-                    status_code=e.status_code,
-                    detail={
-                        "code": e.status_code,
-                        "message": e.message,
-                        "required": e.required,
-                        "remaining": e.remaining,
-                    }
-                )
-        
         return result
     except HTTPException as http_exc:
         raise http_exc
@@ -246,7 +162,6 @@ async def chat(
 @router.post("/report/generate", response_model=ReportGenerationResponse, summary="生成报告")
 async def generate_report(
     request: ReportGenerationRequest,
-    authorization: Optional[str] = Header(None),
 ) -> ReportGenerationResponse:
     """
     生成公司研究报告
@@ -255,26 +170,6 @@ async def generate_report(
     """
     try:
         result = await report_service.generate_report(request)
-        
-        # 扣减 token
-        if authorization and result.tokens_used and result.tokens_used > 0:
-            try:
-                await token_service.consume_tokens(
-                    authorization=authorization,
-                    tokens=result.tokens_used,
-                    reason="generate_report",
-                )
-            except TokenConsumeError as e:
-                raise HTTPException(
-                    status_code=e.status_code,
-                    detail={
-                        "code": e.status_code,
-                        "message": e.message,
-                        "required": e.required,
-                        "remaining": e.remaining,
-                    }
-                )
-        
         return result
     except HTTPException as http_exc:
         raise http_exc

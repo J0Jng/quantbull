@@ -683,7 +683,7 @@ table {
 	cursor: pointer;
 }
 
-/* 商城板块 */
+/* 脑科学研究室板块 */
 .mall-section {
 	background: #fff;
 	padding: 10px;
@@ -737,113 +737,7 @@ table {
 	cursor: pointer;
 }
 
-/* 基金排行榜板块（核心修改） */
-.fund-rank {
-	background: #fff;
-	padding: 10px;
-	border: 3px solid #ff7f00;
-	border-radius: 4px;
-	margin-bottom: 10px;
-}
-.fund-list {
-	width: 100%;
-}
-/* 基金列表项 */
-.fund-item {
-	display: flex;
-	align-items: center;
-	padding: 10px 0;
-	border-bottom: 1px solid #f0f0f0;
-}
-.fund-item:last-child {
-	border-bottom: none;
-}
-/* 基金列通用样式 */
-.fund-col {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	text-align: center;
-	padding: 0 5px;
-}
-/* 单选框列 */
-.check-col {
-	width: 4%;
-}
-/* 序号列 */
-.num-col {
-	width: 5%;
-	font-size: 12px;
-	color: #666;
-}
-/* 基金名称列 */
-.name-col {
-	width: 15%;
-	text-align: left;
-	justify-content: flex-start;
-}
-.fund-name {
-	font-size: 13px;
-	font-weight: 500;
-	color: #333;
-}
-.fund-type {
-	font-size: 11px;
-	color: #999;
-	margin-top: 2px;
-}
-/* 数据列（数值+时间） */
-.data-col {
-	width: 8%;
-	flex-direction: column;
-	justify-content: center;
-}
-.data-value {
-	font-size: 12px;
-	color: #ec1b1b;
-	margin-bottom: 2px;
-}
-.data-time {
-	font-size: 10px;
-	color: #999;
-}
-/* 涨跌列 */
-.trend-col {
-	width: 7%;
-	font-size: 12px;
-	font-weight: 500;
-}
-/* 走势图片列 */
-.trend-img-col {
-	width: 8%;
-}
-.trend-img {
-	width: 60px;
-	height: 30px;
-	object-fit: cover;
-}
-/* 按钮列 */
-.btn-col {
-	width: 12%;
-	display: flex;
-	gap: 5px;
-}
-/* 小按钮样式 */
-.btn-col .small {
-	padding: 3px 6px;
-	font-size: 11px;
-}
-.fav-btn {
-	font-size: 12px;
-	padding: 4px 8px;
-	background: #fff;
-	color: #ff7f00;
-	border: 1px solid #ff7f00;
-	border-radius: 3px;
-	cursor: pointer;
-}
-
-/* 每日内参板块 */
+/* 每日数据模拟分析板块 */
 .daily-report {
 	background: #fff;
 	padding: 10px;

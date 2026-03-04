@@ -5,10 +5,10 @@
 import http, { handleRequest } from './http'
 
 /**
- * 生成策略代码
+ * 生成回测模型代码
  * POST /api/ai/generate/strategy
  * @param {Object} data - 请求数据
- * @param {string} data.user_description - 用户策略描述
+ * @param {string} data.user_description - 用户回测模型描述
  * @param {string} data.framework - 框架类型 (backtrader)
  * @param {string} model - AI 模型（可选）
  */
@@ -34,7 +34,7 @@ export const generateNewsAnalysis = async (data, model = null) => {
 }
 
 /**
- * 生成投研摘要
+ * 生成文本生成摘要
  * POST /api/ai/generate/summary
  * @param {Object} data - 请求数据
  * @param {string} model - AI 模型（可选）

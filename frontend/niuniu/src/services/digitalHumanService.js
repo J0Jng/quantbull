@@ -59,13 +59,13 @@ class DigitalHumanService {
   generateFinancialContent(prompt) {
     const videoPrompts = {
       market_analysis: '请生成一段适合视频口播的市场分析内容，包含当前市场热点、投资机会和风险提示，语言生动易懂，适合视频表达。',
-      investment_advice: '请生成专业投资建议，强调风险提示，避免具体个股推荐，用通俗易懂的语言解释投资逻辑。',
+      investment_advice: '请生成专业操作指引，强调风险提示，避免具体个股推荐，用通俗易懂的语言解释投资逻辑。',
       education: '请生成金融投资教育内容，讲解基础概念或投资方法，语言简洁明了。'
     }
 
     let selectedPrompt = videoPrompts.market_analysis
     
-    if (prompt.includes('建议') || prompt.includes('投资') || prompt.includes('策略')) {
+    if (prompt.includes('建议') || prompt.includes('投资') || prompt.includes('回测模型')) {
       selectedPrompt = videoPrompts.investment_advice
     } else if (prompt.includes('教育') || prompt.includes('学习') || prompt.includes('基础')) {
       selectedPrompt = videoPrompts.education
@@ -77,7 +77,7 @@ class DigitalHumanService {
   // 验证文本内容是否符合金融监管要求
   validateFinancialContent(text) {
     const restrictedWords = [
-      '保证收益', '稳赚不赔', '绝对赚钱', '100%获利',
+      '保证收益', '稳赚不赔', '绝对赚钱', '100%模拟数据波动验证',
       '内幕消息', '独家渠道', '马上买入', '立即投资'
     ]
 

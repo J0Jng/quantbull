@@ -2,24 +2,34 @@
   <!-- 头部导航 -->
   <div class="stock-data-container" style="background: #fff8f0; min-height: 100vh;">
     <header class="header">
-      <router-link to="/" class="logo">量化牛牛 - 数据中心</router-link>
+      <router-link to="/" class="logo">脑科学研究室 - 数据中心</router-link>
       <div class="header-nav">
-        <router-link to="/stock-data">股票数据</router-link>
-        <router-link to="/dragon-tiger-list">龙虎榜</router-link>
-        <router-link to="/financial-report">财报</router-link>
-        <router-link to="/fund-source">资金流动</router-link>
-        <router-link to="/profit-forecast">盈利预测</router-link>
-        <router-link to="/company-research">公司研报</router-link>
-        <router-link to="/quant-analysis">量化分析工具</router-link>
-        <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
-          <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
-          <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item" @click="goToUserProfile">个人主页</div>
-            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
-          </div>
-        </div>
+        <router-link to="/stock-data">历史行情数据</router-link>
+        <router-link to="/dragon-tiger-list">公开异动统计</router-link>
+        <router-link to="/financial-report">财报数据集</router-link>
+        <router-link to="/fund-source">资金流历史统计</router-link>
+        <router-link to="/profit-forecast">预测数据集（研究）</router-link>
+        <router-link to="/company-research">公开文本索引</router-link>
+        <router-link to="/quant-analysis">数据模拟分析工具</router-link>
       </div>
     </header>
+
+    <!-- 页面级风险提示条（默认短版，可展开） -->
+    <div class="risk-banner" role="note" aria-label="风险提示">
+      <div class="risk-banner__main">
+        <div class="risk-banner__text">
+          <span v-if="!riskExpanded">
+            仅历史研究/模拟｜不荐股不建议｜数据或延迟误差｜后果自担，法律允许范围内不担责
+          </span>
+          <span v-else>
+            本平台定位为脑科学研究平台/数据分析平台的数据模拟中心，仅基于历史数据进行技术研究与数据模拟展示；不构成任何投资建议，不荐股、不做交易推荐。数据可能存在延迟、误差或不完整；用户应自行判断并承担使用后果。在法律允许范围内，平台不对任何因使用本页面数据产生的损失承担责任。
+          </span>
+        </div>
+        <button class="risk-banner__toggle" type="button" @click="riskExpanded = !riskExpanded">
+          {{ riskExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
 
     <!-- 数据筛选栏 -->
     <div class="filter-bar">
@@ -59,7 +69,10 @@
         v-model="searchKeyword"
         @keypress="handleSearch"
       >
-      <button class="refresh-btn" @click="refreshData">刷新数据</button>
+      <div class="refresh-wrap">
+        <button class="refresh-btn" @click="refreshData">重新加载数据</button>
+        <div class="refresh-note">仅加载最新已入库数据</div>
+      </div>
     </div>
 
     <!-- 主容器 -->
@@ -69,6 +82,7 @@
         <!-- 大盘指数概览 -->
         <div class="market-overview">
           <div class="overview-title">大盘指数</div>
+          <div class="module-tip">仅研究展示｜不构成建议｜历史不代表未来｜数据或延迟误差</div>
           <div class="index-grid">
             <div 
               v-for="index in marketIndexes" 
@@ -93,6 +107,7 @@
               (共 {{ rawStockData.length }} 只)
             </span>
           </div>
+          <div class="module-tip">仅研究展示｜不构成建议｜历史不代表未来｜数据或延迟误差</div>
           <table class="stock-table">
             <thead>
               <tr>
@@ -103,17 +118,16 @@
                 <th>行业</th>
                 <th>换手率</th>
                 <th>成交额(万)</th>
-                <th>更新时间</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="stockLoading">
-                <td colspan="8" style="text-align: center; padding: 20px; color: #999;">
+                <td colspan="7" style="text-align: center; padding: 20px; color: #999;">
                   数据加载中...
                 </td>
               </tr>
               <tr v-else-if="filteredStockData.length === 0">
-                <td colspan="8" style="text-align: center; padding: 20px; color: #999;">
+                <td colspan="7" style="text-align: center; padding: 20px; color: #999;">
                   {{ rawStockData.length === 0 ? '暂无数据' : '无符合条件的股票' }}
                 </td>
               </tr>
@@ -136,7 +150,6 @@
                 <td>{{ stock.industry || '--' }}</td>
                 <td>{{ stock.turnover_rate ? stock.turnover_rate.toFixed(2) + '%' : '--' }}</td>
                 <td>{{ stock.turnover ? (stock.turnover / 10000).toFixed(2) : '--' }}</td>
-                <td style="font-size: 12px; color: #999;">{{ stock.update_time || '--' }}</td>
               </tr>
             </tbody>
           </table>
@@ -156,6 +169,7 @@
             </span>
             <span v-else style="color: #999;">（请点击表格中的股票查看K线）</span>
           </div>
+          <div class="module-tip">仅研究展示｜不构成建议｜历史不代表未来｜数据或延迟误差</div>
           <div v-if="klineLoading" class="kline-placeholder">
             <div style="color: #ff7f24;">K线数据加载中...</div>
           </div>
@@ -216,6 +230,7 @@
         <!-- 热门板块 -->
         <div class="hot-sector">
           <div class="sector-title">热门板块</div>
+          <div class="module-tip">仅研究展示｜不构成建议｜历史不代表未来｜数据或延迟误差</div>
           <div v-if="sectorsLoading" class="loading" style="padding: 20px; text-align: center;">
             加载中...
           </div>
@@ -246,6 +261,7 @@
         <!-- 涨跌分布 -->
         <div class="rise-fall-dist">
           <div class="dist-title">涨跌分布</div>
+          <div class="module-tip">仅研究展示｜不构成建议｜历史不代表未来｜数据或延迟误差</div>
           <div v-if="statsError || marketStats.total === 0" class="data-missing">
             ⚠️ 统计数据加载中...
           </div>
@@ -294,14 +310,12 @@
 
 <script setup>
 import { ref, onMounted, computed, onUnmounted, nextTick, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuth } from '@/composables/useAuth';
 import { getMarketOverview, getStockSnapshotList, getDailyQuotes } from '@/services/marketService';
 import { getIndustryRank } from '@/services/fundamentalsService';
 import * as echarts from 'echarts';
 
-// 使用全局认证
-const { logged, userText, openLoginModal, logout } = useAuth()
+// 风险提示条展开/收起（仅展示文案，不影响业务逻辑）
+const riskExpanded = ref(false);
 
 // ============================================
 // 数据解包工具函数
@@ -312,9 +326,6 @@ const getEnvelopeData = (resp) => {
   }
   return resp;
 };
-
-// 用户菜单状态
-const showUserMenu = ref(false);
 
 // 响应式数据
 const marketIndexes = ref([]);
@@ -987,7 +998,7 @@ const goToNextPage = () => {
   if (currentPage.value < totalPages.value) currentPage.value += 1;
 };
 
-// 刷新数据
+// 重新加载数据
 const refreshData = async () => {
   await loadMarketOverview();
   // 强制刷新：触发后台数据拉取
@@ -1091,60 +1102,6 @@ const formatTradeDate = (dateStr) => {
   return str;
 };
 
-const router = useRouter();
-
-// 用户菜单交互
-let menuTimeout = null;
-let hideTimeout = null;
-
-function onMenuEnter() {
-  if (!logged.value) return;
-  clearTimeout(hideTimeout);
-  menuTimeout = setTimeout(() => {
-    showUserMenu.value = true;
-  }, 300); // 300ms延迟显示
-}
-
-function onMenuLeave() {
-  clearTimeout(menuTimeout);
-  hideTimeout = setTimeout(() => {
-    if (showUserMenu.value) {
-      showUserMenu.value = false;
-    }
-  }, 200); // 200ms延迟隐藏
-}
-
-function onDropdownEnter() {
-  clearTimeout(hideTimeout);
-}
-
-function onDropdownLeave() {
-  hideTimeout = setTimeout(() => {
-    showUserMenu.value = false;
-  }, 200); // 200ms延迟隐藏
-}
-
-function toggleUserMenu() { 
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false;
-  } else {
-    clearTimeout(menuTimeout);
-    clearTimeout(hideTimeout);
-    showUserMenu.value = !showUserMenu.value;
-  }
-}
-
-function handleLogout() {
-  logout();
-  showUserMenu.value = false;
-}
-
-function goToUserProfile() {
-  showUserMenu.value = false;
-  router.push('/profile');
-}
-
 // 页面加载时初始化数据
 onMounted(async () => {
   window.addEventListener('resize', handleResize);
@@ -1183,6 +1140,37 @@ onUnmounted(() => {
 .stock-data-container {
   background-color: #fff8f0;
   min-height: 100vh;
+}
+
+.risk-banner {
+  background: #fff3e6;
+  border-bottom: 1px solid #ffb380;
+  padding: 10px 20px;
+}
+
+.risk-banner__main {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.risk-banner__text {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.risk-banner__toggle {
+  background: transparent;
+  border: none;
+  color: #ff7f24;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .header {
@@ -1224,14 +1212,6 @@ onUnmounted(() => {
 .header-nav .router-link-active,
 .header-nav .router-link-exact-active {
   text-decoration: underline;
-}
-
-.header-nav .user-btn {
-  background-color: white;
-  color: #ff7f24;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 .filter-bar {
@@ -1277,6 +1257,19 @@ onUnmounted(() => {
 
 .search-input:focus {
   border-color: #ff7f24;
+}
+
+.refresh-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.refresh-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
+  line-height: 1;
 }
 
 .refresh-btn {
@@ -1330,122 +1323,11 @@ onUnmounted(() => {
   background-color: #fff8f0;
 }
 
-/* 登录弹窗样式 */
-.login-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.login-box {
-  width: 90%;
-  max-width: 400px;
-  background: white;
-  border-radius: 10px;
-  padding: 30px;
-  position: relative;
-  border: 2px solid #ff7f24;
-}
-
-.close-login {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  font-size: 24px;
-  color: #ff7f24;
-  cursor: pointer;
-}
-
-.login-title {
-  font-size: 22px;
-  color: #ff7f24;
-  text-align: center;
-  margin-bottom: 20px;
-  font-weight: bold;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.login-form input {
-  padding: 12px 15px;
-  border: 1px solid #ffb380;
-  border-radius: 6px;
-  outline: none;
-}
-
-.login-form input:focus {
-  border-color: #ff7f24;
-}
-
-.login-btn {
-  background-color: #ff7f24;
-  color: white;
-  border: none;
-  padding: 12px 0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.login-btn:hover {
-  background-color: #ff6a00;
-}
-
-.login-tips {
-  text-align: center;
-  font-size: 14px;
-  color: #666;
-  margin-top: 10px;
-}
-
-.error-tips {
-  color: #ff4500;
-  text-align: center;
-  margin-bottom: 10px;
-}
-
-.user-menu-container {
-  position: relative;
-}
-
-.user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border: 1px solid #ffb380;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  min-width: 120px;
-}
-
-.dropdown-item {
-  padding: 10px 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #fff3e6;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-item:hover {
-  background-color: #fff8f0;
-}
-
-.dropdown-item.logout {
-  color: #ff4500;
+.module-tip {
+  margin-top: 6px;
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .index-name {

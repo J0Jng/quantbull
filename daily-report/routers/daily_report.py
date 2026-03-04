@@ -1,6 +1,6 @@
 """每日投资方案路由"""
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from core.logger import get_logger
 from core.access_control import get_china_today
@@ -76,19 +76,32 @@ async def get_latest_report() -> DailyReportResponse:
     response_model=DailyReportResponse,
     summary="根据日期获取投资方案"
 )
-async def get_report_by_date(report_date: str) -> DailyReportResponse:
+async def get_report_by_date(report_date: str, refresh: bool = Query(False, description="是否强制刷新重建")) -> DailyReportResponse:
     """
     根据日期获取投资方案
-    
+
     - report_date: 日期格式 YYYY-MM-DD
+    - refresh: true 时强制重建；false 时缺失自动补齐
     """
     try:
+        if refresh:
+            report = await report_service.generate_daily_report(
+                report_date=report_date,
+                force=True,
+            )
+            return report
+
         report = await report_service.get_report_by_date(report_date)
         if not report:
-            raise HTTPException(status_code=404, detail=f"{report_date} 的投资方案不存在")
+            report = await report_service.generate_daily_report(
+                report_date=report_date,
+                force=False,
+            )
         return report
     except HTTPException:
         raise
+    except MarketDataDateMismatchError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"获取报告失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取报告失败: {str(e)}")

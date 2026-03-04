@@ -46,7 +46,7 @@ export const getBacktestResult = async (backtestId) => {
  * 获取回测历史列表
  * GET /api/backtest
  * @param {Object} params - 查询参数
- * @param {number} params.strategy_id - 策略 ID
+ * @param {number} params.strategy_id - 回测模型 ID
  * @param {number} params.limit - 每页数量
  * @param {number} params.offset - 偏移量
  */

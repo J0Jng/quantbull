@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useOrderStore = defineStore('order', () => {
-  // 模拟订单数据
+  // 模拟实验记录数据
   const orders = ref([
     {
       id: 'ORD-20251224-001',
@@ -12,7 +12,7 @@ export const useOrderStore = defineStore('order', () => {
         {
           id: 'FACT-001',
           type: 'factor',
-          name: '动量因子策略',
+          name: '动量模拟参数回测模型',
           price: 299.00,
           riskLevel: '中风险',
           riskColor: '#faad14',

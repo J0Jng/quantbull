@@ -29,7 +29,7 @@ export const useFactorStore = defineStore('factor', {
   }),
 
   actions: {
-    // 获取因子列表（支持分页和过滤）
+    // 获取模拟参数列表（支持分页和过滤）
     async fetchFactors(params = {}) {
       this.loading = true
       this.error = null
@@ -74,7 +74,7 @@ export const useFactorStore = defineStore('factor', {
       this.pagination = { ...this.pagination, ...pagination }
     },
 
-    // 获取因子详情
+    // 获取模拟参数详情
     async fetchFactor(id) {
       this.loading = true
       this.error = null
@@ -95,7 +95,7 @@ export const useFactorStore = defineStore('factor', {
       }
     },
 
-    // 创建因子
+    // 创建模拟参数
     async createNewFactor(factorData) {
       this.loading = true
       this.error = null
@@ -118,7 +118,7 @@ export const useFactorStore = defineStore('factor', {
       }
     },
 
-    // 更新因子
+    // 更新模拟参数
     async updateExistingFactor(id, updateData) {
       this.loading = true
       this.error = null
@@ -129,13 +129,13 @@ export const useFactorStore = defineStore('factor', {
           // 后端响应格式: { code, message, data: {...} }
           const updatedFactor = response.data?.data || response.data
           
-          // 更新列表中的因子
+          // 更新列表中的模拟参数
           const index = this.factors.findIndex(f => f.id === id)
           if (index !== -1) {
             this.factors[index] = updatedFactor
           }
           
-          // 更新当前因子
+          // 更新当前模拟参数
           if (this.currentFactor && this.currentFactor.id === id) {
             this.currentFactor = updatedFactor
           }
@@ -152,7 +152,7 @@ export const useFactorStore = defineStore('factor', {
       }
     },
 
-    // 删除因子
+    // 删除模拟参数
     async removeFactor(id) {
       this.loading = true
       this.error = null
@@ -163,7 +163,7 @@ export const useFactorStore = defineStore('factor', {
           // 从列表中删除
           this.factors = this.factors.filter(f => f.id !== id)
           
-          // 如果当前因子是被删除的因子，清空currentFactor
+          // 如果当前模拟参数是被删除的模拟参数，清空currentFactor
           if (this.currentFactor?.id === id) {
             this.currentFactor = null
           }
@@ -177,7 +177,7 @@ export const useFactorStore = defineStore('factor', {
       }
     },
 
-    // 计算因子值
+    // 计算模拟参数值
     async calculateFactorValue(factorId, calculationParams = {}) {
       this.loading = true
       this.error = null
@@ -202,7 +202,7 @@ export const useFactorStore = defineStore('factor', {
       }
     },
 
-    // 验证因子表达式
+    // 验证模拟参数表达式
     async validateExpression(expression) {
       this.validationResult = null
       
@@ -239,7 +239,7 @@ export const useFactorStore = defineStore('factor', {
       }
     },
 
-    // 清除当前因子
+    // 清除当前模拟参数
     clearCurrentFactor() {
       this.currentFactor = null
     },
@@ -251,28 +251,28 @@ export const useFactorStore = defineStore('factor', {
   },
 
   getters: {
-    // 按类别获取因子
+    // 按类别获取模拟参数
     factorsByCategory: (state) => (category) => {
       if (category === 'all') return state.factors
       return state.factors.filter(f => f.category === category)
     },
 
-    // 获取技术指标因子
+    // 获取技术指标模拟参数
     technicalFactors: (state) => {
       return state.factors.filter(f => f.category === 'technical')
     },
 
-    // 获取基本面因子
+    // 获取基本面模拟参数
     fundamentalFactors: (state) => {
       return state.factors.filter(f => f.category === 'fundamental')
     },
 
-    // 获取宏观因子
+    // 获取宏观模拟参数
     macroFactors: (state) => {
       return state.factors.filter(f => f.category === 'macro')
     },
 
-    // 获取因子详情
+    // 获取模拟参数详情
     getFactorById: (state) => (id) => {
       return state.factors.find(f => f.id === id)
     },

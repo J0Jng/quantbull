@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { isAuthenticated, getCurrentUser } from '@/services/authService'
 import HomePage from '@/components/HomePage.vue'
-import ShopPage from '@/views/ShopPage.vue'
 import QuantAnalysisTool from '@/views/QuantAnalysisTool.vue'
 import BacktestDetailPage from '@/views/BacktestDetailPage.vue'
 import NewsDetailPage from '@/views/NewsDetailPage.vue'
@@ -11,48 +10,59 @@ import ResearchDetailPage from '@/views/ResearchDetailPage.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
 import DailyInsightPage from '@/views/DailyInsightPage.vue'
-import FundRankingPage from '@/views/FundRankingPage.vue'
 import StockDataPage from '@/views/StockDataPage.vue'
 import FundSourcePage from '@/views/FundSourcePage.vue'
 import FinancialReportPage from '@/views/FinancialReportPage.vue'
 import DragonTigerListPage from '@/views/DragonTigerListPage.vue'
 import ProfitForecastPage from '@/views/ProfitForecastPage.vue'
-import GoodsDetail from '@/views/GoodsDetail.vue'
-import CartPage from '@/views/CartPage.vue'
-import OrderPage from '@/views/OrderPage.vue'
 import AboutPage from '@/views/AboutPage.vue'
 import ContactPage from '@/views/ContactPage.vue'
 import JoinPage from '@/views/JoinPage.vue'
 import PartnersPage from '@/views/PartnersPage.vue'
-import NewsListPage from '@/views/NewsListPage.vue'
 import StrategyListPage from '@/views/StrategyListPage.vue'
 import StrategyCreatePage from '@/views/StrategyCreatePage.vue'
 import StrategyDetailPage from '@/views/StrategyDetailPage.vue'
 import StrategyEditPage from '@/views/StrategyEditPage.vue'
 import AdminUsersPage from '@/views/AdminUsersPage.vue'
-import VideoCenterPage from '@/views/VideoCenterPage.vue'
 import NiuModelPage from '@/views/NiuModelPage.vue'
+import ComplianceNoticePage from '@/views/ComplianceNoticePage.vue'
+import DisclaimerPage from '@/views/DisclaimerPage.vue'
 
 const routes = [
   {
     path: '/',
     name: 'Home',
-    component: HomePage
+    redirect: '/home'
+  },
+  {
+    path: '/disclaimer',
+    name: 'Disclaimer',
+    component: DisclaimerPage,
+    meta: { title: '网站申明' }
+  },
+  {
+    path: '/home',
+    name: 'MainHome',
+    component: HomePage,
+    meta: { title: '首页' }
   },
   {
     path: '/shop',
     name: 'Shop',
-    component: ShopPage
+    component: ComplianceNoticePage,
+    meta: { title: '脑科学研究室' }
   },
   {
     path: '/shop/cart',
     name: 'Cart',
-    component: CartPage
+    redirect: '/shop',
+    meta: { title: '脑科学研究室' }
   },
   {
     path: '/shop/orders',
     name: 'Orders',
-    component: OrderPage
+    redirect: '/shop',
+    meta: { title: '脑科学研究室' }
   },
   {
     path: '/about',
@@ -87,7 +97,7 @@ const routes = [
     path: '/niu-model',
     name: 'NiuModel',
     component: NiuModelPage,
-    meta: { title: '牛牛大模型' }
+    meta: { title: '脑科学技术研究中心' }
   },
   {
     path: '/backtests/:id',
@@ -95,11 +105,6 @@ const routes = [
     component: BacktestDetailPage,
     props: true,
     meta: { title: '回测详情' }
-  },
-  {
-    path: '/news-list',
-    name: 'NewsList',
-    component: NewsListPage
   },
   {
     path: '/news-detail/:id',
@@ -137,23 +142,14 @@ const routes = [
   {
     path: '/finance-channel',
     name: 'FinanceChannel',
-    component: FinanceChannelPage
-  },
-  {
-    path: '/video',
-    name: 'VideoCenter',
-    component: VideoCenterPage,
-    meta: { title: '视频中心' }
+    component: FinanceChannelPage,
+    meta: { title: '宏微观数据' }
   },
   {
     path: '/daily-insight',
     name: 'DailyInsight',
-    component: DailyInsightPage
-  },
-  {
-    path: '/fund-ranking',
-    name: 'FundRanking',
-    component: FundRankingPage
+    component: DailyInsightPage,
+    meta: { title: '每日数据模拟分析' }
   },
   {
     path: '/stock-data',
@@ -186,62 +182,63 @@ const routes = [
   {
     path: '/shop/goods-detail/:id',
     name: 'GoodsDetail',
-    component: GoodsDetail,
-    props: true
+    redirect: '/shop',
+    props: true,
+    meta: { title: '脑科学研究室' }
   },
-  // 策略管理路由
+  // 回测模型管理路由
   {
     path: '/strategies',
     name: 'StrategyList',
     component: StrategyListPage,
-    meta: { title: '策略管理' }
+    meta: { title: '回测模型管理' }
   },
   {
     path: '/strategies/create',
     name: 'StrategyCreate',
     component: StrategyCreatePage,
-    meta: { title: '创建策略' }
+    meta: { title: '创建回测模型' }
   },
   {
     path: '/strategies/:id',
     name: 'StrategyDetail',
     component: StrategyDetailPage,
     props: true,
-    meta: { title: '策略详情' }
+    meta: { title: '回测模型详情' }
   },
   {
     path: '/strategies/:id/edit',
     name: 'StrategyEdit',
     component: StrategyEditPage,
     props: true,
-    meta: { title: '编辑策略' }
+    meta: { title: '编辑回测模型' }
   },
-  // 因子管理路由
+  // 模拟参数管理路由
   {
     path: '/factors',
     name: 'FactorList',
     component: () => import('@/views/FactorListPage.vue'),
-    meta: { title: '因子管理' }
+    meta: { title: '模拟参数管理' }
   },
   {
     path: '/factors/create',
     name: 'FactorCreate',
     component: () => import('@/views/FactorCreatePage.vue'),
-    meta: { title: '创建因子' }
+    meta: { title: '创建模拟参数' }
   },
   {
     path: '/factors/:id',
     name: 'FactorDetail',
     component: () => import('@/views/FactorDetailPage.vue'),
     props: true,
-    meta: { title: '因子详情' }
+    meta: { title: '模拟参数详情' }
   },
   {
     path: '/factors/:id/edit',
     name: 'FactorEdit',
     component: () => import('@/views/FactorEditPage.vue'),
     props: true,
-    meta: { title: '编辑因子' }
+    meta: { title: '编辑模拟参数' }
   }
 ]
 
@@ -255,13 +252,20 @@ const router = createRouter({
 
 // 设置页面标题 + 鉴权守卫
 router.beforeEach(async (to, from, next) => {
-  const title = to.meta.title || '量化牛牛'
-  document.title = `${title} - 量化牛牛`
+  const title = to.meta.title || '脑科学研究室'
+  document.title = `${title} - 深脑纪元·数据模拟实验室`
   
+  // 检查是否已同意网站申明
+  const hasAgreedDisclaimer = localStorage.getItem('disclaimer_agreed') === 'true'
+  if (!hasAgreedDisclaimer && to.path !== '/disclaimer') {
+    next('/disclaimer')
+    return
+  }
+
   // 白名单路由（不需要登录）
-  const publicRoutes = ['/', '/Home', '/about', '/contact', '/video']
-  const isPublic = publicRoutes.includes(to.path) || to.name === 'Home'
-  
+  const publicRoutes = ['/', '/disclaimer', '/Home', '/home', '/about', '/contact', '/shop']
+  const isPublic = publicRoutes.includes(to.path) || to.name === 'Home' || to.name === 'Disclaimer'
+
   // 如果不是公开页面且未登录，触发登录弹窗并阻止导航
   if (!isPublic && !isAuthenticated()) {
     const result = await getCurrentUser()

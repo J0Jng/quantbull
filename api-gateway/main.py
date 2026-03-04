@@ -11,7 +11,7 @@ from core.logger import configure_logging
 from core.openapi_aggregator import OpenAPIAggregator, load_service_configs
 from core.response import success
 from middlewares import AuthMiddleware, CsrfMiddleware, LoggingMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
-from routers import auth, gateway, proxy, admin
+from routers import gateway, proxy, admin
 import uvicorn
 
 
@@ -21,7 +21,7 @@ def create_app() -> FastAPI:
     
     app = FastAPI(
         title="API Gateway",
-        description="量化牛牛统一 API 网关",
+        description="脑科学研究室统一 API 网关",
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -31,10 +31,6 @@ def create_app() -> FastAPI:
             {
                 "name": "health",
                 "description": "健康检查相关接口"
-            },
-            {
-                "name": "auth",
-                "description": "认证相关接口"
             },
             {
                 "name": "admin",
@@ -137,13 +133,10 @@ async def health_check() -> dict:
 # 1. 网关管理路由
 app.include_router(gateway.router, prefix="/api/gateway", tags=["网关管理"])
 
-# 2. 认证路由
-app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
-
-# 3. 管理员路由
+# 2. 管理员路由
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
-# 4. 代理路由（最后注册，最低优先级）
+# 3. 代理路由（最后注册，最低优先级）
 app.include_router(proxy.router, prefix="/api", tags=["代理"])
 
 

@@ -117,13 +117,13 @@ class DataServiceClient:
             normalized_trade = self._normalize_trade_date(trade_date)
 
             if not normalized_trade:
-                logger.warning(f"市场概览未返回交易日字段，无法判定是否交易日: {date}")
-                return False
+                logger.warning(f"市场概览未返回交易日字段，按交易日处理: {date}")
+                return True
 
             return normalized_trade == normalized_request
         except httpx.HTTPError as e:
-            logger.error(f"回退判断交易日失败: {e}")
-            return False
+            logger.error(f"回退判断交易日失败，按交易日处理: {e}")
+            return True
     
     async def get_market_overview(self, date: str) -> MarketOverview:
         """

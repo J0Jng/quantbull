@@ -4,7 +4,7 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link :to="`/strategies/${strategyId}`" class="back-btn">返回详情</router-link>
-        <h1 class="page-title">编辑策略</h1>
+        <h1 class="page-title">编辑回测模型</h1>
       </div>
 
       <!-- 表单验证错误 -->
@@ -15,17 +15,17 @@
         </ul>
       </div>
 
-      <!-- 策略基本信息编辑 -->
+      <!-- 回测模型基本信息编辑 -->
       <div class="form-section">
-        <h2 class="section-title">策略信息</h2>
+        <h2 class="section-title">回测模型信息</h2>
         <div class="form-row">
           <div class="form-group">
-            <label for="strategy-name">策略名称 <span class="required">*</span></label>
+            <label for="strategy-name">回测模型名称 <span class="required">*</span></label>
             <input 
               id="strategy-name"
               v-model="strategyForm.name"
               type="text"
-              placeholder="请输入策略名称（最大100字符）"
+              placeholder="请输入回测模型名称（最大100字符）"
               maxlength="100"
               class="form-control"
               :class="{ 'error': fieldErrors.name }"
@@ -37,11 +37,11 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label for="strategy-description">策略描述</label>
+            <label for="strategy-description">回测模型描述</label>
             <textarea 
               id="strategy-description"
               v-model="strategyForm.description"
-              placeholder="请输入策略描述（最大1000字符）"
+              placeholder="请输入回测模型描述（最大1000字符）"
               rows="3"
               maxlength="1000"
               class="form-control"
@@ -53,9 +53,9 @@
         </div>
       </div>
 
-      <!-- 策略状态编辑 -->
+      <!-- 回测模型状态编辑 -->
       <div class="form-section">
-        <h2 class="section-title">策略状态</h2>
+        <h2 class="section-title">回测模型状态</h2>
         <div class="form-row">
           <div class="form-group">
             <label>状态:</label>
@@ -92,10 +92,10 @@
         </div>
       </div>
 
-      <!-- 策略代码编辑 -->
+      <!-- 回测模型代码编辑 -->
       <div class="form-section">
         <div class="section-header">
-          <h2 class="section-title">策略代码 <span class="required">*</span></h2>
+          <h2 class="section-title">回测模型代码 <span class="required">*</span></h2>
           <div class="code-actions">
             <button 
               class="btn-secondary" 
@@ -108,12 +108,12 @@
         </div>
 
         <div class="form-group">
-          <label>Python策略代码（最少10行）</label>
+          <label>Python回测模型代码（最少10行）</label>
           <div class="code-editor-container">
             <textarea
               ref="codeEditor"
               v-model="strategyForm.code"
-              placeholder="请输入Python策略代码..."
+              placeholder="请输入Python回测模型代码..."
               rows="15"
               class="code-input"
               :class="{ 'error': fieldErrors.code }"
@@ -159,9 +159,9 @@
         </div>
       </div>
 
-      <!-- 策略参数编辑 -->
+      <!-- 回测模型参数编辑 -->
       <div class="form-section">
-        <h2 class="section-title">策略参数配置</h2>
+        <h2 class="section-title">回测模型参数配置</h2>
         <div class="form-group">
           <label for="strategy-parameters">JSON参数配置</label>
           <textarea
@@ -186,7 +186,7 @@
           @click="saveStrategyUpdate"
           :disabled="submitting"
         >
-          {{ submitting ? '更新中...' : '更新策略' }}
+          {{ submitting ? '更新中...' : '更新回测模型' }}
         </button>
         <router-link :to="`/strategies`" class="btn-secondary">
           取消
@@ -203,7 +203,7 @@
           <p>{{ updateResult.message }}</p>
           <div class="result-actions">
             <router-link :to="`/strategies`" class="btn-primary">
-              查看策略详情
+              查看回测模型详情
             </router-link>
             <router-link to="/strategies" class="btn-secondary">
               返回列表
@@ -227,7 +227,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 
-// 从路由获取策略ID
+// 从路由获取回测模型ID
 const strategyId = ref(route.params.id)
 
 // 响应式数据
@@ -302,7 +302,7 @@ const onCodeChange = () => {
 
 const validateCode = async () => {
   if (!strategyForm.value.code.trim()) {
-    fieldErrors.value.code = '请先输入策略代码'
+    fieldErrors.value.code = '请先输入回测模型代码'
     return
   }
 
@@ -350,28 +350,28 @@ const validateForm = () => {
   formErrors.value = []
   fieldErrors.value = {}
   
-  // 验证策略名称
+  // 验证回测模型名称
   if (!strategyForm.value.name.trim()) {
-    fieldErrors.value.name = '策略名称不能为空'
-    formErrors.value.push('策略名称不能为空')
+    fieldErrors.value.name = '回测模型名称不能为空'
+    formErrors.value.push('回测模型名称不能为空')
   } else if (strategyForm.value.name.length > 100) {
-    fieldErrors.value.name = '策略名称不能超过100个字符'
-    formErrors.value.push('策略名称长度超标')
+    fieldErrors.value.name = '回测模型名称不能超过100个字符'
+    formErrors.value.push('回测模型名称长度超标')
   }
   
-  // 验证策略描述
+  // 验证回测模型描述
   if (strategyForm.value.description.length > 1000) {
-    fieldErrors.value.description = '策略描述不能超过1000个字符'
-    formErrors.value.push('策略描述长度超标')
+    fieldErrors.value.description = '回测模型描述不能超过1000个字符'
+    formErrors.value.push('回测模型描述长度超标')
   }
   
-  // 验证策略代码
+  // 验证回测模型代码
   if (!strategyForm.value.code.trim()) {
-    fieldErrors.value.code = '策略代码不能为空'
-    formErrors.value.push('策略代码不能为空')
+    fieldErrors.value.code = '回测模型代码不能为空'
+    formErrors.value.push('回测模型代码不能为空')
   } else if (lineCount.value < 10) {
-    fieldErrors.value.code = '策略代码至少需要10行'
-    formErrors.value.push('策略代码行数不足')
+    fieldErrors.value.code = '回测模型代码至少需要10行'
+    formErrors.value.push('回测模型代码行数不足')
   }
   
   // 验证JSON参数
@@ -407,8 +407,8 @@ const saveStrategyUpdate = async () => {
     if (response.success) {
       updateResult.value = {
         status: 'success',
-        title: '策略更新成功！',
-        message: `策略 "${strategyForm.value.name}" 已成功更新。`
+        title: '回测模型更新成功！',
+        message: `回测模型 "${strategyForm.value.name}" 已成功更新。`
       }
       
       // 2秒后跳转到详情页
@@ -419,14 +419,14 @@ const saveStrategyUpdate = async () => {
       updateResult.value = {
         status: 'error',
         title: '更新失败',
-        message: response.message || '更新策略失败'
+        message: response.message || '更新回测模型失败'
       }
     }
   } catch (error) {
     updateResult.value = {
       status: 'error',
       title: '更新失败',
-      message: `更新策略时发生错误: ${error.message}`
+      message: `更新回测模型时发生错误: ${error.message}`
     }
   } finally {
     submitting.value = false
@@ -435,7 +435,7 @@ const saveStrategyUpdate = async () => {
 
 // 生命周期
 onMounted(() => {
-  // 模拟加载策略数据
+  // 模拟加载回测模型数据
   fetchStrategyData()
 })
 
@@ -453,10 +453,10 @@ const fetchStrategyData = async () => {
         status: data.status || 'draft'
       }
     } else {
-      console.error('获取策略数据失败:', response.message)
+      console.error('获取回测模型数据失败:', response.message)
     }
   } catch (error) {
-    console.error('获取策略数据失败:', error)
+    console.error('获取回测模型数据失败:', error)
   }
 }
 </script>

@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,11 +7,24 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from auth.jwt import hash_password, verify_token
-from routers.auth import validate_password, validate_username
 from models import User, get_session, get_user_by_username, create_user as create_user_model
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
+
+
+def validate_username(username: str) -> None:
+    if not USERNAME_PATTERN.match(username):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid username")
+
+
+def validate_password(password: str) -> None:
+    if len(password) < 6:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="password too short")
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="password too weak")
 
 
 class Envelope(BaseModel):

@@ -129,7 +129,7 @@ export default {
         // 获取相关研报
         relatedReports.value = [
           { id: '2', title: '腾讯控股：游戏业务复苏带动业绩增长' },
-          { id: '3', title: '互联网行业2026年投资策略' },
+          { id: '3', title: '互联网行业2026年投资回测模型' },
           { id: '4', title: '人工智能在金融领域的应用前景分析' }
         ]
         

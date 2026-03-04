@@ -4,10 +4,10 @@
       <!-- 页面导航 -->
       <div class="page-nav">
         <router-link to="/strategies" class="back-btn">返回列表</router-link>
-        <h1 class="page-title">策略详情</h1>
+        <h1 class="page-title">回测模型详情</h1>
         <div class="page-actions">
           <router-link :to="`/strategies/${strategyId}/edit`" class="btn-primary">
-            编辑策略
+            编辑回测模型
           </router-link>
           <button 
             class="btn-secondary" 
@@ -21,14 +21,14 @@
             @click="deleteStrategy"
             :disabled="strategyData.status === 'active'"
           >
-            删除策略
+            删除回测模型
           </button>
         </div>
       </div>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-indicator">
-        <p>正在加载策略详情...</p>
+        <p>正在加载回测模型详情...</p>
       </div>
 
       <!-- 错误信息 -->
@@ -37,7 +37,7 @@
       </div>
 
       <div v-if="!loading && strategyData.id" class="strategy-content">
-        <!-- 策略基本信息 -->
+        <!-- 回测模型基本信息 -->
         <div class="basic-info-section card">
           <div class="info-header">
             <h2 class="info-title">{{ strategyData.name }}</h2>
@@ -48,7 +48,7 @@
           
           <div class="info-grid">
             <div class="info-item">
-              <label>策略ID:</label>
+              <label>回测模型ID:</label>
               <span class="strategy-id">{{ strategyData.id }}</span>
             </div>
             <div class="info-item">
@@ -66,15 +66,15 @@
           </div>
 
           <div v-if="strategyData.description" class="description-section">
-            <label>策略描述:</label>
+            <label>回测模型描述:</label>
             <p class="description-text">{{ strategyData.description }}</p>
           </div>
         </div>
 
-        <!-- 策略代码展示 -->
+        <!-- 回测模型代码展示 -->
         <div class="code-section card">
           <div class="section-header">
-            <h3 class="section-title">策略代码</h3>
+            <h3 class="section-title">回测模型代码</h3>
             <div class="code-actions">
               <button 
                 class="btn-secondary" 
@@ -103,9 +103,9 @@
           </div>
         </div>
 
-        <!-- 策略参数 -->
+        <!-- 回测模型参数 -->
         <div class="parameters-section card">
-          <h3 class="section-title">策略参数</h3>
+          <h3 class="section-title">回测模型参数</h3>
           <div class="parameters-container">
             <div v-if="strategyData.parameters && Object.keys(strategyData.parameters).length > 0" 
                  class="parameters-grid">
@@ -188,11 +188,11 @@
           <div v-else class="empty-history">
             <div class="empty-icon">📊</div>
             <p>暂无回测记录</p>
-            <p class="empty-hint">运行回测以查看策略表现</p>
+            <p class="empty-hint">运行回测以查看回测模型表现</p>
           </div>
         </div>
 
-        <!-- 策略操作记录 -->
+        <!-- 回测模型操作记录 -->
         <div class="operations-section card">
           <h3 class="section-title">操作记录</h3>
           <div class="operations-list">
@@ -226,7 +226,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 
-// 从路由获取策略ID
+// 从路由获取回测模型ID
 const strategyId = ref(route.params.id)
 
 // 响应式数据
@@ -239,7 +239,7 @@ const backtestHistory = ref([])
 const loadingHistory = ref(false)
 const isRunningBacktest = ref(false)
 
-// 获取策略详情
+// 获取回测模型详情
 const fetchStrategyDetail = async () => {
   loading.value = true
   error.value = ''
@@ -250,10 +250,10 @@ const fetchStrategyDetail = async () => {
     if (response.success) {
       strategyData.value = response.data
     } else {
-      error.value = response.message || '获取策略详情失败'
+      error.value = response.message || '获取回测模型详情失败'
     }
   } catch (err) {
-    error.value = `获取策略详情失败: ${err.message}`
+    error.value = `获取回测模型详情失败: ${err.message}`
   } finally {
     loading.value = false
   }
@@ -403,7 +403,7 @@ const rerunBacktest = async (backtest) => {
 }
 
 const deleteStrategy = async () => {
-  if (!confirm('确定要删除这个策略吗？此操作不可恢复。')) {
+  if (!confirm('确定要删除这个回测模型吗？此操作不可恢复。')) {
     return
   }
   
@@ -416,10 +416,10 @@ const deleteStrategy = async () => {
       // 删除成功后返回到列表页面
       router.push('/strategies')
     } else {
-      error.value = response.message || '删除策略失败'
+      error.value = response.message || '删除回测模型失败'
     }
   } catch (err) {
-    error.value = `删除策略失败: ${err.message}`
+    error.value = `删除回测模型失败: ${err.message}`
   } finally {
     loading.value = false
   }
