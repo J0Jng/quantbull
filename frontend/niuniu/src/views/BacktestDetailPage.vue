@@ -1,5 +1,21 @@
 <template>
   <div class="backtest-detail-page">
+    <div class="risk-banner" role="note" aria-label="风险提示">
+      <div class="risk-banner__main">
+        <div class="risk-banner__text">
+          <span v-if="!riskExpanded">
+            仅历史研究与模拟，不荐股不建议；数据或延迟误差，后果自担
+          </span>
+          <span v-else>
+            本页面仅用于历史数据研究与数据模拟展示，不构成投资建议，不荐股、不做交易推荐。数据可能存在延迟、误差或不完整，历史表现不代表未来；用户应自行判断并承担使用后果。在法律允许范围内，平台不对使用本页面数据产生的损失承担责任。
+          </span>
+        </div>
+        <button class="risk-banner__toggle" type="button" @click="riskExpanded = !riskExpanded">
+          {{ riskExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
     <div v-if="loading" class="loading-state">
       加载中...
     </div>
@@ -10,15 +26,16 @@
     </div>
     <div v-else class="detail-container">
       <div class="header">
-        <h1>回测详情</h1>
+        <h1>历史模拟详情</h1>
         <router-link to="/quant-analysis" class="btn-back">返回列表</router-link>
       </div>
 
       <div class="info-card card">
-        <h2 class="card-title">基础信息</h2>
+        <h2 class="card-title">基础信息（研究）</h2>
+        <div class="module-tip">仅研究展示，不构成建议，历史不代表未来</div>
         <div class="info-grid">
           <div class="info-item">
-            <span class="label">回测ID:</span>
+            <span class="label">模拟ID:</span>
             <span class="value">{{ backtestId }}</span>
           </div>
           <div class="info-item">
@@ -45,6 +62,7 @@
       </div>
 
       <div class="chart-section card">
+        <div class="module-tip">净值曲线仅用于历史样本观察，不代表未来表现</div>
          <SimpleLineChart :data="chartData" />
       </div>
 
@@ -70,7 +88,7 @@
 
     <div class="actions-section">
         <button class="btn-ai-eval" @click="askAiEvaluation" :disabled="evaluating">
-          {{ evaluating ? 'AI正在思考...' : '✨ 用 AI 评价本次回测' }}
+          {{ evaluating ? '研究解读系统整理中...' : '✨ 生成本次历史模拟研究解读' }}
         </button>
       </div>
     </div>
@@ -98,6 +116,7 @@ const error = ref('')
 const backtestData = ref(null)
 const dailyNav = ref([])
 const evaluating = ref(false)
+const riskExpanded = ref(false)
 
 // 数据加载
 const loadData = async () => {
@@ -195,7 +214,7 @@ const chartData = computed(() => {
     }))
 })
 
-// AI 评价逻辑
+// 研究解读逻辑
 const askAiEvaluation = async () => {
     if (evaluating.value) return 
     evaluating.value = true
@@ -227,22 +246,22 @@ const askAiEvaluation = async () => {
         }
 
         const promptContext = `
-回测基本信息:
+      历史模拟基本信息:
 - 标的: ${basicInfo.stock}
 - 时间段: ${basicInfo.range}
-- 回测模型模式: ${basicInfo.strategy_type} (${basicInfo.strategy_name})
+      - 模拟模式: ${basicInfo.strategy_type} (${basicInfo.strategy_name})
 - 年化收益: ${basicInfo.return}
 - 夏普比率: ${basicInfo.sharpe}
 - 最大回撤: ${basicInfo.drawdown}
 
-净值曲线摘要(Nav):
+      净值曲线摘要(Nav):
 ${JSON.stringify(curveSummary)}
         `.trim()
 
-        const userMessage = `请评价这个量化回测模型回测结果。上下文如下：\n${promptContext}`
+        const userMessage = `请基于以下历史模拟数据给出研究解读，不提供交易建议。上下文如下：\n${promptContext}`
         
         // 2. 设置系统 Prompt
-        chatStore.setSystemPrompt("你是一个专业的量化回测模型评审员。请根据用户提供的回测数据（收益、回撤、夏普等）进行客观评价。请指出回测模型的：1) 优点与表现亮点 2) 潜在风险点与缺点 3) 针对性的改进建议 4) 适用的市场环境。最后必须附带投资风险提示。输出要求：1) 必须分行输出；2) 使用短句，每句不超过20字；3) 不使用“略/后续/省略号”来截断回答；4) 需要分段时用空行分隔。")
+        chatStore.setSystemPrompt("你是一个历史数据研究助理。请根据用户提供的模拟数据（收益、回撤、夏普等）做客观解读。请输出：1) 数据表现要点 2) 样本局限与风险点 3) 后续研究方向。必须明确：内容仅供研究与模拟，不构成投资建议，不荐股、不做交易推荐。输出要求：1) 必须分行输出；2) 使用短句，每句不超过20字；3) 不使用“略/后续/省略号”来截断回答；4) 需要分段时用空行分隔。")
         
         // 3. 打开聊天窗口
         if (!chatStore.isChatOpen) {
@@ -250,7 +269,7 @@ ${JSON.stringify(curveSummary)}
         }
 
         // 4. 用户消息上屏
-        chatStore.addMessage("请帮我评价一下当前的回测模型回测结果", true) // 显示给用户看的简洁文本
+        chatStore.addMessage("请帮我解读当前历史模拟结果（仅研究用途）", true)
         
         // 5. 发送请求 (发送带有完整 Context 的 prompt 为 message)
         const res = await chatService.sendChat(userMessage, chatStore.systemPrompt, null, 0.6, 2000)
@@ -258,12 +277,12 @@ ${JSON.stringify(curveSummary)}
         if (res.success) {
             chatStore.addMessage(res.content, false)
         } else {
-            chatStore.addMessage("抱歉，AI 评价服务暂时不可用: " + (res.error || '未知错误'), false)
+          chatStore.addMessage("抱歉，研究解读服务暂时不可用: " + (res.error || '未知错误'), false)
         }
 
     } catch (err) {
         console.error(err)
-        chatStore.addMessage("发生错误，无法获取评价。", false)
+        chatStore.addMessage("发生错误，无法获取研究解读。", false)
     } finally {
         evaluating.value = false
     }
@@ -286,6 +305,44 @@ onMounted(() => {
   padding: 20px;
   background: #fdfdfd;
   min-height: 80vh;
+}
+
+.risk-banner {
+  background: #fff3e6;
+  border: 1px solid #ffb380;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.risk-banner__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.risk-banner__text {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.risk-banner__toggle {
+  background: transparent;
+  border: none;
+  color: #ff7f24;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.module-tip {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 10px;
 }
 
 .header {

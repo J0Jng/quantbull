@@ -7,14 +7,11 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlmodel import Session
 
-from auth.jwt import verify_token
 from models import (
     get_session, 
-    get_user_by_username, 
     User, 
     Product,
     ProductType,
@@ -26,7 +23,6 @@ from models import (
 )
 
 router = APIRouter(prefix="/api/products", tags=["products"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 # ==================== Schemas ====================
@@ -120,50 +116,16 @@ class ProductResponse(BaseModel):
 # ==================== Dependencies ====================
 
 def get_current_user_optional(
-    token: Optional[str] = Depends(oauth2_scheme),
     session: Session = Depends(get_session)
 ) -> Optional[User]:
     """可选的用户认证：返回用户对象或 None"""
-    if not token:
-        return None
-    payload = verify_token(token)
-    if not payload:
-        return None
-    user = get_user_by_username(session, payload["username"])
-    return user
+    return None
 
 
 def require_admin(
-    token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session)
-) -> User:
-    """依赖函数：要求当前用户必须是管理员"""
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token"
-        )
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token"
-        )
-    
-    user = get_user_by_username(session, payload["username"])
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="user not found"
-        )
-    
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="forbidden"
-        )
-    
-    return user
+) -> None:
+    return None
 
 
 # ==================== Endpoints ====================
@@ -234,7 +196,6 @@ async def get_product(
 @router.post("")
 async def create_product(
     request: CreateProductRequest,
-    admin: User = Depends(require_admin),
     session: Session = Depends(get_session)
 ) -> Envelope:
     """
@@ -266,7 +227,6 @@ async def create_product(
 async def update_product(
     product_id: str,
     request: UpdateProductRequest,
-    admin: User = Depends(require_admin),
     session: Session = Depends(get_session)
 ) -> Envelope:
     """
@@ -293,7 +253,6 @@ async def update_product(
 @router.delete("/{product_id}")
 async def delete_product(
     product_id: str,
-    admin: User = Depends(require_admin),
     session: Session = Depends(get_session)
 ) -> Envelope:
     """

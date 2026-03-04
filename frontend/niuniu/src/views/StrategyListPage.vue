@@ -12,7 +12,7 @@
         <div class="user-menu-container" @mouseenter="onMenuEnter" @mouseleave="onMenuLeave">
           <div class="user-btn" @click="toggleUserMenu">{{ userText }}</div>
           <div class="user-dropdown" v-show="showUserMenu && logged" @mouseenter="onDropdownEnter" @mouseleave="onDropdownLeave">
-            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
+            <div class="dropdown-item logout" @click="handleLogout">清理本地状态</div>
           </div>
         </div>
       </div>
@@ -191,13 +191,12 @@ import { useAuth } from '@/composables/useAuth'
 import { getStrategies, deleteStrategy as deleteStrategyApi } from '@/services/strategyService'
 
 const router = useRouter()
-const { logged, userText, openLoginModal, logout } = useAuth()
+const { logged, userText, logout } = useAuth()
 const showUserMenu = ref(false)
 let menuTimeout = null
 let hideTimeout = null
 
 function onMenuEnter() {
-  if (!logged.value) return
   clearTimeout(hideTimeout)
   menuTimeout = setTimeout(() => {
     showUserMenu.value = true
@@ -224,14 +223,9 @@ function onDropdownLeave() {
 }
 
 function toggleUserMenu() {
-  if (!logged.value) {
-    openLoginModal()
-    showUserMenu.value = false
-  } else {
-    clearTimeout(menuTimeout)
-    clearTimeout(hideTimeout)
-    showUserMenu.value = !showUserMenu.value
-  }
+  clearTimeout(menuTimeout)
+  clearTimeout(hideTimeout)
+  showUserMenu.value = !showUserMenu.value
 }
 
 function handleLogout() {

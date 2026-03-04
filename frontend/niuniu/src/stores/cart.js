@@ -92,9 +92,8 @@ export const useCartStore = defineStore('cart', () => {
 
   // 检查用户是否可以购买高风险产品
   const canPurchaseHighRiskProducts = () => {
-    const isLoggedIn = localStorage.getItem('quantLogin') === '123'
-    const isQualifiedInvestor = localStorage.getItem('qualifiedInvestor') === 'certified'
-    return isLoggedIn && (hasHighRiskProducts.value ? isQualifiedInvestor : true)
+    // 匿名模式：不依赖任何登录态/本地凭证
+    return true
   }
 
   // 获取格式化总金额

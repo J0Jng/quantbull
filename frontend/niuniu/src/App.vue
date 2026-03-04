@@ -2,20 +2,14 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import ChatWidget from './components/ChatWidget.vue'
 import { useChatStore } from './stores/chat'
-import { useAuth } from './composables/useAuth'
 
 // 初始化聊天状态管理
 const chatStore = useChatStore()
 
-// 初始化认证状态
-const { initAuth } = useAuth()
 const showComplianceModal = ref(false)
 
 // 页面加载时设置默认位置
 onMounted(async () => {
-  // 初始化认证状态
-  await initAuth()
-  
   // 设置聊天窗口默认位置（右下角）
   if (window.innerWidth > 768) {
     chatStore.setChatPosition(window.innerWidth - 420, window.innerHeight - 620)

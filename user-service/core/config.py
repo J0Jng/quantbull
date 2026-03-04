@@ -14,13 +14,6 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./user.db"
 
-    # JWT
-    jwt_secret: str = "change-me-in-prod"
-    jwt_algorithm: str = "HS256"
-    access_token_expire_seconds: int = 3600
-    jwt_issuer: str = "quantbull"
-    jwt_audience: str = "quantbull-api"
-
     # CORS 配置（生产环境应配置白名单）
     cors_allow_origins: list[str] = []
     cors_allow_credentials: bool = False
@@ -53,8 +46,6 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ALLOW_ORIGINS is required in non-local env")
             if "*" in self.cors_allow_origins:
                 raise ValueError("CORS_ALLOW_ORIGINS must be a whitelist in non-local env")
-            if self.jwt_secret in {"change-me-in-prod", "", None}:
-                raise ValueError("JWT_SECRET must be set to a strong value in non-local env")
             if self.admin_password in {"admin123", "", None}:
                 raise ValueError("ADMIN_PASSWORD must be set to a strong value in non-local env")
         return self

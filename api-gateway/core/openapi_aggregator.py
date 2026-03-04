@@ -104,7 +104,7 @@ class OpenAPIAggregator:
     async def aggregate(self) -> Dict[str, Any]:
         base_spec = self._build_base_spec()
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(trust_env=False) as client:
             specs = await asyncio.gather(
                 *[self._fetch_service_openapi(client, svc) for svc in self.services],
                 return_exceptions=True,
@@ -159,15 +159,6 @@ class OpenAPIAggregator:
 
         components = spec.setdefault("components", {})
         components.setdefault("schemas", {})
-        security_schemes = components.setdefault("securitySchemes", {})
-        security_schemes.setdefault(
-            "OAuth2PasswordBearer",
-            {
-                "type": "oauth2",
-                "flows": {"password": {"tokenUrl": "/api/auth/login", "scopes": {}}},
-            },
-        )
-        spec.setdefault("security", [{"OAuth2PasswordBearer": []}])
         spec.setdefault("tags", [])
         spec.setdefault("paths", {})
         return spec
@@ -193,6 +184,7 @@ class OpenAPIAggregator:
             for _, operation in namespaced_path_item.items():
                 if isinstance(operation, dict):
                     operation["tags"] = [svc.display_name]
+                    operation.pop("security", None)
 
             merged_paths[prefixed_path] = namespaced_path_item
 
@@ -206,9 +198,7 @@ class OpenAPIAggregator:
                 deepcopy(schema_def), svc.name
             )
 
-        security_schemes = service_components.get("securitySchemes", {}) or {}
-        for scheme_name, scheme_def in security_schemes.items():
-            merged_components.setdefault("securitySchemes", {}).setdefault(scheme_name, scheme_def)
+        merged_components.pop("securitySchemes", None)
 
     def _namespace_schema_refs(self, obj: Any, service_name: str) -> Any:
         if isinstance(obj, dict):
