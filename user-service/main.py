@@ -7,7 +7,6 @@ from sqlmodel import Session
 
 from core.config import settings
 from models import auth_engine, init_db, seed_admin_user, seed_products
-from auth.jwt import hash_password
 from routers.admin import router as admin_router
 from routers.ai_tokens import router as ai_tokens_router
 from routers.products import router as products_router
@@ -17,8 +16,6 @@ from routers.investor import router as investor_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.env != "local":
-        if settings.jwt_secret in {"change-me-in-prod", "", None}:
-            raise RuntimeError("JWT_SECRET must be set to a strong value in non-local environments.")
         if settings.admin_password in {"admin123", "", None}:
             raise RuntimeError("Admin password must be changed in non-local environments.")
     init_db()
@@ -34,7 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         seed_admin_user(
             session,
             username=settings.admin_username,
-            password_hash=hash_password(settings.admin_password),
+            password_hash=settings.admin_password,
         )
         # 初始化商品种子数据
         seed_products(session)

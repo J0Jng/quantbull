@@ -73,8 +73,6 @@ export function testCartFunctionality() {
   
   // 测试6: 购买资格检查
   console.log('\n测试6 - 购买资格检查:')
-  console.log('当前登录状态:', !!localStorage.getItem('quantLogin'))
-  console.log('合格投资者状态:', !!localStorage.getItem('qualifiedInvestor'))
   console.log('是否可以购买高风险产品:', cartStore.canPurchaseHighRiskProducts())
   
   console.log('\n=== 测试完成 ===')

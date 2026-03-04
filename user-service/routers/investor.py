@@ -4,16 +4,13 @@ import json
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session
 
-from auth.jwt import verify_token
 from core.config import settings
 from models import User, get_session, get_user_by_username
 
 router = APIRouter(prefix="/api/investor", tags=["investor"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 class Envelope(BaseModel):
@@ -64,15 +61,20 @@ ASSET_TYPE_MAP = {
 }
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)) -> User:
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
+def get_current_user(session: Session = Depends(get_session)) -> User:
+    user = get_user_by_username(session, "guest")
+    if user:
+        return user
 
-    user = get_user_by_username(session, payload["username"])
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found")
-
+    user = User(
+        username="guest",
+        password_hash="",
+        role="guest",
+        ai_tokens=settings.default_ai_tokens,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 

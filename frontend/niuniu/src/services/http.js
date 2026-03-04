@@ -19,42 +19,6 @@ const http = axios.create({
   }
 })
 
-const csrfCookieNames = [
-  import.meta.env.VITE_CSRF_COOKIE_NAME,
-  'quantbull_csrf',
-  'qb_csrf'
-].filter(Boolean)
-
-const getCookie = (name) => {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
-  return match ? decodeURIComponent(match[1]) : null
-}
-
-const getCsrfToken = () => {
-  for (const name of csrfCookieNames) {
-    const token = getCookie(name)
-    if (token) return token
-  }
-  return null
-}
-
-// 请求拦截器 - 添加 CSRF token（仅对非幂等请求）
-http.interceptors.request.use(
-  (config) => {
-    const method = (config.method || 'get').toLowerCase()
-    if (['post', 'put', 'patch', 'delete'].includes(method)) {
-      const csrfToken = getCsrfToken()
-      if (csrfToken) {
-        config.headers['X-CSRF-Token'] = csrfToken
-      }
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
-
 // 响应拦截器 - 统一错误处理
 http.interceptors.response.use(
   (response) => {

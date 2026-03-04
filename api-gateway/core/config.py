@@ -77,11 +77,6 @@ class Settings(BaseSettings):
         "/investor": "user_service_url",
     }
     
-    # 鉴权配置
-    jwt_secret: str = "your-secret-key-change-in-production"
-    jwt_algorithm: str = "HS256"
-    token_expire_minutes: int = 30
-
     # 认证 Cookie 配置
     auth_cookie_name: str = "quantbull_access"
     csrf_cookie_name: str = "quantbull_csrf"
@@ -119,8 +114,6 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ALLOW_ORIGINS is required in non-local env")
             if "*" in self.cors_allow_origins:
                 raise ValueError("CORS_ALLOW_ORIGINS must be a whitelist in non-local env")
-            if self.jwt_secret in {"your-secret-key-change-in-production", "", None}:
-                raise ValueError("JWT_SECRET must be set to a strong value in non-local env")
         return self
     
     def get_service_url(self, route_prefix: str) -> str:

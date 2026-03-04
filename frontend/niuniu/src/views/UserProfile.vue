@@ -7,7 +7,7 @@
         <a href="#">我的实验记录</a>
         <a href="#">已下线功能</a>
         <div class="user-menu-container">
-          <div class="user-btn">已登录</div>
+          <div class="user-btn">访客模式</div>
         </div>
       </div>
     </div>
@@ -26,7 +26,7 @@
               <div class="info-value">{{ currentUser || '--' }}</div>
             </div>
             <div class="info-item">
-              <label>注册时间</label>
+              <label>创建时间</label>
               <div class="info-value">{{ userCreatedAtDisplay }}</div>
             </div>
           </div>
@@ -46,22 +46,22 @@
             <div class="status-item">
               <span class="status-icon">🔑</span>
               <div class="status-info">
-                <div class="status-label">AI Token 余额</div>
+                <div class="status-label">AI 额度</div>
                 <div class="status-value">{{ tokenBalanceDisplay }}</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 合格投资者认证 -->
+        <!-- 风险信息确认 -->
         <div class="investor-section" v-if="!isQualifiedInvestor">
-          <h2 class="section-title">合格投资者认证</h2>
+          <h2 class="section-title">风险信息确认</h2>
           <div class="investor-card">
             <div class="investor-info">
               <div class="investor-icon">🔒</div>
               <div class="investor-text">
-                <h3>认证合格投资者</h3>
-                <p>完成认证后，您将能访问专属基金等高风险投资产品</p>
+                <h3>提交风险信息</h3>
+                <p>用于风险提示确认与信息记录展示</p>
                 <ul>
                   <li>查看高价值基金产品</li>
                   <li>参与私募投资机会</li>
@@ -69,26 +69,26 @@
                 </ul>
               </div>
             </div>
-            <button class="investor-btn" @click="startInvestorCertification">开始认证</button>
+            <button class="investor-btn" @click="startInvestorCertification">填写信息</button>
           </div>
         </div>
 
-        <!-- 已认证投资者 -->
+        <!-- 已提交信息 -->
         <div class="investor-section" v-else>
-          <h2 class="section-title">合格投资者认证</h2>
+          <h2 class="section-title">风险信息确认</h2>
           <div class="certified-card">
             <div class="certified-icon">✅</div>
             <div class="certified-content">
-              <h3>认证成功</h3>
-              <p>您已完成合格投资者认证，可以访问所有投资产品</p>
+              <h3>提交成功</h3>
+              <p>已记录提交信息</p>
               <div class="certification-tags" v-if="investorTags.length">
                 <span class="certification-tag" v-for="(tag, index) in investorTags" :key="index">{{ tag }}</span>
               </div>
               <div class="certification-info">
-                <span>认证时间：{{ investorCertifiedAtDisplay }}</span>
-                <span>认证等级：合格投资者</span>
+                <span>提交时间：{{ investorCertifiedAtDisplay }}</span>
+                <span>信息等级：研究样本</span>
               </div>
-              <button class="logout-cert-btn" @click="logoutCertification">退出认证</button>
+              <button class="logout-cert-btn" @click="logoutCertification">撤销信息</button>
             </div>
           </div>
         </div>
@@ -101,11 +101,11 @@
       </div>
     </div>
 
-    <!-- 合格投资者认证弹窗 -->
+    <!-- 风险信息确认弹窗 -->
     <div class="certification-modal" v-show="showCertification">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>合格投资者认证</h2>
+          <h2>风险信息确认</h2>
           <span class="close-btn" @click="closeCertification">&times;</span>
         </div>
         <div class="modal-body">
@@ -135,7 +135,7 @@
           <div class="certification-step">
             <h3>资产情况</h3>
             <div class="asset-info">
-              <p>根据《证券期货投资者适当性管理办法》，合格投资者需满足以下条件之一：</p>
+              <p>以下为风险信息填写参考（可选）：</p>
               <ul>
                 <li>金融资产不低于300万元</li>
                 <li>最近3年个人年均收入不低于50万元</li>
@@ -168,7 +168,7 @@
         </div>
         <div class="modal-footer">
           <button class="btn-cancel" @click="closeCertification">取消</button>
-          <button class="btn-submit" @click="submitCertification">提交认证</button>
+          <button class="btn-submit" @click="submitCertification">提交</button>
         </div>
       </div>
     </div>
@@ -182,7 +182,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
-import { getTokenBalance, isAuthenticated } from '@/services/authService'
+import { getTokenBalance } from '@/services/authService'
 import { submitInvestorCertification, getInvestorStatus, revokeInvestorCertification } from '@/services/investorService'
 import { useAuth } from '@/composables/useAuth'
 
@@ -195,13 +195,11 @@ const tokenError = ref('')
 const investorTags = ref([])
 const investorCertifiedAt = ref(null)
 
-// 在页面加载时检查认证状态
+// 页面加载时初始化并尝试加载数据
 onMounted(async () => {
-  const authed = await initAuth()
+  await initAuth()
   loadTokenBalance()
-  if (authed || isAuthenticated()) {
-    loadInvestorStatus()
-  }
+  loadInvestorStatus()
 })
 
 const certForm = ref({
@@ -248,18 +246,13 @@ async function loadInvestorStatus() {
       isQualifiedInvestor.value = !!data.qualified_investor
       investorTags.value = Array.isArray(data.tags) ? data.tags : []
       investorCertifiedAt.value = data.certified_at || null
-      if (data.qualified_investor) {
-        localStorage.setItem('qualifiedInvestor', 'certified')
-      } else {
-        localStorage.removeItem('qualifiedInvestor')
-      }
     }
   } catch (err) {
     console.warn('Failed to load investor status:', err)
   }
 }
 
-// 加载 AI Token 余额
+// 加载 AI 额度
 async function loadTokenBalance() {
   tokenLoading.value = true
   tokenError.value = ''
@@ -312,7 +305,7 @@ async function submitCertification() {
   
   // 检查必填字段是否为空（姓名/身份证不再强制）
   if (!certForm.value.riskLevel || !certForm.value.assetType) {
-    alert('请填写完整的认证信息')
+    alert('请填写完整的信息')
     return
   }
   
@@ -331,21 +324,18 @@ async function submitCertification() {
       investorTags.value = Array.isArray(data.tags) ? data.tags : []
       investorCertifiedAt.value = data.certified_at || null
       showCertification.value = false
-      if (data.qualified_investor) {
-        localStorage.setItem('qualifiedInvestor', 'certified')
-      }
       window.dispatchEvent(new Event('investorCertificationChanged'))
-      alert('合格投资者认证成功！您现在可以访问基金和投顾产品了。')
+      alert('提交成功')
     } else {
-      alert(result.message || '认证失败，请稍后重试')
+      alert(result.message || '提交失败，请稍后重试')
     }
   } catch (err) {
-    alert(err.message || '认证失败，请稍后重试')
+    alert(err.message || '提交失败，请稍后重试')
   }
 }
 
 async function logoutCertification() {
-  if (!confirm('确定要退出合格投资者认证吗？退出后将无法访问基金和投顾产品。')) {
+  if (!confirm('确定要撤销已提交的信息吗？')) {
     return
   }
 
@@ -356,9 +346,8 @@ async function logoutCertification() {
       isQualifiedInvestor.value = !!data.qualified_investor
       investorTags.value = Array.isArray(data.tags) ? data.tags : []
       investorCertifiedAt.value = data.certified_at || null
-      localStorage.removeItem('qualifiedInvestor')
       window.dispatchEvent(new Event('investorCertificationChanged'))
-      alert('已成功退出合格投资者认证。')
+      alert('已撤销')
     } else {
       alert(result.message || '退出失败，请稍后重试')
     }

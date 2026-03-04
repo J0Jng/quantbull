@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { isAuthenticated, getCurrentUser } from '@/services/authService'
 import HomePage from '@/components/HomePage.vue'
 import QuantAnalysisTool from '@/views/QuantAnalysisTool.vue'
 import BacktestDetailPage from '@/views/BacktestDetailPage.vue'
@@ -250,7 +249,7 @@ const router = createRouter({
   }
 })
 
-// 设置页面标题 + 鉴权守卫
+// 设置页面标题
 router.beforeEach(async (to, from, next) => {
   const title = to.meta.title || '脑科学研究室'
   document.title = `${title} - 深脑纪元·数据模拟实验室`
@@ -259,25 +258,6 @@ router.beforeEach(async (to, from, next) => {
   const hasAgreedDisclaimer = localStorage.getItem('disclaimer_agreed') === 'true'
   if (!hasAgreedDisclaimer && to.path !== '/disclaimer') {
     next('/disclaimer')
-    return
-  }
-
-  // 白名单路由（不需要登录）
-  const publicRoutes = ['/', '/disclaimer', '/Home', '/home', '/about', '/contact', '/shop']
-  const isPublic = publicRoutes.includes(to.path) || to.name === 'Home' || to.name === 'Disclaimer'
-
-  // 如果不是公开页面且未登录，触发登录弹窗并阻止导航
-  if (!isPublic && !isAuthenticated()) {
-    const result = await getCurrentUser()
-    if (result.success) {
-      localStorage.setItem('session_active', 'true')
-      next()
-      return
-    }
-    // 触发全局登录弹窗事件
-    window.dispatchEvent(new CustomEvent('auth:required'))
-    // 重定向到首页
-    next('/')
     return
   }
   

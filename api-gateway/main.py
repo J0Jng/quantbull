@@ -10,7 +10,7 @@ from core.handlers import generic_exception_handler, http_exception_handler, env
 from core.logger import configure_logging
 from core.openapi_aggregator import OpenAPIAggregator, load_service_configs
 from core.response import success
-from middlewares import AuthMiddleware, CsrfMiddleware, LoggingMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
+from middlewares import CsrfMiddleware, LoggingMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from routers import gateway, proxy, admin
 import uvicorn
 
@@ -72,9 +72,6 @@ def create_app() -> FastAPI:
     # 5. 日志中间件
     app.add_middleware(LoggingMiddleware)
 
-    # 6. 鉴权中间件（最内层，最后执行）
-    app.add_middleware(AuthMiddleware)
-    
     # 全局异常处理与响应封装中间件
     from fastapi.exceptions import HTTPException as StarletteHTTPException, RequestValidationError
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)

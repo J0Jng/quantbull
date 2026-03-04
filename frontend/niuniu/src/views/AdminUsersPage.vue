@@ -51,9 +51,9 @@
                 <th>ID</th>
                 <th>用户名</th>
                 <th>角色</th>
-                <th>AI Token 余额</th>
+                <th>AI 额度</th>
                 <th>新密码</th>
-                <th>注册时间</th>
+                <th>创建时间</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -139,10 +139,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { listUsers, updateUserAiTokens, getUser, updateUser, deleteUser } from '@/services/adminService'
-import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
-const { initAuth, isAdmin } = useAuth()
 
 const users = ref([])
 const loading = ref(false)
@@ -161,12 +159,6 @@ const filteredUsers = computed(() => {
 })
 
 onMounted(async () => {
-  await initAuth()
-  if (!isAdmin.value) {
-    alert('无权限访问该页面')
-    router.push('/profile')
-    return
-  }
   fetchUsers()
 })
 
@@ -212,17 +204,13 @@ async function fetchUsers() {
 }
 
 async function saveTokens(userId) {
-  if (!isAdmin.value) {
-    alert('无权限操作')
-    return
-  }
   const aiTokens = editTokens.value[userId]
   if (aiTokens === null || aiTokens === undefined || Number.isNaN(aiTokens)) {
-    alert('请输入有效的 AI Token 余额')
+    alert('请输入有效的 AI 额度')
     return
   }
   if (aiTokens < 0) {
-    alert('AI Token 余额不能为负数')
+    alert('AI 额度不能为负数')
     return
   }
 
@@ -242,10 +230,6 @@ async function saveTokens(userId) {
 }
 
 async function savePassword(userId) {
-  if (!isAdmin.value) {
-    alert('无权限操作')
-    return
-  }
   const password = (editPasswords.value[userId] || '').trim()
   if (!password) {
     alert('请输入新密码')
@@ -273,17 +257,13 @@ async function savePassword(userId) {
 }
 
 async function viewUser(userId) {
-  if (!isAdmin.value) {
-    alert('无权限操作')
-    return
-  }
   savingIds.value.add(userId)
   try {
     const result = await getUser(userId)
     if (result.success) {
       const data = result.data?.data || result.data || null
       if (data) {
-        alert(`ID: ${data.id}\n用户名: ${data.username}\n角色: ${data.role}\nAI Token: ${data.ai_tokens}\n注册时间: ${formatDate(data.created_at)}`)
+        alert(`ID: ${data.id}\n用户名: ${data.username}\n角色: ${data.role}\nAI 额度: ${data.ai_tokens}\n创建时间: ${formatDate(data.created_at)}`)
       }
     } else {
       alert(result.message || '获取失败')
@@ -296,10 +276,6 @@ async function viewUser(userId) {
 }
 
 async function removeUser(userId) {
-  if (!isAdmin.value) {
-    alert('无权限操作')
-    return
-  }
   if (!confirm('确定要删除该用户吗？此操作不可恢复。')) {
     return
   }

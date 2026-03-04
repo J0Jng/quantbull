@@ -1,14 +1,14 @@
 /**
- * 统一认证 Composable
- * 提供全局认证状态和方法，避免各页面重复实现登录逻辑
+ * 匿名模式 Composable
+ * 为兼容历史调用点保留同名字段/方法，但不再维护登录态/鉴权流程。
  */
 import { ref, computed } from 'vue'
 
 // 全局状态（跨组件共享）
-const logged = ref(false)
-const currentUser = ref('')
+const logged = ref(true)
+const currentUser = ref('匿名用户')
 const currentUserId = ref(null)
-const currentUserRole = ref('user')
+const currentUserRole = ref('guest')
 const currentUserEmail = ref('')
 const currentUserPhone = ref('')
 const currentUserCreatedAt = ref('')
@@ -16,7 +16,7 @@ const showLoginModal = ref(false)
 const showRiskTip = ref(false)
 const isQualifiedInvestor = ref(false)
 
-// 登录表单状态
+// 表单状态（保留字段以兼容历史模板/调用点）
 const loginForm = ref({
   username: '',
   password: '',
@@ -32,24 +32,23 @@ const successMessage = ref('')
 const successVisible = ref(false)
 
 /**
- * 初始化认证状态（页面加载时调用）
+ * 初始化状态（页面加载时调用）
  */
 const initAuth = async () => {
+  // 匿名模式：不读取/写入任何持久化登录态，不触发弹窗。
   logged.value = true
-  localStorage.setItem('session_active', 'true')
-  currentUser.value = localStorage.getItem('quantLoginUser') || '游客'
-  currentUserRole.value = localStorage.getItem('userRole') || 'admin'
+  currentUser.value = '匿名用户'
+  currentUserRole.value = 'guest'
   currentUserId.value = null
   currentUserEmail.value = ''
   currentUserPhone.value = ''
   currentUserCreatedAt.value = ''
-  isQualifiedInvestor.value = true
-  localStorage.setItem('qualifiedInvestor', 'certified')
+  isQualifiedInvestor.value = false
   return true
 }
 
 /**
- * 显示登录弹窗
+ * 兼容方法：匿名模式下不做任何事
  */
 const openLoginModal = () => {
   showLoginModal.value = false
@@ -122,12 +121,8 @@ const showSuccess = (message) => {
  * 提交登录
  */
 const submitLogin = async () => {
+  // 匿名模式：不支持登录流程，保持当前匿名状态
   logged.value = true
-  currentUser.value = localStorage.getItem('quantLoginUser') || '游客'
-  currentUserRole.value = 'admin'
-  isQualifiedInvestor.value = true
-  localStorage.setItem('session_active', 'true')
-  localStorage.setItem('qualifiedInvestor', 'certified')
   showLoginModal.value = false
 }
 
@@ -135,12 +130,8 @@ const submitLogin = async () => {
  * 提交注册
  */
 const submitRegister = async () => {
+  // 匿名模式：不支持注册流程，保持当前匿名状态
   logged.value = true
-  currentUser.value = localStorage.getItem('quantLoginUser') || '游客'
-  currentUserRole.value = 'admin'
-  isQualifiedInvestor.value = true
-  localStorage.setItem('session_active', 'true')
-  localStorage.setItem('qualifiedInvestor', 'certified')
   showLoginModal.value = false
 }
 
@@ -150,41 +141,33 @@ const submitRegister = async () => {
 const confirmRiskTip = async () => {
   showRiskTip.value = false
   logged.value = true
-  currentUser.value = localStorage.getItem('quantLoginUser') || '游客'
-  currentUserRole.value = 'admin'
-  isQualifiedInvestor.value = true
-  localStorage.setItem('qualifiedInvestor', 'certified')
 }
 
 /**
- * 退出登录
+ * 兼容方法：匿名模式下仅清理局部 UI 状态
  */
 const logout = async () => {
   logged.value = true
-  currentUser.value = localStorage.getItem('quantLoginUser') || '游客'
-  currentUserRole.value = 'admin'
-  isQualifiedInvestor.value = true
-  localStorage.setItem('session_active', 'true')
-  localStorage.setItem('qualifiedInvestor', 'certified')
+  showLoginModal.value = false
+  resetLoginForm()
 }
 
 /**
  * 是否为管理员
  */
 const isAdmin = computed(() => {
-  return logged.value && currentUserRole.value === 'admin'
+  return false
 })
 
 /**
  * 用户显示文本
  */
 const userText = computed(() => {
-  return logged.value ? `访客模式（${currentUser.value}）` : '访客模式'
+  return '访客模式'
 })
 
 /**
- * 检查是否需要显示登录弹窗（用于需要登录的操作）
- * @returns {boolean} 如果已登录返回 true，否则显示登录弹窗并返回 false
+ * 兼容方法：匿名模式下始终允许继续
  */
 const requireAuth = () => {
   return true

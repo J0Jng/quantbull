@@ -217,7 +217,7 @@
           <div class="ai-disclaimer">{{ AI_DISCLAIMER }}</div>
           <div class="result-meta">
             <span>模型：{{ reportModel || '未知' }}</span>
-            <span>Token：{{ reportTokens ?? '-' }}</span>
+            <span>用量：{{ reportTokens ?? '-' }}</span>
           </div>
           <div v-if="reportSections.length" class="section-chips">
             <span v-for="(sec, idx) in reportSections" :key="idx" class="chip">{{ sec }}</span>

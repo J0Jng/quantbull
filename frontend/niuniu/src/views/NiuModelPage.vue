@@ -175,9 +175,6 @@ import { onMounted, ref } from 'vue'
 import FooterComponent from '@/components/FooterComponent.vue'
 import { generateNewsAnalysis, generateReport as generateReportApi, generateStrategy as generateStrategyApi, generateSummary as generateSummaryApi } from '@/services/aiService'
 import chatService from '@/services/chatService'
-import { useAuth } from '@/composables/useAuth'
-
-const { logged, openLoginModal } = useAuth()
 
 const AI_DISCLAIMER = '本内容由AI生成，仅供参考，可能存在不准确或遗漏，不代表任何投资建议。请自行核验事实与数据。'
 
@@ -245,11 +242,6 @@ const generateNews = async () => {
     aiResult.value = '请输入新闻内容'
     return
   }
-  if (!logged.value) {
-    openLoginModal()
-    aiResult.value = '请先登录再使用AI服务'
-    return
-  }
 
   try {
     aiLoading.value = true
@@ -264,7 +256,7 @@ const generateNews = async () => {
       aiModel.value = payload.model || '未知'
       return
     }
-    throw new Error(result.message || 'AI服务暂时不可用')
+    throw new Error(result.message || '暂无数据')
   } catch (error) {
     aiResult.value = `生成新闻解读失败: ${error.message}`
     aiModel.value = '未知'
@@ -276,11 +268,6 @@ const generateNews = async () => {
 const generateStrategy = async () => {
   if (!strategyInput.value.trim()) {
     aiResult.value = '请输入回测模型描述'
-    return
-  }
-  if (!logged.value) {
-    openLoginModal()
-    aiResult.value = '请先登录再使用AI服务'
     return
   }
 
@@ -299,7 +286,7 @@ const generateStrategy = async () => {
       aiModel.value = payload.model || '未知'
       return
     }
-    throw new Error(result.message || 'AI服务暂时不可用')
+    throw new Error(result.message || '暂无数据')
   } catch (error) {
     aiResult.value = `生成回测模型失败: ${error.message}`
     aiModel.value = '未知'
@@ -311,11 +298,6 @@ const generateStrategy = async () => {
 const generateSummary = async () => {
   if (!summaryInput.value.trim()) {
     aiResult.value = '请输入要摘要的内容'
-    return
-  }
-  if (!logged.value) {
-    openLoginModal()
-    aiResult.value = '请先登录再使用AI服务'
     return
   }
 
@@ -332,7 +314,7 @@ const generateSummary = async () => {
       aiModel.value = payload.model || '未知'
       return
     }
-    throw new Error(result.message || 'AI服务暂时不可用')
+    throw new Error(result.message || '暂无数据')
   } catch (error) {
     aiResult.value = `生成摘要失败: ${error.message}`
     aiModel.value = '未知'
@@ -344,11 +326,6 @@ const generateSummary = async () => {
 const generateReport = async () => {
   if (!reportInput.value.trim()) {
     aiResult.value = '请输入公司信息'
-    return
-  }
-  if (!logged.value) {
-    openLoginModal()
-    aiResult.value = '请先登录再使用AI服务'
     return
   }
 
@@ -365,7 +342,7 @@ const generateReport = async () => {
       aiModel.value = payload.model || '未知'
       return
     }
-    throw new Error(result.message || '数据分析机器人暂时不可用')
+    throw new Error(result.message || '暂无数据')
   } catch (error) {
     aiResult.value = `生成报告草稿失败: ${error.message}`
     aiModel.value = '未知'
