@@ -48,6 +48,11 @@ onUnmounted(() => {
     <!-- 主应用内容 -->
     <router-view />
 
+    <div class="global-beian">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">粤ICP备2026017287</a>
+      <span class="beian-public-security">粤公网安备44010602015294号</span>
+    </div>
+
     <!-- 悬浮聊天窗口 -->
     <ChatWidget 
       :system-prompt="chatStore.systemPrompt"
@@ -74,6 +79,34 @@ onUnmounted(() => {
   padding: 8px 12px;
   font-size: 12px;
   text-align: center;
+}
+
+.global-beian {
+  margin-top: 20px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: #8c8c8c;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.beian-public-security {
+  letter-spacing: 0.2px;
+}
+
+.global-beian a {
+  color: #595959;
+  text-decoration: none;
+}
+
+.global-beian a:hover {
+  color: #ff7f24;
+  text-decoration: underline;
 }
 
 .compliance-modal-mask {
@@ -120,6 +153,12 @@ onUnmounted(() => {
 
 /* 响应式调整 */
 @media (max-width: 768px) {
+  .global-beian {
+    font-size: 11px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
   .chat-widget-container {
     z-index: 99999 !important;
   }
