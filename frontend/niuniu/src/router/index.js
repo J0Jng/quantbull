@@ -6,7 +6,6 @@ import NewsDetailPage from '@/views/NewsDetailPage.vue'
 import CompanyResearchPage from '@/views/CompanyResearchPage.vue'
 import CompanyResearchDetail from '@/views/CompanyResearchDetail.vue'
 import ResearchDetailPage from '@/views/ResearchDetailPage.vue'
-import UserProfile from '@/views/UserProfile.vue'
 import FinanceChannelPage from '@/views/FinanceChannelPage.vue'
 import DailyInsightPage from '@/views/DailyInsightPage.vue'
 import StockDataPage from '@/views/StockDataPage.vue'
@@ -26,6 +25,7 @@ import AdminUsersPage from '@/views/AdminUsersPage.vue'
 import NiuModelPage from '@/views/NiuModelPage.vue'
 import ComplianceNoticePage from '@/views/ComplianceNoticePage.vue'
 import DisclaimerPage from '@/views/DisclaimerPage.vue'
+import { useAuth } from '@/composables/useAuth'
 
 const routes = [
   {
@@ -128,15 +128,10 @@ const routes = [
     component: ResearchDetailPage
   },
   {
-    path: '/profile',
-    name: 'UserProfile',
-    component: UserProfile
-  },
-  {
     path: '/admin/users',
     name: 'AdminUsers',
     component: AdminUsersPage,
-    meta: { title: '用户管理' }
+    meta: { title: '用户管理', requiresAdmin: true }
   },
   {
     path: '/finance-channel',
@@ -251,6 +246,7 @@ const router = createRouter({
 
 // 设置页面标题
 router.beforeEach(async (to, from, next) => {
+  const { initAuth, logged, currentUserRole } = useAuth()
   const title = to.meta.title || '脑科学研究室'
   document.title = `${title} - 深脑纪元·数据模拟实验室`
   
@@ -259,6 +255,21 @@ router.beforeEach(async (to, from, next) => {
   if (!hasAgreedDisclaimer && to.path !== '/disclaimer') {
     next('/disclaimer')
     return
+  }
+
+  if (to.meta.requiresAdmin) {
+    await initAuth()
+    if (!logged.value) {
+      window.alert('请先登录后再访问管理员页面')
+      next('/home')
+      return
+    }
+
+    if (currentUserRole.value !== 'admin') {
+      window.alert('仅管理员可访问该页面')
+      next('/home')
+      return
+    }
   }
   
   next()

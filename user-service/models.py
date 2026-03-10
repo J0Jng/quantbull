@@ -115,9 +115,15 @@ def create_user(
 def seed_admin_user(session: Session, username: str, password_hash: str) -> None:
     existing = get_user_by_username(session, username)
     if existing:
-        # 确保已存在的 admin 用户拥有 admin 角色
+        # 确保已存在的 admin 用户拥有 admin 角色，并同步环境变量中的管理员密码
+        updated = False
         if existing.role != "admin":
             existing.role = "admin"
+            updated = True
+        if existing.password_hash != password_hash:
+            existing.password_hash = password_hash
+            updated = True
+        if updated:
             session.add(existing)
             session.commit()
         return

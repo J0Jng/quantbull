@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, status
 from typing import cast
 
 from schemas.ai import (
@@ -24,6 +24,7 @@ from services.summary_service import SummaryService
 from services.strategy_service import StrategyService
 from services.report_service import ReportService
 from services.digital_human_service import DigitalHumanService
+from services.auth_service import auth_service
 
 from core.logger import get_logger
 from core.response import success, ApiResponse
@@ -125,6 +126,7 @@ async def generate_strategy(
 
 @router.post("/chat", response_model=ChatResponse, summary="通用聊天接口")
 async def chat(
+    request_http: Request,
     request: ChatRequest,
 ) -> ChatResponse:
     """
@@ -133,6 +135,10 @@ async def chat(
     支持指定模型或自动路由
     """
     try:
+        user = await auth_service.verify_access_token(request_http.headers.get("authorization"))
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+
         model = request.model or ModelType.DEEPSEEK
         
         response = await llm_service.generate_with_system_prompt(

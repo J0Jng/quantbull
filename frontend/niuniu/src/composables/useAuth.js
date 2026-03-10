@@ -1,12 +1,16 @@
-/**
- * 匿名模式 Composable
- * 为兼容历史调用点保留同名字段/方法，但不再维护登录态/鉴权流程。
- */
 import { ref, computed } from 'vue'
+import {
+  login,
+  getCurrentUser,
+  verifyToken,
+  logout as serviceLogout,
+  isAuthenticated,
+  getStoredUser,
+  clearAuthState
+} from '@/services/authService'
 
-// 全局状态（跨组件共享）
-const logged = ref(true)
-const currentUser = ref('匿名用户')
+const logged = ref(false)
+const currentUser = ref('')
 const currentUserId = ref(null)
 const currentUserRole = ref('guest')
 const currentUserEmail = ref('')
@@ -16,7 +20,6 @@ const showLoginModal = ref(false)
 const showRiskTip = ref(false)
 const isQualifiedInvestor = ref(false)
 
-// 表单状态（保留字段以兼容历史模板/调用点）
 const loginForm = ref({
   username: '',
   password: '',
@@ -24,6 +27,7 @@ const loginForm = ref({
   email: '',
   phone: ''
 })
+
 const isRegisterMode = ref(false)
 const loginLoading = ref(false)
 const errorMessage = ref('')
@@ -31,40 +35,44 @@ const errorVisible = ref(false)
 const successMessage = ref('')
 const successVisible = ref(false)
 
-/**
- * 初始化状态（页面加载时调用）
- */
-const initAuth = async () => {
-  // 匿名模式：不读取/写入任何持久化登录态，不触发弹窗。
+const applyUserState = (user) => {
+  currentUser.value = user?.username || ''
+  currentUserId.value = user?.id ?? user?.user_id ?? null
+  currentUserRole.value = user?.role || 'user'
+  currentUserEmail.value = user?.email || ''
+  currentUserPhone.value = user?.phone || ''
+  currentUserCreatedAt.value = user?.created_at || ''
+  isQualifiedInvestor.value = !!user?.qualified_investor
   logged.value = true
-  currentUser.value = '匿名用户'
-  currentUserRole.value = 'guest'
+}
+
+const resetAuthState = () => {
+  logged.value = false
+  currentUser.value = ''
   currentUserId.value = null
+  currentUserRole.value = 'guest'
   currentUserEmail.value = ''
   currentUserPhone.value = ''
   currentUserCreatedAt.value = ''
   isQualifiedInvestor.value = false
-  return true
 }
 
-/**
- * 兼容方法：匿名模式下不做任何事
- */
-const openLoginModal = () => {
-  showLoginModal.value = false
+const showError = (message) => {
+  errorMessage.value = message
+  errorVisible.value = true
+  setTimeout(() => {
+    errorVisible.value = false
+  }, 3000)
 }
 
-/**
- * 关闭登录弹窗
- */
-const closeLoginModal = () => {
-  showLoginModal.value = false
-  resetLoginForm()
+const showSuccess = (message) => {
+  successMessage.value = message
+  successVisible.value = true
+  setTimeout(() => {
+    successVisible.value = false
+  }, 2000)
 }
 
-/**
- * 重置登录表单
- */
 const resetLoginForm = () => {
   loginForm.value = {
     username: '',
@@ -79,103 +87,116 @@ const resetLoginForm = () => {
   successMessage.value = ''
 }
 
-/**
- * 切换到注册模式
- */
-const switchToRegister = () => {
-  isRegisterMode.value = true
+const initAuth = async () => {
+  if (!isAuthenticated()) {
+    resetAuthState()
+    return false
+  }
+
+  const stored = getStoredUser()
+  if (stored?.username) {
+    applyUserState(stored)
+  }
+
+  const verified = await verifyToken()
+  if (!verified.success) {
+    clearAuthState()
+    resetAuthState()
+    return false
+  }
+
+  const meResult = await getCurrentUser()
+  if (!meResult.success) {
+    clearAuthState()
+    resetAuthState()
+    return false
+  }
+
+  const userData = meResult.data?.data || meResult.data || {}
+  applyUserState(userData)
+  return true
+}
+
+const openLoginModal = () => {
+  isRegisterMode.value = false
+  showLoginModal.value = true
+}
+
+const closeLoginModal = () => {
+  showLoginModal.value = false
   resetLoginForm()
 }
 
-/**
- * 切换到登录模式
- */
+const switchToRegister = () => {
+  showError('当前仅支持管理员创建普通用户，不开放公开注册')
+}
+
 const switchToLogin = () => {
   isRegisterMode.value = false
-  resetLoginForm()
 }
 
-/**
- * 显示错误信息
- */
-const showError = (message) => {
-  errorMessage.value = message
-  errorVisible.value = true
-  setTimeout(() => {
-    errorVisible.value = false
-  }, 3000)
-}
-
-/**
- * 显示成功信息
- */
-const showSuccess = (message) => {
-  successMessage.value = message
-  successVisible.value = true
-  setTimeout(() => {
-    successVisible.value = false
-  }, 2000)
-}
-
-/**
- * 提交登录
- */
 const submitLogin = async () => {
-  // 匿名模式：不支持登录流程，保持当前匿名状态
-  logged.value = true
-  showLoginModal.value = false
+  const username = (loginForm.value.username || '').trim()
+  const password = (loginForm.value.password || '').trim()
+  if (!username || !password) {
+    showError('请输入用户名和密码')
+    return { success: false }
+  }
+
+  loginLoading.value = true
+  try {
+    const result = await login({ username, password })
+    if (!result.success) {
+      showError(result.message || '登录失败')
+      return result
+    }
+
+    const user = result.data?.data?.user || result.data?.user
+    applyUserState(user || {})
+    showSuccess('登录成功')
+    showLoginModal.value = false
+    resetLoginForm()
+    return { success: true }
+  } finally {
+    loginLoading.value = false
+  }
 }
 
-/**
- * 提交注册
- */
 const submitRegister = async () => {
-  // 匿名模式：不支持注册流程，保持当前匿名状态
-  logged.value = true
-  showLoginModal.value = false
+  showError('当前仅支持管理员创建普通用户，不开放公开注册')
+  return { success: false }
 }
 
-/**
- * 确认风险提示（登录成功后）
- */
 const confirmRiskTip = async () => {
   showRiskTip.value = false
-  logged.value = true
 }
 
-/**
- * 兼容方法：匿名模式下仅清理局部 UI 状态
- */
 const logout = async () => {
-  logged.value = true
+  await serviceLogout()
+  resetAuthState()
   showLoginModal.value = false
   resetLoginForm()
 }
 
-/**
- * 是否为管理员
- */
-const isAdmin = computed(() => {
-  return false
-})
+const isAdmin = computed(() => currentUserRole.value === 'admin')
 
-/**
- * 用户显示文本
- */
 const userText = computed(() => {
-  return '访客模式'
+  if (!logged.value) {
+    return '请登录'
+  }
+  return currentUser.value || '用户'
 })
 
-/**
- * 兼容方法：匿名模式下始终允许继续
- */
 const requireAuth = () => {
-  return true
+  if (logged.value) {
+    return true
+  }
+  openLoginModal()
+  return false
 }
 
 export function useAuth() {
   return {
-    // 状态
     logged,
     currentUser,
     currentUserId,
@@ -195,8 +216,6 @@ export function useAuth() {
     successMessage,
     successVisible,
     userText,
-    
-    // 方法
     initAuth,
     openLoginModal,
     closeLoginModal,

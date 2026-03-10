@@ -233,11 +233,6 @@ function handleLogout() {
   showUserMenu.value = false
 }
 
-function goToUserProfile() {
-  showUserMenu.value = false
-  router.push('/profile')
-}
-
 // 响应式数据
 const searchText = ref('')
 const statusFilter = ref('all')

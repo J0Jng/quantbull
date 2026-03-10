@@ -4,6 +4,14 @@
  */
 import axios from 'axios'
 
+const ACCESS_TOKEN_KEY = 'quantbull_access_token'
+const CURRENT_USER_KEY = 'quantbull_current_user'
+
+const clearAuthState = () => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(CURRENT_USER_KEY)
+}
+
 // API 网关基础 URL
 // 开发环境使用 Vite 代理，生产环境使用实际网关地址
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -17,6 +25,14 @@ const http = axios.create({
   headers: {
     'Content-Type': 'application/json'
   }
+})
+
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 // 响应拦截器 - 统一错误处理
@@ -34,7 +50,7 @@ http.interceptors.response.use(
       } else if (data && data.detail) {
         message = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
       } else if (status === 401 || status === 403) {
-        message = '暂无数据'
+        message = status === 401 ? '登录已失效，请重新登录' : '无权限访问'
       } else if (status === 404) {
         message = '资源不存在'
       } else if (status === 422) {
@@ -43,6 +59,11 @@ http.interceptors.response.use(
         message = '服务器错误，请稍后重试'
       }
       
+      if (status === 401) {
+        clearAuthState()
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+      }
+
       return Promise.reject({ message, status, data })
     } else if (error.request) {
       return Promise.reject({ message: '网络错误，请检查网络连接', status: 0 })

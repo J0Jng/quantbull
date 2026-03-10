@@ -21,6 +21,14 @@ export const getUser = async (userId) => {
 }
 
 /**
+ * 创建普通用户
+ * POST /api/admin/users
+ */
+export const createUser = async (payload = {}) => {
+  return handleRequest(() => http.post('/admin/users', payload))
+}
+
+/**
  * 更新用户信息（角色/密码/ai_tokens）
  * PATCH /api/admin/users/{user_id}
  */

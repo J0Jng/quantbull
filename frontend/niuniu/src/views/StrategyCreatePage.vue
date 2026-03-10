@@ -390,11 +390,6 @@ function handleLogout() {
   showUserMenu.value = false
 }
 
-function goToUserProfile() {
-  showUserMenu.value = false
-  router.push('/profile')
-}
-
 const factorStore = useFactorStore()
 
 // 响应式数据

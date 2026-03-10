@@ -2,18 +2,24 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import ChatWidget from './components/ChatWidget.vue'
 import { useChatStore } from './stores/chat'
+import { useAuth } from './composables/useAuth'
 
 // 初始化聊天状态管理
 const chatStore = useChatStore()
+const auth = useAuth()
 
 const showComplianceModal = ref(false)
 
 // 页面加载时设置默认位置
 onMounted(async () => {
+  await auth.initAuth()
+
   // 设置聊天窗口默认位置（右下角）
   if (window.innerWidth > 768) {
     chatStore.setChatPosition(window.innerWidth - 420, window.innerHeight - 620)
   }
+
+  window.addEventListener('auth:unauthorized', onUnauthorized)
 
   const hasShown = localStorage.getItem('compliance_declaration_seen')
   if (!hasShown) {
@@ -26,7 +32,12 @@ const closeComplianceModal = () => {
   showComplianceModal.value = false
 }
 
+const onUnauthorized = () => {
+  auth.initAuth()
+}
+
 onUnmounted(() => {
+  window.removeEventListener('auth:unauthorized', onUnauthorized)
 })
 </script>
 

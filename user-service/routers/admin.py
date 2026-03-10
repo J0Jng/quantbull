@@ -1,20 +1,17 @@
 import re
-import hashlib
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from auth.dependencies import require_admin, get_current_user
+from auth.security import hash_password
 from models import User, get_session, get_user_by_username, create_user as create_user_model
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
-
-
-def hash_password(password: str) -> str:
-    return hashlib.md5(password.encode("utf-8")).hexdigest()
 
 
 def validate_username(username: str) -> None:
@@ -39,6 +36,8 @@ class UserCreateRequest(BaseModel):
     username: str
     password: str
     role: str = "user"
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class UserUpdateRequest(BaseModel):
@@ -75,14 +74,11 @@ class UserResponse(BaseModel):
         )
 
 
-def require_admin(session: Session = Depends(get_session)) -> None:
-    return None
-
-
 @router.get("/users")
 async def list_users(
     limit: int = 100,
     offset: int = 0,
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> Envelope:
     """列出所有用户（分页）"""
@@ -97,6 +93,7 @@ async def list_users(
 @router.get("/users/{user_id}")
 async def get_user(
     user_id: int,
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> Envelope:
     """获取单个用户详情"""
@@ -110,6 +107,7 @@ async def get_user(
 @router.post("/users")
 async def create_user_by_admin(
     payload: UserCreateRequest,
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> Envelope:
     """创建新用户"""
@@ -119,7 +117,14 @@ async def create_user_by_admin(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user already exists")
     
     password_hash = hash_password(payload.password)
-    user = create_user_model(session, payload.username, password_hash, role=payload.role)
+    user = create_user_model(
+        session,
+        payload.username,
+        password_hash,
+        role="user",
+        email=payload.email,
+        phone=payload.phone,
+    )
     
     return Envelope(code=0, message="ok", data=UserResponse.from_user(user).model_dump())
 
@@ -128,6 +133,7 @@ async def create_user_by_admin(
 async def update_user(
     user_id: int,
     payload: UserUpdateRequest,
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> Envelope:
     """更新用户（支持重置密码、修改role）"""
@@ -140,6 +146,8 @@ async def update_user(
         user.password_hash = hash_password(payload.password)
     
     if payload.role is not None:
+        if payload.role != "user":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="role update is restricted")
         user.role = payload.role
     
     if payload.ai_tokens is not None:
@@ -158,6 +166,7 @@ async def update_user(
 async def update_user_ai_tokens(
     user_id: int,
     payload: UserAiTokensUpdateRequest,
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> Envelope:
     """更新用户 AI Token 余额（仅管理员）"""
@@ -179,12 +188,17 @@ async def update_user_ai_tokens(
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: int,
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ) -> Envelope:
     """删除用户（防呆：不允许删除自己）"""
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    if current_user.id == user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="cannot delete self")
     
     session.delete(user)
     session.commit()

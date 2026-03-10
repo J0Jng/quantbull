@@ -1,6 +1,8 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat'
+import { useAuth } from '../composables/useAuth'
 import chatService from '../services/chatService'
 
 const props = defineProps({
@@ -15,10 +17,15 @@ const props = defineProps({
 })
 
 const chatStore = useChatStore()
+const router = useRouter()
+const auth = useAuth()
 
 const isOpen = computed(() => chatStore.isChatOpen)
 const isLoading = computed(() => chatStore.isLoading)
 const chatHistory = computed(() => chatStore.chatHistory)
+const isLoggedIn = computed(() => auth.logged.value)
+const username = computed(() => auth.currentUser.value || '')
+const isAdmin = computed(() => auth.isAdmin.value)
 const currentMessage = ref('')
 const isDragging = ref(false)
 const chatWindowRef = ref(null)
@@ -41,6 +48,10 @@ const scrollToBottom = () => {
 }
 
 const sendMessage = async () => {
+  if (!auth.requireAuth()) {
+    return
+  }
+
   const message = currentMessage.value.trim()
   if (!message || isLoading.value) return
 
@@ -121,6 +132,14 @@ const clearChat = () => {
   chatStore.clearChat()
 }
 
+const goAdminUsers = () => {
+  router.push('/admin/users')
+}
+
+const handleLogout = async () => {
+  await auth.logout()
+}
+
 const windowStyles = computed(() => ({
   left: `${chatStore.chatPosition.x}px`,
   top: `${chatStore.chatPosition.y}px`,
@@ -131,6 +150,7 @@ const windowStyles = computed(() => ({
 }))
 
 onMounted(() => {
+  auth.initAuth()
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
 
@@ -180,6 +200,20 @@ onUnmounted(() => {
           数据分析系统
         </div>
         <div class="chat-actions">
+          <template v-if="!isLoggedIn">
+            <button class="auth-btn" @click.stop="auth.openLoginModal" title="登录后可使用聊天">
+              登录
+            </button>
+          </template>
+          <template v-else>
+            <span class="username-chip">{{ username }}</span>
+            <button v-if="isAdmin" class="auth-btn" @click.stop="goAdminUsers" title="管理员用户管理">
+              用户管理
+            </button>
+            <button class="auth-btn" @click.stop="handleLogout" title="退出登录">
+              退出
+            </button>
+          </template>
           <button class="action-btn" @click="minimizeWindow" title="最小化">
             −
           </button>
@@ -230,19 +264,46 @@ onUnmounted(() => {
           <textarea
             v-model="currentMessage"
             class="message-input"
-            placeholder="请输入问题，按 Enter 发送，Shift+Enter 换行"
+            :placeholder="isLoggedIn ? '请输入问题，按 Enter 发送，Shift+Enter 换行' : '请先登录后再使用聊天功能'"
             rows="3"
             @keydown="handleKeydown"
+            :disabled="!isLoggedIn"
           ></textarea>
           <button
             @click="sendMessage"
-            :disabled="!currentMessage.trim() || isLoading"
+            :disabled="!isLoggedIn || !currentMessage.trim() || isLoading"
             class="send-btn"
           >
             {{ isLoading ? '发送中...' : '发送' }}
           </button>
         </div>
-        <div class="input-hint">仅支持文本对话</div>
+        <div class="input-hint">{{ isLoggedIn ? '仅支持文本对话' : '请先登录后再使用聊天功能' }}</div>
+      </div>
+    </div>
+
+    <div v-if="auth.showLoginModal.value" class="login-modal-mask" @click.self="auth.closeLoginModal">
+      <div class="login-modal-card">
+        <h3>登录后使用聊天</h3>
+        <input
+          v-model.trim="auth.loginForm.value.username"
+          type="text"
+          placeholder="用户名"
+          class="login-input"
+        />
+        <input
+          v-model.trim="auth.loginForm.value.password"
+          type="password"
+          placeholder="密码"
+          class="login-input"
+          @keydown.enter="auth.submitLogin"
+        />
+        <div v-if="auth.errorVisible.value" class="login-error">{{ auth.errorMessage.value }}</div>
+        <div class="login-actions">
+          <button class="login-cancel" @click="auth.closeLoginModal">取消</button>
+          <button class="login-confirm" :disabled="auth.loginLoading.value" @click="auth.submitLogin">
+            {{ auth.loginLoading.value ? '登录中...' : '登录' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -373,6 +434,30 @@ onUnmounted(() => {
 .chat-actions {
   display: flex;
   gap: 5px;
+  align-items: center;
+}
+
+.auth-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.auth-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.username-chip {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .action-btn {
@@ -563,6 +648,69 @@ onUnmounted(() => {
   text-align: center;
   font-size: 11px;
   color: #999;
+}
+
+.login-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: auto;
+}
+
+.login-modal-card {
+  width: min(360px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+.login-modal-card h3 {
+  margin: 0 0 12px;
+  color: #ff7f00;
+}
+
+.login-input {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 1px solid #ffd1a3;
+  border-radius: 8px;
+}
+
+.login-error {
+  color: #d64545;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.login-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.login-cancel,
+.login-confirm {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.login-cancel {
+  background: #f0f0f0;
+  color: #555;
+}
+
+.login-confirm {
+  background: #ff7f00;
+  color: #fff;
 }
 
 

@@ -1,8 +1,12 @@
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlmodel import Session
+
+from auth.dependencies import get_current_user
 from core.config import settings
+from models import User, get_session
 
 router = APIRouter(prefix="/api/tokens", tags=["ai-tokens"])
 
@@ -33,7 +37,7 @@ class ConsumeResponse(BaseModel):
 
 
 @router.get("/balance")
-async def get_balance() -> Envelope:
+async def get_balance(current_user: User = Depends(get_current_user)) -> Envelope:
     """
     获取 AI Token 余额（免登录）
     """
@@ -41,7 +45,10 @@ async def get_balance() -> Envelope:
         code=0,
         message="ok",
         data=BalanceResponse(
-            ai_tokens=settings.default_ai_tokens,
+            user_id=current_user.id or 0,
+            username=current_user.username,
+            role=current_user.role,
+            ai_tokens=current_user.ai_tokens,
         ).model_dump()
     )
 
@@ -49,16 +56,29 @@ async def get_balance() -> Envelope:
 @router.post("/consume")
 async def consume_tokens(
     payload: ConsumeRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ) -> Envelope:
     """
     AI Token 扣减接口（已禁用真实扣减，始终返回成功）
     """
+    if payload.tokens > current_user.ai_tokens:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={"required": payload.tokens, "remaining": current_user.ai_tokens},
+        )
+
+    current_user.ai_tokens -= payload.tokens
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+
     return Envelope(
         code=0,
         message="ok",
         data=ConsumeResponse(
             success=True,
-            remaining=settings.default_ai_tokens,
-            consumed=0,
+            remaining=current_user.ai_tokens,
+            consumed=payload.tokens,
         ).model_dump()
     )

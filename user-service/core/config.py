@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # AI Token 配置
     default_ai_tokens: int = 3000
 
+    # JWT 配置
+    jwt_secret_key: str = "change-this-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 120
+
     # Investor ID hash salt
     investor_id_salt: str = "investor-salt"
 
@@ -48,6 +53,8 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ALLOW_ORIGINS must be a whitelist in non-local env")
             if self.admin_password in {"admin123", "", None}:
                 raise ValueError("ADMIN_PASSWORD must be set to a strong value in non-local env")
+            if self.jwt_secret_key in {"change-this-in-production", "", None}:
+                raise ValueError("JWT_SECRET_KEY must be set in non-local env")
         return self
 
 

@@ -4,7 +4,6 @@
     <div class="header">
       <div class="logo" @click="goHome">用户管理</div>
       <div class="header-opt">
-        <a href="#" @click.prevent="goProfile">个人主页</a>
         <div class="user-menu-container">
           <div class="user-btn">管理员</div>
         </div>
@@ -34,6 +33,20 @@
           </div>
         </div>
 
+        <div class="create-user-card">
+          <h2>创建普通用户</h2>
+          <div class="create-user-form">
+            <input v-model.trim="createForm.username" type="text" placeholder="用户名" class="form-input" />
+            <input v-model.trim="createForm.password" type="password" placeholder="密码（至少6位，含字母和数字）" class="form-input" />
+            <input v-model.trim="createForm.email" type="email" placeholder="邮箱（可选）" class="form-input" />
+            <input v-model.trim="createForm.phone" type="text" placeholder="手机号（可选）" class="form-input" />
+            <button class="action-btn primary" :disabled="creating" @click="createNormalUser">
+              {{ creating ? '创建中...' : '创建普通用户' }}
+            </button>
+          </div>
+          <p class="create-user-tip">该入口仅允许创建 role=user 的普通用户。</p>
+        </div>
+
         <div v-if="loading" class="loading-state">
           <div class="loading-spinner"></div>
           <p>加载用户中...</p>
@@ -48,7 +61,6 @@
           <table class="user-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>用户名</th>
                 <th>角色</th>
                 <th>AI 额度</th>
@@ -59,7 +71,6 @@
             </thead>
             <tbody>
               <tr v-for="user in filteredUsers" :key="user.id">
-                <td>{{ user.id }}</td>
                 <td>{{ user.username }}</td>
                 <td>{{ user.role }}</td>
                 <td>
@@ -138,9 +149,11 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FooterComponent from '@/components/FooterComponent.vue'
-import { listUsers, updateUserAiTokens, getUser, updateUser, deleteUser } from '@/services/adminService'
+import { listUsers, updateUserAiTokens, getUser, updateUser, deleteUser, createUser } from '@/services/adminService'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
+const { initAuth, logged, isAdmin } = useAuth()
 
 const users = ref([])
 const loading = ref(false)
@@ -151,6 +164,13 @@ const editTokens = ref({})
 const editPasswords = ref({})
 const savingIds = ref(new Set())
 const searchKeyword = ref('')
+const creating = ref(false)
+const createForm = ref({
+  username: '',
+  password: '',
+  email: '',
+  phone: ''
+})
 
 const filteredUsers = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
@@ -159,15 +179,22 @@ const filteredUsers = computed(() => {
 })
 
 onMounted(async () => {
+  await initAuth()
+  if (!logged.value) {
+    alert('请先登录')
+    router.replace('/home')
+    return
+  }
+  if (!isAdmin.value) {
+    alert('仅管理员可访问该页面')
+    router.replace('/home')
+    return
+  }
   fetchUsers()
 })
 
 function goHome() {
   router.push('/')
-}
-
-function goProfile() {
-  router.push('/profile')
 }
 
 function formatDate(value) {
@@ -200,6 +227,42 @@ async function fetchUsers() {
     error.value = err.message || '加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function createNormalUser() {
+  const username = createForm.value.username.trim()
+  const password = createForm.value.password.trim()
+  const email = createForm.value.email.trim()
+  const phone = createForm.value.phone.trim()
+
+  if (!username || !password) {
+    alert('请输入用户名和密码')
+    return
+  }
+
+  creating.value = true
+  try {
+    const result = await createUser({
+      username,
+      password,
+      email: email || null,
+      phone: phone || null,
+      role: 'user'
+    })
+
+    if (!result.success) {
+      alert(result.message || '创建用户失败')
+      return
+    }
+
+    createForm.value = { username: '', password: '', email: '', phone: '' }
+    await fetchUsers()
+    alert('创建普通用户成功')
+  } catch (err) {
+    alert(err.message || '创建用户失败')
+  } finally {
+    creating.value = false
   }
 }
 
@@ -377,6 +440,40 @@ function clearSearch() {
   margin-bottom: 20px;
 }
 
+.create-user-card {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #fff7ef;
+  border: 1px solid #ffd9b3;
+  border-radius: 8px;
+}
+
+.create-user-card h2 {
+  margin: 0 0 12px;
+  color: #ff7f24;
+  font-size: 18px;
+}
+
+.create-user-form {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.form-input {
+  padding: 8px 10px;
+  border: 1px solid #ffb380;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.create-user-tip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #a8682a;
+}
+
 .page-title {
   font-size: 24px;
   color: #ff7f24;
@@ -538,6 +635,10 @@ function clearSearch() {
 
   .search-input {
     width: 100%;
+  }
+
+  .create-user-form {
+    grid-template-columns: 1fr;
   }
 }
 </style>

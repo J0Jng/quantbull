@@ -6,7 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from core.config import settings
+from auth.security import hash_password
 from models import auth_engine, init_db, seed_admin_user, seed_products
+from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.ai_tokens import router as ai_tokens_router
 from routers.products import router as products_router
@@ -31,7 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         seed_admin_user(
             session,
             username=settings.admin_username,
-            password_hash=settings.admin_password,
+            password_hash=hash_password(settings.admin_password),
         )
         # 初始化商品种子数据
         seed_products(session)
@@ -67,6 +69,7 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         return {"code": 0, "message": "ok", "data": {"service": "user-service"}}
 
+    app.include_router(auth_router)
     app.include_router(admin_router)
     app.include_router(ai_tokens_router)
     app.include_router(products_router)
