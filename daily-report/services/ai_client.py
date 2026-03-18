@@ -114,6 +114,9 @@ class AIHubClient:
                 # 调用 ai-hub 的聊天接口（路径为 /api/ai/chat）
                 response = await client.post(
                     f"{self.base_url}/ai/chat",
+                    headers={
+                        "X-Internal-Service": "daily-report",
+                    },
                     json={
                         "message": prompt,
                         "model": "deepseek",

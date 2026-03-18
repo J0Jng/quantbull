@@ -28,24 +28,10 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         gcc \
         g++ \
-        make \
         libpq-dev \
         tzdata && \
     ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# 拷贝预先下载好的 TA-Lib 源码包（避免构建时从网络下载，防止卡住）
-COPY ta-lib-0.4.0-src.tar.gz /tmp/ta-lib-0.4.0-src.tar.gz
-
-# 编译安装 TA-Lib C 库
-RUN set -eux; \
-    tar -xzf /tmp/ta-lib-0.4.0-src.tar.gz -C /tmp && \
-    cd /tmp/ta-lib/ && \
-    ./configure --prefix=/usr && \
-    make && \
-    make install && \
-    cd / && \
-    rm -rf /tmp/ta-lib /tmp/ta-lib-0.4.0-src.tar.gz
 
 # 安装 Python 依赖
 RUN pip install --upgrade pip setuptools wheel
@@ -55,8 +41,8 @@ COPY requirements.txt /app/requirements.txt
 # 先安装 numpy 1.x 版本（ta-lib 编译需要）
 RUN pip install "numpy<2"
 
-# 安装 ta-lib（需要 numpy 1.x 编译）
-RUN pip install --no-cache-dir ta-lib==0.4.32
+# 安装 ta-lib（使用 py3.12 可用 wheel，且不自动升级 numpy）
+RUN pip install --no-cache-dir --no-deps ta-lib==0.6.7
 
 # 安装其他依赖（会升级 numpy 到 requirements.txt 指定版本）
 RUN pip install --no-cache-dir -r /app/requirements.txt

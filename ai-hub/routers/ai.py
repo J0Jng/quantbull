@@ -135,9 +135,16 @@ async def chat(
     支持指定模型或自动路由
     """
     try:
-        user = await auth_service.verify_access_token(request_http.headers.get("authorization"))
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
+        internal_service = (request_http.headers.get("x-internal-service") or "").strip().lower()
+        allowed_internal_services = settings.get_internal_chat_allowed_services()
+        skip_auth_for_internal = internal_service in allowed_internal_services
+
+        if skip_auth_for_internal:
+            logger.info(f"聊天接口识别到内部服务调用，跳过用户鉴权: service={internal_service}")
+        else:
+            user = await auth_service.verify_access_token(request_http.headers.get("authorization"))
+            if user is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
 
         model = request.model or ModelType.DEEPSEEK
         

@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     
     # User Service 配置（用于 AI Token 扣减）
     user_service_url: str = "http://user-service:8005"
+
+    # 内部服务调用白名单（逗号分隔）
+    # 允许这些服务在调用 /api/ai/chat 时跳过用户 Bearer 鉴权
+    internal_chat_allowed_services: str = "daily-report"
     
     # 模型路由配置
     default_model: str = "deepseek"  # deepseek, qwen
@@ -105,6 +109,17 @@ class Settings(BaseSettings):
             if missing:
                 raise ValueError(f"Missing required secrets for non-local env: {', '.join(missing)}")
         return self
+
+    def get_internal_chat_allowed_services(self) -> set[str]:
+        """返回允许免用户鉴权访问聊天接口的内部服务集合。"""
+        raw = (self.internal_chat_allowed_services or "").strip()
+        if not raw:
+            return set()
+        return {
+            item.strip().lower()
+            for item in raw.split(",")
+            if item and item.strip()
+        }
 
 
 @lru_cache
