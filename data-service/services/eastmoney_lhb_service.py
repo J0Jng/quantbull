@@ -112,6 +112,15 @@ class EastmoneyLhbService:
         }
         self._report_cache: Dict[str, str] = {}
 
+    async def _safe_rollback(self) -> None:
+        if not self.db_session:
+            return
+        try:
+            if self.db_session.in_transaction():
+                await self.db_session.rollback()
+        except Exception as rollback_error:
+            logger.warning(f"龙虎榜事务回滚失败: {rollback_error}")
+
     # ------------------------- 公共工具 -------------------------
     @staticmethod
     def _normalize_trade_date(raw: Optional[str]) -> Optional[str]:
@@ -409,8 +418,12 @@ class EastmoneyLhbService:
         stmt = insert(model).values(rows)
         update_cols = {k: getattr(stmt.excluded, k) for k in rows[0].keys() if k not in {"id", "created_at"}}
         stmt = stmt.on_conflict_do_update(index_elements=index_elements, set_=update_cols)
-        await self.db_session.execute(stmt)
-        await self.db_session.commit()
+        try:
+            await self.db_session.execute(stmt)
+            await self.db_session.commit()
+        except Exception:
+            await self._safe_rollback()
+            raise
 
     async def _load_list_from_db(self, trade_date: str, page: int, page_size: int) -> Dict[str, Any]:
         if not self.db_session:
@@ -1061,7 +1074,12 @@ class EastmoneyLhbService:
     # ------------------------- 对外接口 -------------------------
     async def find_latest_trade_date(self, refresh: bool = False) -> Optional[str]:
         if not refresh:
-            latest = await self._latest_trade_date_from_db()
+            try:
+                latest = await self._latest_trade_date_from_db()
+            except Exception as db_error:
+                logger.warning(f"读取最新交易日失败，改为上游探测: {db_error}")
+                await self._safe_rollback()
+                latest = None
             if latest:
                 return latest
         return await self._guess_latest_trade_date()
@@ -1076,8 +1094,22 @@ class EastmoneyLhbService:
         trade_date = self._normalize_trade_date(trade_date)
         if not trade_date:
             trade_date = await self.find_latest_trade_date(refresh=refresh) or self._date_to_ymd(datetime.now())
-        should_refresh = refresh or await self._is_stale_list(trade_date)
-        data = await self._load_list_from_db(trade_date, page, page_size)
+        should_refresh = refresh
+        try:
+            should_refresh = should_refresh or await self._is_stale_list(trade_date)
+        except Exception as db_error:
+            logger.warning(f"检查龙虎榜数据新鲜度失败，改为上游抓取: {db_error}")
+            await self._safe_rollback()
+            should_refresh = True
+
+        data = {"total": 0, "data": []}
+        try:
+            data = await self._load_list_from_db(trade_date, page, page_size)
+        except Exception as db_error:
+            logger.warning(f"读取龙虎榜本地缓存失败，改为上游抓取: {db_error}")
+            await self._safe_rollback()
+            should_refresh = True
+
         if not should_refresh and data.get("data"):
             has_detail = any(
                 (row.get("buy_amount") is not None)
@@ -1091,8 +1123,14 @@ class EastmoneyLhbService:
         if should_refresh:
             try:
                 items = await self._fetch_list_from_web(trade_date, page, page_size)
-                await self._upsert_rows(LhbStockItem, items, ["trade_date", "code", "reason"])
-                data = await self._load_list_from_db(trade_date, page, page_size)
+                if items:
+                    try:
+                        await self._upsert_rows(LhbStockItem, items, ["trade_date", "code", "reason"])
+                        data = await self._load_list_from_db(trade_date, page, page_size)
+                    except Exception as db_error:
+                        logger.warning(f"写入龙虎榜上榜个股失败，降级返回上游数据: {db_error}")
+                        await self._safe_rollback()
+                        data = {"total": len(items), "data": items}
             except Exception as exc:
                 logger.warning(f"抓取龙虎榜上榜个股失败: {exc}")
         return {
@@ -1114,7 +1152,15 @@ class EastmoneyLhbService:
         end_trade_date = self._normalize_trade_date(end_trade_date)
         if not end_trade_date:
             end_trade_date = await self.find_latest_trade_date(refresh=refresh) or self._date_to_ymd(datetime.now())
-        if refresh or await self._is_stale_summary(window_days, end_trade_date):
+        should_refresh = refresh
+        try:
+            should_refresh = should_refresh or await self._is_stale_summary(window_days, end_trade_date)
+        except Exception as db_error:
+            logger.warning(f"检查龙虎榜汇总新鲜度失败，改为上游抓取: {db_error}")
+            await self._safe_rollback()
+            should_refresh = True
+
+        if should_refresh:
             items: List[Dict[str, Any]] = []
             try:
                 items = await self._fetch_summary_from_web(window_days, end_trade_date, page, page_size)
@@ -1125,9 +1171,29 @@ class EastmoneyLhbService:
                     items = await self._aggregate_summary_from_db(window_days, end_trade_date)
                 except Exception as exc:
                     logger.warning(f"本地汇总龙虎榜失败: {exc}")
+                    await self._safe_rollback()
             if items:
-                await self._upsert_rows(LhbStockSummary, items, ["window_days", "end_trade_date", "code"])
-        data = await self._load_summary_from_db(window_days, end_trade_date, page, page_size)
+                try:
+                    await self._upsert_rows(LhbStockSummary, items, ["window_days", "end_trade_date", "code"])
+                except Exception as db_error:
+                    logger.warning(f"写入龙虎榜汇总失败，降级返回上游数据: {db_error}")
+                    await self._safe_rollback()
+                    start = max((page - 1), 0) * page_size
+                    return {
+                        "window_days": window_days,
+                        "end_trade_date": end_trade_date,
+                        "page": page,
+                        "page_size": page_size,
+                        "total": len(items),
+                        "data": items[start : start + page_size],
+                    }
+
+        data = {"total": 0, "data": []}
+        try:
+            data = await self._load_summary_from_db(window_days, end_trade_date, page, page_size)
+        except Exception as db_error:
+            logger.warning(f"读取龙虎榜汇总缓存失败: {db_error}")
+            await self._safe_rollback()
         return {
             "window_days": window_days,
             "end_trade_date": end_trade_date,

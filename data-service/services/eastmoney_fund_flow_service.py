@@ -165,6 +165,15 @@ class EastmoneyFundFlowService:
             "Referer": "https://data.eastmoney.com/zjlx/",
         }
 
+    async def _safe_rollback(self) -> None:
+        if not self.db_session:
+            return
+        try:
+            if self.db_session.in_transaction():
+                await self.db_session.rollback()
+        except Exception as rollback_error:
+            logger.warning(f"资金流向事务回滚失败: {rollback_error}")
+
     # ---------------------- 公共工具 ----------------------
     def _decode_response_text(self, resp: httpx.Response) -> str:
         content = resp.content or b""
@@ -926,7 +935,12 @@ class EastmoneyFundFlowService:
     async def get_market_flow(self, market: str = "hs", refresh: bool = False) -> dict:
         cache_key = _cache_key("market", market=market)
         if not refresh:
-            db_payload = await self._query_market_from_db(market)
+            db_payload = None
+            try:
+                db_payload = await self._query_market_from_db(market)
+            except Exception as db_error:
+                logger.warning(f"查询大盘资金流向缓存失败: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 as_of, items, updated_at = db_payload
                 payload = {"as_of": as_of, "market": market, "items": items}
@@ -940,8 +954,20 @@ class EastmoneyFundFlowService:
                 text = await self._request(self.MARKET_URL, params={"m": market})
                 as_of, items = self._parse_market_flow_html(text)
             if items:
-                await self._upsert_market(market, as_of, items)
-            db_payload = await self._query_market_from_db(market)
+                try:
+                    await self._upsert_market(market, as_of, items)
+                except Exception as db_error:
+                    logger.warning(f"写入大盘资金流向失败，改为直接返回上游数据: {db_error}")
+                    await self._safe_rollback()
+                    payload = {"as_of": as_of, "market": market, "items": items}
+                    _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
+                    return success(payload, message="db降级：返回实时数据")
+            db_payload = None
+            try:
+                db_payload = await self._query_market_from_db(market)
+            except Exception as db_error:
+                logger.warning(f"查询大盘资金流向回写结果失败，改为直接返回上游数据: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 as_of, items, _ = db_payload
                 payload = {"as_of": as_of, "market": market, "items": items}
@@ -950,7 +976,12 @@ class EastmoneyFundFlowService:
             return success({"as_of": as_of, "market": market, "items": items})
         except Exception as e:
             logger.warning(f"资金流向抓取失败: {e}")
-            db_payload = await self._query_market_from_db(market)
+            db_payload = None
+            try:
+                db_payload = await self._query_market_from_db(market)
+            except Exception as db_error:
+                logger.warning(f"抓取失败后读取大盘资金流向缓存失败: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 as_of, items, _ = db_payload
                 return success({"as_of": as_of, "market": market, "items": items, "message": "刷新失败已降级"})
@@ -966,7 +997,12 @@ class EastmoneyFundFlowService:
     ) -> dict:
         cache_key = _cache_key("sector", type=sector_type, page=page, page_size=page_size)
         if not refresh:
-            db_payload = await self._query_sector_from_db(sector_type, page, page_size)
+            db_payload = None
+            try:
+                db_payload = await self._query_sector_from_db(sector_type, page, page_size)
+            except Exception as db_error:
+                logger.warning(f"查询板块资金流向缓存失败: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 payload = {
                     "as_of": db_payload["as_of"],
@@ -988,8 +1024,27 @@ class EastmoneyFundFlowService:
                 as_of, items = self._parse_sector_flow_html(text)
                 total = len(items)
             if items:
-                await self._upsert_sector(sector_type, as_of, items)
-            db_payload = await self._query_sector_from_db(sector_type, page, page_size)
+                try:
+                    await self._upsert_sector(sector_type, as_of, items)
+                except Exception as db_error:
+                    logger.warning(f"写入板块资金流向失败，改为直接返回上游数据: {db_error}")
+                    await self._safe_rollback()
+                    payload = {
+                        "as_of": as_of,
+                        "type": sector_type,
+                        "page": page,
+                        "page_size": page_size,
+                        "total": total,
+                        "items": items,
+                    }
+                    _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
+                    return success(payload, message="db降级：返回实时数据")
+            db_payload = None
+            try:
+                db_payload = await self._query_sector_from_db(sector_type, page, page_size)
+            except Exception as db_error:
+                logger.warning(f"查询板块资金流向回写结果失败，改为直接返回上游数据: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 payload = {
                     "as_of": db_payload["as_of"],
@@ -1001,10 +1056,17 @@ class EastmoneyFundFlowService:
                 }
                 _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
                 return success(payload)
-            return success({"as_of": as_of, "type": sector_type, "page": page, "page_size": page_size, "total": total, "items": items})
+            payload = {"as_of": as_of, "type": sector_type, "page": page, "page_size": page_size, "total": total, "items": items}
+            _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
+            return success(payload)
         except Exception as e:
             logger.warning(f"板块资金流向抓取失败: {e}")
-            db_payload = await self._query_sector_from_db(sector_type, page, page_size)
+            db_payload = None
+            try:
+                db_payload = await self._query_sector_from_db(sector_type, page, page_size)
+            except Exception as db_error:
+                logger.warning(f"抓取失败后读取板块资金流向缓存失败: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 payload = {
                     "as_of": db_payload["as_of"],
@@ -1028,7 +1090,12 @@ class EastmoneyFundFlowService:
     ) -> dict:
         cache_key = _cache_key("stock", market=market, stat=stat, page=page, page_size=page_size)
         if not refresh:
-            db_payload = await self._query_stock_from_db(market, stat, page, page_size)
+            db_payload = None
+            try:
+                db_payload = await self._query_stock_from_db(market, stat, page, page_size)
+            except Exception as db_error:
+                logger.warning(f"查询个股资金流向缓存失败: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 payload = {
                     "as_of": db_payload["as_of"],
@@ -1051,8 +1118,28 @@ class EastmoneyFundFlowService:
                 as_of, items = self._parse_stock_flow_html(text)
                 total = len(items)
             if items:
-                await self._upsert_stock(market, stat, as_of, items)
-            db_payload = await self._query_stock_from_db(market, stat, page, page_size)
+                try:
+                    await self._upsert_stock(market, stat, as_of, items)
+                except Exception as db_error:
+                    logger.warning(f"写入个股资金流向失败，改为直接返回上游数据: {db_error}")
+                    await self._safe_rollback()
+                    payload = {
+                        "as_of": as_of,
+                        "market": market,
+                        "stat": stat,
+                        "page": page,
+                        "page_size": page_size,
+                        "total": total,
+                        "items": items,
+                    }
+                    _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
+                    return success(payload, message="db降级：返回实时数据")
+            db_payload = None
+            try:
+                db_payload = await self._query_stock_from_db(market, stat, page, page_size)
+            except Exception as db_error:
+                logger.warning(f"查询个股资金流向回写结果失败，改为直接返回上游数据: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 payload = {
                     "as_of": db_payload["as_of"],
@@ -1065,10 +1152,17 @@ class EastmoneyFundFlowService:
                 }
                 _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
                 return success(payload)
-            return success({"as_of": as_of, "market": market, "stat": stat, "page": page, "page_size": page_size, "total": total, "items": items})
+            payload = {"as_of": as_of, "market": market, "stat": stat, "page": page, "page_size": page_size, "total": total, "items": items}
+            _cache[cache_key] = CacheEntry(datetime.now() + timedelta(seconds=self.CACHE_TTL_SECONDS), payload)
+            return success(payload)
         except Exception as e:
             logger.warning(f"个股资金流向抓取失败: {e}")
-            db_payload = await self._query_stock_from_db(market, stat, page, page_size)
+            db_payload = None
+            try:
+                db_payload = await self._query_stock_from_db(market, stat, page, page_size)
+            except Exception as db_error:
+                logger.warning(f"抓取失败后读取个股资金流向缓存失败: {db_error}")
+                await self._safe_rollback()
             if db_payload:
                 payload = {
                     "as_of": db_payload["as_of"],
